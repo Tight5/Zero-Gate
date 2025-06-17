@@ -17,7 +17,7 @@ export default function Relationships() {
   const [selectedTenant] = useState("default-tenant");
   const [searchSource, setSearchSource] = useState("");
   const [searchTarget, setSearchTarget] = useState("");
-  const [pathResult, setPathResult] = useState(null);
+  const [pathResult, setPathResult] = useState<any>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -33,7 +33,7 @@ export default function Relationships() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  const { data: relationships, isLoading } = useQuery({
+  const { data: relationships = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/relationships"],
     queryFn: async () => {
       const res = await fetch("/api/relationships", {

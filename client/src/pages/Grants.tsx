@@ -14,7 +14,7 @@ export default function Grants() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [selectedTenant] = useState("default-tenant");
-  const [selectedGrant, setSelectedGrant] = useState(null);
+  const [selectedGrant, setSelectedGrant] = useState<any>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -30,7 +30,7 @@ export default function Grants() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  const { data: grants, isLoading } = useQuery({
+  const { data: grants = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/grants"],
     queryFn: async () => {
       const res = await fetch("/api/grants", {
