@@ -29,12 +29,10 @@ export default function ContentCalendar() {
 
   const { data: contentItems = [], isLoading } = useQuery({
     queryKey: ['/api/content-calendar'],
-    queryFn: () => apiRequest('/api/content-calendar'),
   });
 
   const { data: grants = [] } = useQuery({
     queryKey: ['/api/grants'],
-    queryFn: () => apiRequest('/api/grants'),
   });
 
   const form = useForm<ContentCalendarFormData>({
@@ -42,19 +40,16 @@ export default function ContentCalendar() {
     defaultValues: {
       title: '',
       content: '',
-      contentType: 'post',
       scheduledDate: new Date(),
       status: 'draft',
       grantId: '',
+      tenantId: 'default-tenant',
     },
   });
 
   const createItemMutation = useMutation({
-    mutationFn: (data: ContentCalendarFormData) => 
-      apiRequest('/api/content-calendar', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+    mutationFn: async (data: ContentCalendarFormData) => 
+      await apiRequest('/api/content-calendar', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       setIsDialogOpen(false);
@@ -75,11 +70,8 @@ export default function ContentCalendar() {
   });
 
   const updateItemMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<ContentCalendarFormData> }) =>
-      apiRequest(`/api/content-calendar/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<ContentCalendarFormData> }) =>
+      await apiRequest(`/api/content-calendar/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       setIsDialogOpen(false);
@@ -100,8 +92,8 @@ export default function ContentCalendar() {
   });
 
   const deleteItemMutation = useMutation({
-    mutationFn: (id: string) => 
-      apiRequest(`/api/content-calendar/${id}`, { method: 'DELETE' }),
+    mutationFn: async (id: string) => 
+      await apiRequest(`/api/content-calendar/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       toast({
