@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, Plus, Edit3, Trash2, Clock, Tag, Users } from 'lucide-react';
+import { useTenant } from '@/hooks/useTenant';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,14 +26,37 @@ export default function ContentCalendar() {
   const [viewMode, setViewMode] = useState<'month' | 'list'>('month');
   
   const { toast } = useToast();
+  const { selectedTenant } = useTenant();
   const queryClient = useQueryClient();
 
   const { data: contentItems = [], isLoading } = useQuery<ContentCalendar[]>({
     queryKey: ['/api/content-calendar'],
+    queryFn: async () => {
+      const res = await fetch('/api/content-calendar', {
+        credentials: 'include',
+        headers: {
+          'X-Tenant-ID': selectedTenant,
+        },
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return res.json();
+    },
+    enabled: !!selectedTenant,
   });
 
   const { data: grants = [] } = useQuery<any[]>({
     queryKey: ['/api/grants'],
+    queryFn: async () => {
+      const res = await fetch('/api/grants', {
+        credentials: 'include',
+        headers: {
+          'X-Tenant-ID': selectedTenant,
+        },
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return res.json();
+    },
+    enabled: !!selectedTenant,
   });
 
   const form = useForm<ContentCalendarFormData>({

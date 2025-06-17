@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Target, Network, Calendar, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { useTenant } from "@/hooks/useTenant";
 
 export default function KPICards() {
-  const [selectedTenant] = useState("default-tenant");
+  const { selectedTenant } = useTenant();
 
   const { data: kpis, isLoading } = useQuery({
     queryKey: ["/api/dashboard/kpis"],

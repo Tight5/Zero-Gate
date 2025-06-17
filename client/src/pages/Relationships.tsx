@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/Header";
@@ -14,7 +15,7 @@ import { Network, Search, Plus } from "lucide-react";
 export default function Relationships() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [selectedTenant] = useState("default-tenant");
+  const { selectedTenant } = useTenant();
   const [searchSource, setSearchSource] = useState("");
   const [searchTarget, setSearchTarget] = useState("");
   const [pathResult, setPathResult] = useState<any>(null);
