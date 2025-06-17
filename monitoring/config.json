@@ -1,0 +1,18 @@
+{
+  "healthChecks": [
+    "/api/health",
+    "/api/dashboard/metrics"
+  ],
+  "metrics": [
+    "response_time",
+    "error_rate",
+    "cpu_usage",
+    "memory_usage",
+    "database_connections"
+  ],
+  "alerts": [
+    "high_response_time",
+    "database_connection_failures",
+    "memory_threshold_exceeded"
+  ]
+}

@@ -1,0 +1,115 @@
+name: Zero Gate ESO Platform - Production Deployment
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20'
+  
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: TypeScript check
+      run: npm run check
+    
+    - name: Database setup
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      run: npm run db:push
+    
+    - name: Run tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        SESSION_SECRET: test-secret-for-ci
+        REPL_ID: test-repl-id
+        REPLIT_DOMAINS: localhost:5000
+        NODE_ENV: test
+      run: npm run test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build application
+      run: node scripts/build.js
+    
+    - name: Run production optimization
+      run: node scripts/optimize-production.js
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-files
+        path: dist/
+        retention-days: 30
+
+  deploy:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-files
+        path: dist/
+    
+    - name: Deploy to production
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+        REPL_ID: ${{ secrets.REPL_ID }}
+        REPLIT_DOMAINS: ${{ secrets.REPLIT_DOMAINS }}
+      run: |
+        echo "Deploying Zero Gate ESO Platform to production"
+        node scripts/deploy.js
+        
+    - name: Health check
+      run: |
+        sleep 30
+        node scripts/health-check.js
