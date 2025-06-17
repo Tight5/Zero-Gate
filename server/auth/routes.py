@@ -38,7 +38,7 @@ async def get_db_connection():
     """Get database connection"""
     return await asyncpg.connect(DATABASE_URL)
 
-async def get_user_by_email(email: str) -> Dict[str, Any]:
+async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     """Get user by email from database"""
     conn = await get_db_connection()
     try:
@@ -56,7 +56,7 @@ async def get_user_by_email(email: str) -> Dict[str, Any]:
     finally:
         await conn.close()
 
-async def get_user_by_id(user_id: str) -> Dict[str, Any]:
+async def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     """Get user by ID from database"""
     conn = await get_db_connection()
     try:
