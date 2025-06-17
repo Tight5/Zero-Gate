@@ -84,8 +84,14 @@ export async function setupAuth(app: Express) {
     verified(null, user);
   };
 
-  for (const domain of process.env
-    .REPLIT_DOMAINS!.split(",")) {
+  const domains = process.env.REPLIT_DOMAINS!.split(",");
+  
+  // Add localhost for development
+  if (process.env.NODE_ENV === 'development') {
+    domains.push('localhost:5000');
+  }
+  
+  for (const domain of domains) {
     const strategy = new Strategy(
       {
         name: `replitauth:${domain}`,
@@ -102,7 +108,8 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    const hostWithPort = req.get('host') || req.hostname;
+    passport.authenticate(`replitauth:${hostWithPort}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
