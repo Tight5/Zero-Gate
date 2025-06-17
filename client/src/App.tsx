@@ -10,6 +10,7 @@ import Dashboard from "@/pages/Dashboard";
 import Sponsors from "@/pages/Sponsors";
 import Grants from "@/pages/Grants";
 import Relationships from "@/pages/Relationships";
+import ContentCalendar from "@/pages/ContentCalendar";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -24,6 +25,7 @@ function Router() {
           <Route path="/sponsors" component={Sponsors} />
           <Route path="/grants" component={Grants} />
           <Route path="/relationships" component={Relationships} />
+          <Route path="/content-calendar" component={ContentCalendar} />
         </>
       )}
       <Route component={NotFound} />
