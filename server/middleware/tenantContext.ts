@@ -33,14 +33,19 @@ export async function setUserContext(req: Request, res: Response, next: NextFunc
     // Set the current user ID in PostgreSQL session for RLS policies
     await db.execute(sql`SELECT set_current_user_context(${userId})`);
 
-    // Get user's tenant memberships
-    const userTenants = await db.execute(sql`SELECT * FROM get_user_tenants(${userId})`);
-    
-    req.userTenants = userTenants.rows.map((row: any) => ({
-      tenantId: row.tenant_id,
-      tenantName: row.tenant_name,
-      role: row.role
-    }));
+    // Get user's tenant memberships with error handling
+    try {
+      const userTenants = await db.execute(sql`SELECT * FROM get_user_tenants(${userId})`);
+      
+      req.userTenants = userTenants.rows.map((row: any) => ({
+        tenantId: row.tenant_id,
+        tenantName: row.tenant_name,
+        role: row.role
+      }));
+    } catch (error) {
+      console.error('Error getting user tenants:', error);
+      req.userTenants = [];
+    }
 
     // Set primary tenant from header or use first available tenant
     const headerTenantId = req.headers['x-tenant-id'] as string;
