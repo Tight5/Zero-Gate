@@ -9,7 +9,7 @@ import asyncpg
 import os
 from datetime import datetime, date, timedelta
 
-from ..auth.jwt_auth import get_current_active_user, TokenData
+from auth.jwt_auth import get_current_active_user, TokenData
 from .models import (
     GrantCreate, GrantUpdate, GrantResponse, GrantMetrics,
     GrantMilestoneCreate, GrantMilestoneUpdate, GrantMilestoneResponse,

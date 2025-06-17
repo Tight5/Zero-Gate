@@ -9,7 +9,7 @@ import asyncpg
 import os
 from datetime import datetime, timedelta
 
-from ..auth.jwt_auth import get_current_active_user, TokenData
+from auth.jwt_auth import get_current_active_user, TokenData
 from .models import (
     SponsorCreate, SponsorUpdate, SponsorResponse, SponsorMetrics,
     SponsorFilters, PaginatedResponse, SuccessResponse

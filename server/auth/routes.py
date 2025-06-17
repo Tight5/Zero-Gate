@@ -5,7 +5,7 @@ Provides login, logout, token refresh, and password reset endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import HTTPAuthorizationCredentials
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncpg
 import os
 from datetime import timedelta

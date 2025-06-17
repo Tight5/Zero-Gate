@@ -11,7 +11,7 @@ from datetime import datetime, date
 from collections import deque, defaultdict
 import heapq
 
-from ..auth.jwt_auth import get_current_active_user, TokenData
+from auth.jwt_auth import get_current_active_user, TokenData
 from .models import (
     RelationshipCreate, RelationshipUpdate, RelationshipResponse, RelationshipMetrics,
     SevenDegreePathResponse, RelationshipPath, PathNode,
