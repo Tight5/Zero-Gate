@@ -40,55 +40,48 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Health check endpoints for monitoring
-  app.get('/health', async (req: Request, res: Response) => {
-    try {
-      const { monitor } = await import('./middleware/performanceMonitor.js');
-      const { memoryGuard } = await import('./middleware/memoryGuard.js');
-      
-      const healthStatus = {
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        performance: monitor.getHealthStatus(),
-        memory: memoryGuard.getHealthStatus(),
-        connectionPools: poolManager.getHealthSummary(),
-        version: process.env.npm_package_version || '1.0.0'
-      };
+  // Lightweight health check endpoints 
+  app.get('/health', (req: Request, res: Response) => {
+    const memUsage = process.memoryUsage();
+    const memPercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
+    
+    const healthStatus = {
+      status: memPercent < 90 ? 'ok' : 'critical',
+      timestamp: new Date().toISOString(),
+      uptime: Math.round(process.uptime()),
+      memory: {
+        percentage: memPercent,
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024)
+      },
+      version: '1.0.0'
+    };
 
-      const isHealthy = 
-        healthStatus.performance.status === 'healthy' &&
-        healthStatus.memory.status === 'normal' &&
-        healthStatus.connectionPools.unhealthyPools === 0;
-
-      res.status(isHealthy ? 200 : 503).json(healthStatus);
-    } catch (error) {
-      res.status(503).json({ error: 'Health check failed', message: error.message });
-    }
+    res.status(memPercent < 90 ? 200 : 503).json(healthStatus);
   });
 
-  // Detailed metrics endpoint for debugging
-  app.get('/metrics', async (req: Request, res: Response) => {
-    try {
-      const { monitor } = await import('./middleware/performanceMonitor.js');
-      const { memoryGuard } = await import('./middleware/memoryGuard.js');
-      
-      res.json({
-        performance: monitor.getDetailedMetrics(),
-        memory: memoryGuard.getHealthStatus(),
-        connectionPools: poolManager.getHealthSummary(),
-        system: {
-          nodeVersion: process.version,
-          platform: process.platform,
-          arch: process.arch,
-          uptime: process.uptime(),
-          cpuUsage: process.cpuUsage(),
-          memoryUsage: process.memoryUsage()
+  // Basic metrics endpoint
+  app.get('/metrics', (req: Request, res: Response) => {
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+    
+    res.json({
+      system: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        uptime: Math.round(process.uptime()),
+        memory: {
+          rss: Math.round(memUsage.rss / 1024 / 1024),
+          heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+          heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+          percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100)
+        },
+        cpu: {
+          user: cpuUsage.user,
+          system: cpuUsage.system
         }
-      });
-    } catch (error) {
-      res.status(503).json({ error: 'Metrics unavailable', message: error.message });
-    }
+      }
+    });
   });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -100,15 +93,13 @@ app.use((req, res, next) => {
   });
 
   // Graceful shutdown handling
-  process.on('SIGTERM', async () => {
+  process.on('SIGTERM', () => {
     log('SIGTERM received, starting graceful shutdown...');
-    await poolManager.closeAllPools();
     process.exit(0);
   });
 
-  process.on('SIGINT', async () => {
+  process.on('SIGINT', () => {
     log('SIGINT received, starting graceful shutdown...');
-    await poolManager.closeAllPools();
     process.exit(0);
   });
 
@@ -131,8 +122,6 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
-    log('Performance monitoring active');
-    log('Memory guard active');
-    log('Connection pool management active');
+    log('Health endpoints active');
   });
 })();
