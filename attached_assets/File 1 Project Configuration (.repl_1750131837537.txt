@@ -1,0 +1,43 @@
+File 1: Project Configuration (.replit)
+text
+run = "npm run dev"
+entrypoint = "src/index.js"
+language = "nodejs"
+hidden = [".config", "venv", "__pycache__", "node_modules", ".git"]
+
+[env]
+PYTHONPATH = "${REPL_HOME}"
+PYTHONUNBUFFERED = "1"
+REACT_APP_API_URL = "https://${REPL_SLUG}.${REPL_OWNER}.repl.co/api"
+NODE_ENV = "development"
+REPLIT_STORAGE = "${REPL_HOME}/storage"
+JWT_SECRET = "zero-gate-development-secret"
+
+[packager]
+language = "nodejs"
+ignoredPackages = ["node_modules"]
+
+[packager.features]
+enabledForHosting = true
+guessImports = true
+packageSearch = true
+
+[languages.javascript]
+pattern = "**/{*.js,*.jsx,*.ts,*.tsx}"
+[languages.javascript.languageServer]
+start = ["typescript-language-server", "--stdio"]
+
+[languages.css]
+pattern = "**/{*.less,*.scss,*.css}"
+
+[languages.html]
+pattern = "**/*.html"
+
+[dev]
+port = 3000
+
+[deployment]
+build = ["npm", "run", "build"]
+run = ["npm", "run", "start"]
+deploymentTarget = "static"
+publicDir = "build"

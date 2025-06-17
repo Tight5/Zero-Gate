@@ -1,0 +1,111 @@
+File 18: Custom Hooks - Tenant Data (src/hooks/useTenantData.js)
+javascript
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useTenant } from '../contexts/TenantContext';
+import { apiService } from '../services/apiService';
+
+export const useTenantData = (endpoint, options = {}) => {
+  const { currentTenant } = useTenant();
+  
+  return useQuery(
+    [endpoint, currentTenant?.id],
+    () => apiService.get(endpoint),
+    {
+      enabled: !!currentTenant && !options.disabled,
+      staleTime: options.staleTime || 5 * 60 * 1000,
+      cacheTime: options.cacheTime || 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      ...options
+    }
+  );
+};
+
+export const useTenantMutation = (endpoint, options = {}) => {
+  const queryClient = useQueryClient();
+  const { currentTenant } = useTenant();
+  
+  return useMutation(
+    (data) => {
+      const method = options.method || 'POST';
+      switch (method.toLowerCase()) {
+        case 'post':
+          return apiService.post(endpoint, data);
+        case 'put':
+          return apiService.put(endpoint, data);
+        case 'patch':
+          return apiService.patch(endpoint, data);
+        case 'delete':
+          return apiService.delete(endpoint);
+        default:
+          return apiService.post(endpoint, data);
+      }
+    },
+    {
+      onSuccess: (data, variables, context) => {
+        // Invalidate related queries
+        queryClient.invalidateQueries([endpoint, currentTenant?.id]);
+        
+        // Custom success handler
+        if (options.onSuccess) {
+          options.onSuccess(data, variables, context);
+        }
+      },
+      onError: (error, variables, context) => {
+        console.error(`Mutation failed for ${endpoint}:`, error);
+        
+        // Custom error handler
+        if (options.onError) {
+          options.onError(error, variables, context);
+        }
+      },
+      ...options
+    }
+  );
+};
+
+export const useTenantStats = () => {
+  const { currentTenant } = useTenant();
+  
+  return useQuery(
+    ['tenant-stats', currentTenant?.id],
+    () => apiService.get('/dashboard/stats'),
+    {
+      enabled: !!currentTenant,
+      staleTime: 2 * 60 * 1000, // 2 minutes
+      refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    }
+  );
+};
+
+export const useTenantSettings = () => {
+  const queryClient = useQueryClient();
+  const { currentTenant, updateTenantSettings } = useTenant();
+  
+  const query = useQuery(
+    ['tenant-settings', currentTenant?.id],
+    () => apiService.get(`/tenants/${currentTenant.id}/settings`),
+    {
+      enabled: !!currentTenant,
+      staleTime: 10 * 60 * 1000, // 10 minutes
+    }
+  );
+  
+  const mutation = useMutation(
+    (settings) => apiService.put(`/tenants/${currentTenant.id}/settings`, settings),
+    {
+      onSuccess: (data) => {
+        queryClient.setQueryData(['tenant-settings', currentTenant?.id], data);
+        updateTenantSettings(data.settings);
+      },
+    }
+  );
+  
+  return {
+    ...query,
+    updateSettings: mutation.mutate,
+    isUpdating: mutation.isLoading,
+    updateError: mutation.error
+  };
+};
+
+export default useTenantData;

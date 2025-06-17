@@ -1,0 +1,39 @@
+File 25: Common Components - Tenant Selector (src/components/common/TenantSelector.jsx)
+jsx
+import React from 'react';
+import { Select } from '@replit/ui';
+import { useTenant } from '../../contexts/TenantContext';
+import './TenantSelector.css';
+
+const TenantSelector = () => {
+  const { currentTenant, availableTenants, switchTenant, isMultiTenant } = useTenant();
+
+  if (!isMultiTenant || availableTenants.length <= 1) {
+    return null;
+  }
+
+  const handleTenantChange = (tenantId) => {
+    if (tenantId !== currentTenant?.id) {
+      switchTenant(tenantId);
+    }
+  };
+
+  return (
+    <div className="tenant-selector">
+      <Select
+        value={currentTenant?.id || ''}
+        onChange={(e) => handleTenantChange(e.target.value)}
+        placeholder="Select Organization"
+        className="tenant-select"
+      >
+        {availableTenants.map((tenant) => (
+          <option key={tenant.id} value={tenant.id}>
+            {tenant.name}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+};
+
+export default TenantSelector;

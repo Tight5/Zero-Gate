@@ -1,0 +1,34 @@
+File 15: React Main Entry Point (src/index.js)
+jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+
+// Performance monitoring for Replit environment
+const reportMetrics = (metric) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Performance Metric:', metric);
+  }
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// Report web vitals for performance monitoring
+reportWebVitals(reportMetrics);
+
+// Handle unhandled promise rejections
+window.addEventListener('unhandledrejection', event => {
+  console.error('Unhandled promise rejection:', event.reason);
+});
+
+// Handle errors
+window.addEventListener('error', event => {
+  console.error('Global error:', event.error);
+});

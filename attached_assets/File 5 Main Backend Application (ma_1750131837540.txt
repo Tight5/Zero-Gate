@@ -1,0 +1,115 @@
+File 5: Main Backend Application (main.py)
+python
+"""
+Zero Gate: Multi-Tenant ESO Platform
+Main application entry point optimized for Replit
+"""
+import os
+import logging
+import asyncio
+from datetime import datetime
+from dotenv import load_dotenv
+from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger("zero-gate")
+
+# Import core modules
+from agents.orchestration import OrchestrationAgent
+from agents.processing import ProcessingAgent
+from agents.integration import IntegrationAgent
+from utils.resource_monitor import ResourceMonitor
+from utils.tenant_context import TenantMiddleware
+from utils.database import DatabaseManager
+from routers import sponsors, grants, relationships
+
+# Initialize resource monitor with Replit-optimized thresholds
+resource_monitor = ResourceMonitor(
+    cpu_threshold=65,
+    memory_threshold=70
+)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize platform components
+    logger.info("Initializing Zero Gate ESO Platform...")
+    
+    # Initialize resource monitoring
+    resource_monitor.start()
+    
+    # Initialize database
+    db_manager = DatabaseManager()
+    await db_manager.initialize()
+    app.state.db_manager = db_manager
+    
+    # Initialize agents
+    app.state.orchestration_agent = OrchestrationAgent(resource_monitor)
+    app.state.processing_agent = ProcessingAgent(resource_monitor)
+    app.state.integration_agent = IntegrationAgent(resource_monitor)
+    
+    logger.info("Zero Gate platform initialized successfully")
+    
+    yield
+    
+    # Shutdown: Clean up resources
+    logger.info("Shutting down Zero Gate platform...")
+    resource_monitor.stop()
+    await db_manager.close()
+
+# Create FastAPI application
+app = FastAPI(
+    title="Zero Gate ESO Platform",
+    description="Multi-Tenant Platform for Entrepreneur Support Organizations",
+    version="2.5.0",
+    lifespan=lifespan
+)
+
+# Add middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(TenantMiddleware)
+
+# Include routers
+app.include_router(sponsors.router, prefix="/api/sponsors", tags=["sponsors"])
+app.include_router(grants.router, prefix="/api/grants", tags=["grants"])
+app.include_router(relationships.router, prefix="/api/relationships", tags=["relationships"])
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "resources": resource_monitor.get_current_usage(),
+        "features": resource_monitor.get_enabled_features()
+    }
+
+# Root endpoint
+@app.get("/")
+async def root():
+    return {
+        "name": "Zero Gate ESO Platform",
+        "version": "2.5.0",
+        "status": "operational",
+        "description": "Multi-tenant platform for Entrepreneur Support Organizations"
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

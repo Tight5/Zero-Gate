@@ -1,0 +1,339 @@
+File 13: Grants Router (routers/grants.py)
+python
+"""
+Grants router for Zero Gate ESO Platform
+Handles grant data, timelines, and content milestones
+"""
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import List, Dict, Any, Optional
+from datetime import datetime, date
+from pydantic import BaseModel, Field
+from utils.tenant_context import require_tenant, TenantContext
+
+logger = logging.getLogger("zero-gate.grants")
+
+router = APIRouter()
+
+class GrantCreate(BaseModel):
+    sponsor_id: str = Field(..., description="ID of the sponsoring organization")
+    name: str = Field(..., description="Grant name or title")
+    amount: Optional[float] = Field(None, description="Grant amount")
+    submission_deadline: date = Field(..., description="Grant submission deadline")
+    description: Optional[str] = Field(None, description="Grant description")
+
+class GrantUpdate(BaseModel):
+    sponsor_id: Optional[str] = None
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    submission_deadline: Optional[date] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+
+class GrantResponse(BaseModel):
+    grant_id: str
+    sponsor_id: str
+    name: str
+    amount: Optional[float]
+    submission_deadline: date
+    description: Optional[str]
+    status: str
+    created_at: datetime
+
+class MilestoneResponse(BaseModel):
+    milestone_id: str
+    grant_id: str
+    milestone_date: date
+    title: str
+    tasks: List[str]
+    status: str
+
+@router.get("/", response_model=List[GrantResponse])
+async def list_grants(
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant),
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """List all grants for the tenant"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        if status:
+            cursor.execute(
+                "SELECT * FROM grants WHERE status = ? ORDER BY submission_deadline ASC LIMIT ? OFFSET ?",
+                (status, limit, offset)
+            )
+        else:
+            cursor.execute(
+                "SELECT * FROM grants ORDER BY submission_deadline ASC LIMIT ? OFFSET ?",
+                (limit, offset)
+            )
+        
+        grants = []
+        for row in cursor.fetchall():
+            grants.append(GrantResponse(
+                grant_id=row["grant_id"],
+                sponsor_id=row["sponsor_id"],
+                name=row["name"],
+                amount=row["amount"],
+                submission_deadline=row["submission_deadline"],
+                description=row.get("description"),
+                status=row["status"],
+                created_at=row["created_at"]
+            ))
+        
+        return grants
+        
+    except Exception as e:
+        logger.error(f"Error listing grants for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve grants")
+
+@router.post("/", response_model=GrantResponse)
+async def create_grant(
+    grant_data: GrantCreate,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Create a new grant"""
+    try:
+        import uuid
+        
+        grant_id = str(uuid.uuid4())
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        # Verify sponsor exists
+        cursor.execute("SELECT sponsor_id FROM sponsors WHERE sponsor_id = ?", (grant_data.sponsor_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Sponsor not found")
+        
+        cursor.execute(
+            """
+            INSERT INTO grants (grant_id, sponsor_id, name, amount, submission_deadline, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'planning', CURRENT_TIMESTAMP)
+            """,
+            (
+                grant_id,
+                grant_data.sponsor_id,
+                grant_data.name,
+                grant_data.amount,
+                grant_data.submission_deadline
+            )
+        )
+        
+        conn.commit()
+        
+        # Generate timeline milestones using processing agent
+        processing_agent = request.app.state.processing_agent
+        timeline = processing_agent.generate_grant_timeline(
+            datetime.combine(grant_data.submission_deadline, datetime.min.time()),
+            "standard"
+        )
+        
+        # Insert milestones
+        for key, milestone in timeline["milestones"].items():
+            milestone_id = str(uuid.uuid4())
+            cursor.execute(
+                """
+                INSERT INTO grant_milestones (milestone_id, grant_id, milestone_date, title, tasks, status)
+                VALUES (?, ?, ?, ?, ?, 'pending')
+                """,
+                (
+                    milestone_id,
+                    grant_id,
+                    milestone["date"].date(),
+                    milestone["title"],
+                    "\n".join(milestone["tasks"])
+                )
+            )
+        
+        conn.commit()
+        
+        # Fetch the created grant
+        cursor.execute("SELECT * FROM grants WHERE grant_id = ?", (grant_id,))
+        row = cursor.fetchone()
+        
+        return GrantResponse(
+            grant_id=row["grant_id"],
+            sponsor_id=row["sponsor_id"],
+            name=row["name"],
+            amount=row["amount"],
+            submission_deadline=row["submission_deadline"],
+            description=row.get("description"),
+            status=row["status"],
+            created_at=row["created_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating grant for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create grant")
+
+@router.get("/{grant_id}", response_model=GrantResponse)
+async def get_grant(
+    grant_id: str,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Get a specific grant by ID"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM grants WHERE grant_id = ?", (grant_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Grant not found")
+        
+        return GrantResponse(
+            grant_id=row["grant_id"],
+            sponsor_id=row["sponsor_id"],
+            name=row["name"],
+            amount=row["amount"],
+            submission_deadline=row["submission_deadline"],
+            description=row.get("description"),
+            status=row["status"],
+            created_at=row["created_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving grant {grant_id} for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve grant")
+
+@router.get("/{grant_id}/milestones", response_model=List[MilestoneResponse])
+async def get_grant_milestones(
+    grant_id: str,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Get milestones for a specific grant"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        # Verify grant exists
+        cursor.execute("SELECT grant_id FROM grants WHERE grant_id = ?", (grant_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Grant not found")
+        
+        cursor.execute(
+            "SELECT * FROM grant_milestones WHERE grant_id = ? ORDER BY milestone_date ASC",
+            (grant_id,)
+        )
+        
+        milestones = []
+        for row in cursor.fetchall():
+            tasks = row["tasks"].split("\n") if row["tasks"] else []
+            milestones.append(MilestoneResponse(
+                milestone_id=row["milestone_id"],
+                grant_id=row["grant_id"],
+                milestone_date=row["milestone_date"],
+                title=row["title"],
+                tasks=tasks,
+                status=row["status"]
+            ))
+        
+        return milestones
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving milestones for grant {grant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve grant milestones")
+
+@router.put("/{grant_id}/milestones/{milestone_id}/status")
+async def update_milestone_status(
+    grant_id: str,
+    milestone_id: str,
+    status: str,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Update milestone status"""
+    try:
+        if status not in ["pending", "in_progress", "completed", "overdue"]:
+            raise HTTPException(status_code=400, detail="Invalid status")
+        
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "UPDATE grant_milestones SET status = ? WHERE milestone_id = ? AND grant_id = ?",
+            (status, milestone_id, grant_id)
+        )
+        
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Milestone not found")
+        
+        conn.commit()
+        
+        return {"message": "Milestone status updated successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating milestone {milestone_id} status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update milestone status")
+
+@router.get("/{grant_id}/timeline")
+async def get_grant_timeline(
+    grant_id: str,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Get complete timeline for a grant"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        # Get grant details
+        cursor.execute("SELECT * FROM grants WHERE grant_id = ?", (grant_id,))
+        grant = cursor.fetchone()
+        
+        if not grant:
+            raise HTTPException(status_code=404, detail="Grant not found")
+        
+        # Get milestones
+        cursor.execute(
+            "SELECT * FROM grant_milestones WHERE grant_id = ? ORDER BY milestone_date ASC",
+            (grant_id,)
+        )
+        
+        milestones = []
+        for row in cursor.fetchall():
+            tasks = row["tasks"].split("\n") if row["tasks"] else []
+            milestones.append({
+                "milestone_id": row["milestone_id"],
+                "date": row["milestone_date"],
+                "title": row["title"],
+                "tasks": tasks,
+                "status": row["status"]
+            })
+        
+        return {
+            "grant_id": grant_id,
+            "grant_name": grant["name"],
+            "submission_deadline": grant["submission_deadline"],
+            "status": grant["status"],
+            "milestones": milestones,
+            "days_remaining": (grant["submission_deadline"] - date.today()).days
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving timeline for grant {grant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve grant timeline")

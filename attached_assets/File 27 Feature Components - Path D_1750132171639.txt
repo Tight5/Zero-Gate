@@ -1,0 +1,202 @@
+File 27: Feature Components - Path Discovery (src/components/relationships/PathDiscovery.jsx)
+jsx
+import React, { useState } from 'react';
+import { Button, Input, Card, Heading, Badge } from '@replit/ui';
+import { Search, Users, ArrowRight, Zap } from 'lucide-react';
+import { useRelationshipPath } from '../../hooks/useRelationshipData';
+import PathVisualization from './PathVisualization';
+import './PathDiscovery.css';
+
+const PathDiscovery = () => {
+  const [sourceId, setSourceId] = useState('');
+  const [targetId, setTargetId] = useState('');
+  const [searchInitiated, setSearchInitiated] = useState(false);
+  
+  const { 
+    data: pathData, 
+    isLoading, 
+    error,
+    refetch 
+  } = useRelationshipPath(
+    sourceId, 
+    targetId, 
+    { enabled: searchInitiated && sourceId && targetId }
+  );
+
+  const handleSearch = () => {
+    if (sourceId && targetId && sourceId !== targetId) {
+      setSearchInitiated(true);
+      refetch();
+    }
+  };
+
+  const resetSearch = () => {
+    setSourceId('');
+    setTargetId('');
+    setSearchInitiated(false);
+  };
+
+  const getQualityColor = (quality) => {
+    const colors = {
+      excellent: 'green',
+      good: 'blue',
+      fair: 'yellow',
+      weak: 'red'
+    };
+    return colors[quality] || 'gray';
+  };
+
+  return (
+    <div className="path-discovery">
+      <Card className="search-card">
+        <Heading size="medium">
+          <Users className="heading-icon" />
+          Connection Path Discovery
+        </Heading>
+        <p className="description">
+          Find connection paths between stakeholders using our seven degrees of separation algorithm.
+        </p>
+
+        <div className="search-form">
+          <div className="input-group">
+            <label htmlFor="source">From Person:</label>
+            <Input
+              id="source"
+              placeholder="Enter source person ID or email"
+              value={sourceId}
+              onChange={(e) => setSourceId(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="target">To Person:</label>
+            <Input
+              id="target"
+              placeholder="Enter target person ID or email"
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="search-actions">
+            <Button 
+              onClick={handleSearch}
+              disabled={!sourceId || !targetId || sourceId === targetId || isLoading}
+              className="search-button"
+            >
+              {isLoading ? (
+                <>
+                  <div className="loading-spinner" />
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search size={16} />
+                  Find Path
+                </>
+              )}
+            </Button>
+
+            <Button 
+              variant="outline"
+              onClick={resetSearch}
+              disabled={isLoading}
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {error && (
+        <Card className="error-card">
+          <div className="error-content">
+            <h3>Search Failed</h3>
+            <p>{error.message}</p>
+            {error.status === 404 ? (
+              <div className="no-path-help">
+                <p>No connection path found between these people. This could mean:</p>
+                <ul>
+                  <li>They are in separate networks</li>
+                  <li>The connection path is longer than 7 degrees</li>
+                  <li>Relationship data is incomplete</li>
+                </ul>
+              </div>
+            ) : (
+              <Button onClick={handleSearch} variant="outline">
+                Try Again
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {pathData && (
+        <Card className="results-card">
+          <div className="results-header">
+            <Heading size="medium">Connection Path Found</Heading>
+            <div className="path-metrics">
+              <Badge variant="outline">
+                {pathData.path_length} {pathData.path_length === 1 ? 'degree' : 'degrees'}
+              </Badge>
+              <Badge 
+                variant="solid" 
+                color={getQualityColor(pathData.path_quality)}
+              >
+                {pathData.path_quality} quality
+              </Badge>
+            </div>
+          </div>
+
+          <div className="path-visualization">
+            <PathVisualization pathData={pathData} />
+          </div>
+
+          <div className="path-details">
+            <h4>Path Analysis</h4>
+            <div className="analysis-grid">
+              <div className="analysis-item">
+                <span className="label">Average Strength:</span>
+                <span className="value">
+                  {(pathData.relationship_analysis.average_strength * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="analysis-item">
+                <span className="label">Weakest Link:</span>
+                <span className="value">
+                  {(pathData.relationship_analysis.minimum_strength * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="analysis-item">
+                <span className="label">Relationship Types:</span>
+                <span className="value">
+                  {pathData.relationship_analysis.relationship_types.join(', ')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="introduction-templates">
+            <h4>
+              <Zap size={16} />
+              Introduction Template
+            </h4>
+            <div className="template-content">
+              <p>
+                "Hi {pathData.path[1]}, I hope you're doing well. I wanted to reach out because 
+                I'm looking to connect with {pathData.path[pathData.path.length - 1]} regarding 
+                [your specific reason]. Given your {pathData.relationship_analysis.relationship_types[0]} 
+                relationship, I thought you might be able to facilitate an introduction. 
+                Would you be comfortable making this connection?"
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default PathDiscovery;

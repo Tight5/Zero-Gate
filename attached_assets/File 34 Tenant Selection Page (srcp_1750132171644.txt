@@ -1,0 +1,179 @@
+File 34: Tenant Selection Page (src/pages/Auth/TenantSelection.jsx)
+jsx
+import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { Card, Heading, Button, Avatar } from '@replit/ui';
+import { Building2, Users, ChevronRight, LogOut } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
+import './TenantSelection.css';
+
+const TenantSelection = () => {
+  const [selectedTenant, setSelectedTenant] = useState(null);
+  const { user, logout } = useAuth();
+  const { availableTenants, switchTenant, loading, currentTenant } = useTenant();
+
+  // Redirect if tenant is already selected
+  if (currentTenant) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Redirect if no tenants available
+  if (!loading && availableTenants.length === 0) {
+    return <Navigate to="/no-access" replace />;
+  }
+
+  const handleTenantSelect = (tenant) => {
+    setSelectedTenant(tenant);
+  };
+
+  const handleContinue = () => {
+    if (selectedTenant) {
+      switchTenant(selectedTenant.id);
+    }
+  };
+
+  const getRoleColor = (role) => {
+    const colors = {
+      owner: 'purple',
+      admin: 'blue',
+      manager: 'green',
+      user: 'gray',
+      viewer: 'orange'
+    };
+    return colors[role] || 'gray';
+  };
+
+  if (loading) {
+    return (
+      <div className="tenant-selection-page">
+        <div className="selection-container">
+          <Card className="loading-card">
+            <div className="loading-content">
+              <div className="loading-spinner" />
+              <p>Loading your organizations...</p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tenant-selection-page">
+      <div className="selection-container">
+        <Card className="selection-card">
+          <div className="selection-header">
+            <div className="user-info">
+              <Avatar
+                src={user?.avatar}
+                alt={user?.name}
+                size="large"
+              />
+              <div className="user-details">
+                <Heading size="large">Welcome, {user?.firstName || user?.name}</Heading>
+                <p>Select an organization to continue</p>
+              </div>
+            </div>
+            
+            <Button
+              variant="ghost"
+              onClick={logout}
+              className="logout-button"
+            >
+              <LogOut size={16} />
+              Logout
+            </Button>
+          </div>
+
+          <div className="tenants-list">
+            <h3>Your Organizations</h3>
+            <div className="tenants-grid">
+              {availableTenants.map((tenant) => (
+                <Card
+                  key={tenant.id}
+                  className={`tenant-card ${selectedTenant?.id === tenant.id ? 'selected' : ''}`}
+                  onClick={() => handleTenantSelect(tenant)}
+                >
+                  <div className="tenant-content">
+                    <div className="tenant-icon">
+                      <Building2 size={32} />
+                    </div>
+                    
+                    <div className="tenant-info">
+                      <h4 className="tenant-name">{tenant.name}</h4>
+                      <p className="tenant-description">
+                        {tenant.description || 'Entrepreneur Support Organization'}
+                      </p>
+                      
+                      <div className="tenant-meta">
+                        <div className="tenant-role">
+                          <span 
+                            className={`role-badge ${getRoleColor(tenant.role)}`}
+                          >
+                            {tenant.role}
+                          </span>
+                        </div>
+                        
+                        <div className="tenant-stats">
+                          <div className="stat-item">
+                            <Users size={14} />
+                            <span>{tenant.userCount || 0} members</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="tenant-arrow">
+                      <ChevronRight size={20} />
+                    </div>
+                  </div>
+                  
+                  {tenant.status !== 'active' && (
+                    <div className="tenant-status">
+                      <span className={`status-indicator ${tenant.status}`}>
+                        {tenant.status}
+                      </span>
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <div className="selection-actions">
+            <Button
+              onClick={handleContinue}
+              disabled={!selectedTenant || selectedTenant.status !== 'active'}
+              variant="primary"
+              size="large"
+              className="continue-button"
+            >
+              Continue to {selectedTenant?.name || 'Organization'}
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        </Card>
+
+        <div className="selection-help">
+          <Card className="help-card">
+            <h3>Need Help?</h3>
+            <p>
+              If you don't see your organization listed, you may need to:
+            </p>
+            <ul>
+              <li>Contact your organization administrator for access</li>
+              <li>Verify your email address matches your organization's domain</li>
+              <li>Check if your account needs approval</li>
+            </ul>
+            <Button variant="outline" size="sm">
+              Contact Support
+            </Button>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TenantSelection;

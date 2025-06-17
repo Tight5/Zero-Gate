@@ -1,0 +1,108 @@
+File 40: Settings Page (src/pages/Settings.jsx)
+jsx
+import React, { useState } from 'react';
+import { Card, Heading, Button, Tabs, TabsList, TabsTrigger, TabsContent } from '@replit/ui';
+import { Settings as SettingsIcon, User, Building2, Shield, Bell, Palette } from 'lucide-react';
+import { useTenant } from '../contexts/TenantContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import UserSettings from '../components/settings/UserSettings';
+import TenantSettings from '../components/settings/TenantSettings';
+import SecuritySettings from '../components/settings/SecuritySettings';
+import NotificationSettings from '../components/settings/NotificationSettings';
+import ThemeSettings from '../components/settings/ThemeSettings';
+import IntegrationSettings from '../components/settings/IntegrationSettings';
+import './Settings.css';
+
+const Settings = () => {
+  const [activeTab, setActiveTab] = useState('user');
+  const { currentTenant, checkTenantAccess } = useTenant();
+  const { user } = useAuth();
+  const { theme } = useTheme();
+
+  const canManageSettings = checkTenantAccess('manage_settings');
+
+  return (
+    <div className="settings-page">
+      <div className="settings-header">
+        <div className="header-content">
+          <div className="title-section">
+            <Heading size="large">
+              <SettingsIcon size={28} />
+              Settings
+            </Heading>
+            <p className="settings-subtitle">
+              Manage your preferences and organization settings
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-content">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="settings-tabs">
+          <TabsList className="tabs-list">
+            <TabsTrigger value="user">
+              <User size={16} />
+              User Profile
+            </TabsTrigger>
+            
+            {canManageSettings && (
+              <TabsTrigger value="tenant">
+                <Building2 size={16} />
+                Organization
+              </TabsTrigger>
+            )}
+            
+            <TabsTrigger value="security">
+              <Shield size={16} />
+              Security
+            </TabsTrigger>
+            
+            <TabsTrigger value="notifications">
+              <Bell size={16} />
+              Notifications
+            </TabsTrigger>
+            
+            <TabsTrigger value="theme">
+              <Palette size={16} />
+              Appearance
+            </TabsTrigger>
+            
+            <TabsTrigger value="integrations">
+              <SettingsIcon size={16} />
+              Integrations
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="user" className="tab-content">
+            <UserSettings user={user} />
+          </TabsContent>
+
+          {canManageSettings && (
+            <TabsContent value="tenant" className="tab-content">
+              <TenantSettings tenant={currentTenant} />
+            </TabsContent>
+          )}
+
+          <TabsContent value="security" className="tab-content">
+            <SecuritySettings />
+          </TabsContent>
+
+          <TabsContent value="notifications" className="tab-content">
+            <NotificationSettings />
+          </TabsContent>
+
+          <TabsContent value="theme" className="tab-content">
+            <ThemeSettings />
+          </TabsContent>
+
+          <TabsContent value="integrations" className="tab-content">
+            <IntegrationSettings />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
+
+export default Settings;

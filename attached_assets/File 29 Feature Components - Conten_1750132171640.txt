@@ -1,0 +1,254 @@
+File 29: Feature Components - Content Calendar (src/components/calendar/ContentCalendar.jsx)
+jsx
+import React, { useState } from 'react';
+import { Calendar, momentLocalizer } from 'react-big-calendar';
+import moment from 'moment';
+import { Card, Button, Select, Badge } from '@replit/ui';
+import { Plus, Filter, Download, Calendar as CalendarIcon } from 'lucide-react';
+import { useTenant } from '../../contexts/TenantContext';
+import { useTenantData } from '../../hooks/useTenantData';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import './ContentCalendar.css';
+
+const localizer = momentLocalizer(moment);
+
+const ContentCalendar = () => {
+  const [view, setView] = useState('month');
+  const [date, setDate] = useState(new Date());
+  const [filter, setFilter] = useState('all');
+  const { currentTenant } = useTenant();
+  
+  const { data: contentData, isLoading } = useTenantData('/content-calendar', {
+    staleTime: 2 * 60 * 1000 // 2 minutes
+  });
+
+  const { data: grantsData } = useTenantData('/grants', {
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  // Transform content data for calendar
+  const events = React.useMemo(() => {
+    if (!contentData?.content) return [];
+    
+    return contentData.content
+      .filter(item => filter === 'all' || item.content_type === filter)
+      .map(item => ({
+        id: item.content_id,
+        title: item.title,
+        start: new Date(item.scheduled_date),
+        end: new Date(item.scheduled_date),
+        resource: {
+          type: item.content_type,
+          status: item.status,
+          grant_id: item.grant_id,
+          channel: item.channel
+        }
+      }));
+  }, [contentData, filter]);
+
+  // Add grant milestones as events
+  const milestoneEvents = React.useMemo(() => {
+    if (!grantsData?.grants) return [];
+    
+    return grantsData.grants.flatMap(grant =>
+      grant.milestones?.map(milestone => ({
+        id: `milestone-${milestone.milestone_id}`,
+        title: `${grant.name}: ${milestone.title}`,
+        start: new Date(milestone.milestone_date),
+        end: new Date(milestone.milestone_date),
+        resource: {
+          type: 'milestone',
+          status: milestone.status,
+          grant_id: grant.grant_id,
+          isGrantMilestone: true
+        }
+      })) || []
+    );
+  }, [grantsData]);
+
+  const allEvents = [...events, ...milestoneEvents];
+
+  const eventStyleGetter = (event) => {
+    const { resource } = event;
+    let backgroundColor = '#3366ff';
+    
+    switch (resource.type) {
+      case 'blog_post':
+        backgroundColor = '#10b981';
+        break;
+      case 'social_media':
+        backgroundColor = '#f59e0b';
+        break;
+      case 'newsletter':
+        backgroundColor = '#8b5cf6';
+        break;
+      case 'press_release':
+        backgroundColor = '#ef4444';
+        break;
+      case 'milestone':
+        backgroundColor = '#6b7280';
+        break;
+      default:
+        backgroundColor = '#3366ff';
+    }
+
+    if (resource.status === 'completed') {
+      backgroundColor = '#22c55e';
+    } else if (resource.status === 'overdue') {
+      backgroundColor = '#dc2626';
+    }
+
+    return {
+      style: {
+        backgroundColor,
+        borderRadius: '4px',
+        opacity: 0.8,
+        color: 'white',
+        border: '0px',
+        display: 'block'
+      }
+    };
+  };
+
+  const handleSelectEvent = (event) => {
+    console.log('Event selected:', event);
+    // Open event details modal
+  };
+
+  const handleSelectSlot = (slotInfo) => {
+    console.log('Slot selected:', slotInfo);
+    // Open create content modal
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="loading-card">
+        <div className="loading-content">
+          <div className="loading-spinner" />
+          <p>Loading content calendar...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="content-calendar">
+      <Card className="calendar-header">
+        <div className="header-left">
+          <h2>
+            <CalendarIcon size={24} />
+            Content Calendar
+          </h2>
+          <p>Plan and schedule grant-related content</p>
+        </div>
+        
+        <div className="header-controls">
+          <Select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">All Content</option>
+            <option value="blog_post">Blog Posts</option>
+            <option value="social_media">Social Media</option>
+            <option value="newsletter">Newsletter</option>
+            <option value="press_release">Press Release</option>
+            <option value="milestone">Milestones</option>
+          </Select>
+          
+          <Button variant="outline" size="sm">
+            <Filter size={16} />
+            Advanced Filters
+          </Button>
+          
+          <Button variant="outline" size="sm">
+            <Download size={16} />
+            Export
+          </Button>
+          
+          <Button variant="primary">
+            <Plus size={16} />
+            Add Content
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="calendar-content">
+        <div className="calendar-legend">
+          <div className="legend-items">
+            <div className="legend-item">
+              <div className="legend-color blog-post"></div>
+              <span>Blog Posts</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color social-media"></div>
+              <span>Social Media</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color newsletter"></div>
+              <span>Newsletter</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color press-release"></div>
+              <span>Press Release</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color milestone"></div>
+              <span>Grant Milestones</span>
+            </div>
+          </div>
+        </div>
+
+        <Calendar
+          localizer={localizer}
+          events={allEvents}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: 600 }}
+          view={view}
+          onView={setView}
+          date={date}
+          onNavigate={setDate}
+          eventPropGetter={eventStyleGetter}
+          onSelectEvent={handleSelectEvent}
+          onSelectSlot={handleSelectSlot}
+          selectable
+          popup
+          views={['month', 'week', 'day', 'agenda']}
+          step={60}
+          showMultiDayTimes
+        />
+      </Card>
+
+      <div className="calendar-stats">
+        <Card className="stats-card">
+          <h3>Content Statistics</h3>
+          <div className="stats-grid">
+            <div className="stat-item">
+              <span className="stat-number">{events.length}</span>
+              <span className="stat-label">Scheduled Content</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">
+                {events.filter(e => e.resource.status === 'completed').length}
+              </span>
+              <span className="stat-label">Published</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">
+                {events.filter(e => e.resource.status === 'pending').length}
+              </span>
+              <span className="stat-label">Pending</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">{milestoneEvents.length}</span>
+              <span className="stat-label">Grant Milestones</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default ContentCalendar;

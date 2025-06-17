@@ -1,0 +1,250 @@
+File 17: Microsoft Graph Service (src/services/microsoftGraphService.js)
+javascript
+import { apiService } from './apiService';
+
+class MicrosoftGraphService {
+  constructor() {
+    this.endpoints = {
+      authorize: '/auth/microsoft',
+      token: '/auth/microsoft/token',
+      me: '/microsoft/me',
+      files: '/microsoft/files',
+      workbooks: '/microsoft/workbooks',
+      people: '/microsoft/people',
+      relationships: '/microsoft/relationships'
+    };
+  }
+
+  async getAuthorizationUrl(tenantId, redirectUri) {
+    try {
+      const response = await apiService.post(this.endpoints.authorize, {
+        tenantId,
+        redirectUri,
+        scopes: [
+          'User.Read',
+          'People.Read',
+          'Files.Read',
+          'Sites.Read.All'
+        ]
+      });
+
+      if (response.success) {
+        return response.authUrl;
+      } else {
+        throw new Error('Failed to get authorization URL');
+      }
+    } catch (error) {
+      console.error('Get authorization URL error:', error);
+      throw new Error(error.message || 'Failed to initiate Microsoft authorization');
+    }
+  }
+
+  async exchangeCodeForToken(code, state) {
+    try {
+      const response = await apiService.post(this.endpoints.token, {
+        code,
+        state
+      });
+
+      if (response.success) {
+        return {
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken,
+          expiresAt: response.expiresAt
+        };
+      } else {
+        throw new Error('Token exchange failed');
+      }
+    } catch (error) {
+      console.error('Token exchange error:', error);
+      throw new Error(error.message || 'Failed to exchange authorization code');
+    }
+  }
+
+  async getCurrentUser() {
+    try {
+      const response = await apiService.get(this.endpoints.me);
+      
+      if (response.success) {
+        return response.user;
+      } else {
+        throw new Error('Failed to get current user');
+      }
+    } catch (error) {
+      console.error('Get current user error:', error);
+      throw new Error(error.message || 'Failed to retrieve user information');
+    }
+  }
+
+  async getPeople(options = {}) {
+    try {
+      const queryParams = new URLSearchParams({
+        search: options.search || '',
+        top: options.limit || 50,
+        skip: options.offset || 0
+      });
+
+      const response = await apiService.get(`${this.endpoints.people}?${queryParams}`);
+      
+      if (response.success) {
+        return {
+          people: response.people || [],
+          hasMore: response.hasMore || false,
+          total: response.total || 0
+        };
+      } else {
+        throw new Error('Failed to get people');
+      }
+    } catch (error) {
+      console.error('Get people error:', error);
+      throw new Error(error.message || 'Failed to retrieve people from Microsoft Graph');
+    }
+  }
+
+  async getFiles(options = {}) {
+    try {
+      const queryParams = new URLSearchParams({
+        driveId: options.driveId || '',
+        folderId: options.folderId || '',
+        fileType: options.fileType || '',
+        top: options.limit || 50,
+        skip: options.offset || 0
+      });
+
+      const response = await apiService.get(`${this.endpoints.files}?${queryParams}`);
+      
+      if (response.success) {
+        return {
+          files: response.files || [],
+          hasMore: response.hasMore || false,
+          total: response.total || 0
+        };
+      } else {
+        throw new Error('Failed to get files');
+      }
+    } catch (error) {
+      console.error('Get files error:', error);
+      throw new Error(error.message || 'Failed to retrieve files from OneDrive');
+    }
+  }
+
+  async getWorkbook(fileId, driveId = null) {
+    try {
+      const params = driveId ? `?driveId=${driveId}` : '';
+      const response = await apiService.get(`${this.endpoints.workbooks}/${fileId}${params}`);
+      
+      if (response.success) {
+        return response.workbook;
+      } else {
+        throw new Error('Failed to get workbook');
+      }
+    } catch (error) {
+      console.error('Get workbook error:', error);
+      throw new Error(error.message || 'Failed to retrieve Excel workbook');
+    }
+  }
+
+  async getWorksheetData(fileId, worksheetId, range = null, driveId = null) {
+    try {
+      const queryParams = new URLSearchParams({
+        ...(driveId && { driveId }),
+        ...(range && { range })
+      });
+
+      const response = await apiService.get(
+        `${this.endpoints.workbooks}/${fileId}/worksheets/${worksheetId}/data?${queryParams}`
+      );
+      
+      if (response.success) {
+        return {
+          values: response.values || [],
+          headers: response.headers || [],
+          range: response.range || ''
+        };
+      } else {
+        throw new Error('Failed to get worksheet data');
+      }
+    } catch (error) {
+      console.error('Get worksheet data error:', error);
+      throw new Error(error.message || 'Failed to retrieve worksheet data');
+    }
+  }
+
+  async extractRelationships(userId = 'me') {
+    try {
+      const response = await apiService.get(`${this.endpoints.relationships}/${userId}`);
+      
+      if (response.success) {
+        return {
+          manager: response.manager,
+          directReports: response.directReports || [],
+          colleagues: response.colleagues || [],
+          collaborators: response.collaborators || []
+        };
+      } else {
+        throw new Error('Failed to extract relationships');
+      }
+    } catch (error) {
+      console.error('Extract relationships error:', error);
+      throw new Error(error.message || 'Failed to extract relationship data');
+    }
+  }
+
+  async analyzeCollaboration(userId = 'me', timeframe = '30days') {
+    try {
+      const response = await apiService.get(
+        `${this.endpoints.relationships}/${userId}/collaboration?timeframe=${timeframe}`
+      );
+      
+      if (response.success) {
+        return {
+          collaborationScore: response.collaborationScore || 0,
+          topCollaborators: response.topCollaborators || [],
+          communicationPatterns: response.communicationPatterns || {},
+          meetingInsights: response.meetingInsights || {}
+        };
+      } else {
+        throw new Error('Failed to analyze collaboration');
+      }
+    } catch (error) {
+      console.error('Analyze collaboration error:', error);
+      throw new Error(error.message || 'Failed to analyze collaboration patterns');
+    }
+  }
+
+  async disconnectAccount() {
+    try {
+      const response = await apiService.delete(this.endpoints.token);
+      
+      if (response.success) {
+        return true;
+      } else {
+        throw new Error('Failed to disconnect account');
+      }
+    } catch (error) {
+      console.error('Disconnect account error:', error);
+      throw new Error(error.message || 'Failed to disconnect Microsoft account');
+    }
+  }
+
+  // Utility methods
+  isConnected() {
+    // Check if user has connected their Microsoft account
+    return localStorage.getItem('msGraphConnected') === 'true';
+  }
+
+  setConnectedStatus(connected) {
+    localStorage.setItem('msGraphConnected', connected.toString());
+  }
+
+  getConnectionStatus() {
+    return {
+      connected: this.isConnected(),
+      lastSync: localStorage.getItem('msGraphLastSync'),
+      permissions: JSON.parse(localStorage.getItem('msGraphPermissions') || '[]')
+    };
+  }
+}
+
+export const microsoftGraphService = new MicrosoftGraphService();
+export default microsoftGraphService;

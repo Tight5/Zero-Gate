@@ -1,0 +1,214 @@
+File 30: Documentation - UI Implementation Plan (docs/ui_implementation_plan.md)
+text
+# Zero Gate ESO Platform: UI Implementation Plan
+
+## Overview
+
+This document outlines the phased implementation plan for the Zero Gate ESO platform user interface, designed specifically for Entrepreneur Support Organizations with hybrid relationship mapping capabilities and Microsoft 365 integration.
+
+## Phase 1: Foundation Setup (Days 1-3)
+
+### Day 1: Project Initialization
+- Initialize React project using Replit's official template
+- Configure project structure following Replit's recommended patterns
+- Set up core dependencies and environment variables
+- Implement basic routing structure with React Router
+- Configure @replit/ui component library integration
+
+**Key Files:**
+- `package.json` - Dependencies and scripts
+- `src/index.js` - Application entry point
+- `src/App.js` - Root component with routing
+- `.replit` - Replit configuration
+
+### Day 2: Component Library Integration
+- Integrate @replit/ui component library for consistent styling
+- Set up theme configuration with both light and dark mode support
+- Implement responsive layout containers
+- Create base component templates for reuse
+- Configure CSS custom properties for theming
+
+**Key Files:**
+- `src/index.css` - Global styles and theme variables
+- `src/contexts/ThemeContext.jsx` - Theme management
+- `src/components/common/` - Base components
+
+### Day 3: Authentication Framework
+- Implement tenant-aware authentication system
+- Create login/registration flows
+- Set up protected routes with tenant context
+- Design user profile and tenant selection interfaces
+- Implement JWT token management
+
+**Key Files:**
+- `src/contexts/AuthContext.jsx` - Authentication state
+- `src/contexts/TenantContext.jsx` - Multi-tenant support
+- `src/pages/Auth/` - Authentication pages
+- `src/components/common/ProtectedRoute.jsx` - Route protection
+
+## Phase 2: Core UI Components (Days 4-7)
+
+### Day 4: Dashboard Framework
+- Implement executive dashboard layout
+- Create widget container components
+- Design navigation system with tenant context
+- Set up responsive grid system for dashboard elements
+- Implement KPI card components
+
+**Key Files:**
+- `src/components/layout/AppLayout.jsx` - Main layout
+- `src/components/layout/Header.jsx` - Top navigation
+- `src/components/layout/Sidebar.jsx` - Side navigation
+- `src/components/dashboard/KPICards.jsx` - Metrics display
+
+### Day 5: Relationship Mapping Interface
+- Design hybrid relationship mapping visualization components
+- Implement geographic map integration using React-Leaflet
+- Create relationship graph visualization using Force-Graph
+- Design filter and search interfaces for relationship data
+- Implement path discovery tools
+
+**Key Files:**
+- `src/components/relationships/HybridRelationshipMap.jsx` - Main map component
+- `src/components/relationships/PathDiscovery.jsx` - Connection finder
+- `src/hooks/useRelationshipData.js` - Data fetching hooks
+
+### Day 6: Sponsor Management UI
+- Create sponsor profile components
+- Implement grant timeline visualization
+- Design communication tracking interface
+- Build sponsor relationship strength indicators
+- Create sponsor metrics dashboard
+
+**Key Files:**
+- `src/pages/SponsorManagement.jsx` - Main sponsor page
+- `src/components/sponsors/SponsorProfile.jsx` - Individual profiles
+- `src/components/sponsors/RelationshipMetrics.jsx` - Metrics display
+
+### Day 7: Content Calendar Interface
+- Implement backwards planning timeline visualization
+- Create milestone tracking components
+- Design content creation and management interfaces
+- Build notification and reminder components
+- Integrate with grant deadlines
+
+**Key Files:**
+- `src/components/calendar/ContentCalendar.jsx` - Calendar interface
+- `src/components/grants/GrantTimeline.jsx` - Timeline visualization
+- `src/hooks/useGrantData.js` - Grant data management
+
+## Phase 3: Advanced Features & Integration (Days 8-10)
+
+### Day 8: Microsoft 365 Integration UI
+- Design connection management interface
+- Create data visualization for Microsoft Graph data
+- Implement relationship extraction visualization
+- Build privacy and permission management components
+- Create Excel file processing interface
+
+**Key Files:**
+- `src/components/excel/ExcelFileProcessor.jsx` - File processing
+- `src/services/microsoftGraphService.js` - Graph API integration
+- `src/components/integrations/` - Integration components
+
+### Day 9: Excel-to-Dashboard Components
+- Create Excel file upload and management interface
+- Implement dashboard template selection components
+- Design visualization mapping interface
+- Build preview and customization components
+- Create automated dashboard generation
+
+**Key Files:**
+- `src/components/excel/DashboardGenerator.jsx` - Dashboard creation
+- `src/components/excel/DataMapper.jsx` - Data mapping interface
+- `src/components/dashboard/WidgetLibrary.jsx` - Reusable widgets
+
+### Day 10: Final Integration & Testing
+- Integrate all UI components with backend services
+- Implement comprehensive error handling
+- Create loading states and fallback components
+- Perform cross-browser and responsive testing
+- Optimize performance for Replit constraints
+
+**Key Files:**
+- `src/components/common/ErrorBoundary.jsx` - Error handling
+- `src/components/common/LoadingSpinner.jsx` - Loading states
+- Test files across all components
+
+## Design System Guidelines
+
+### Color Palette
+- Primary: #3366FF (Zero Gate Blue)
+- Secondary: #6B7280 (Neutral Gray)
+- Success: #10B981 (Green)
+- Warning: #F59E0B (Amber)
+- Error: #EF4444 (Red)
+- Info: #3B82F6 (Blue)
+
+### Typography
+- Headings: Inter font family, various weights
+- Body text: Inter Regular, 16px base size
+- Code/monospace: JetBrains Mono
+
+### Component Standards
+- All components use @replit/ui as base
+- Consistent spacing using CSS custom properties
+- Responsive design with mobile-first approach
+- Accessibility compliance (WCAG 2.1 Level AA)
+
+## Testing Strategy
+
+### Unit Testing
+- React Testing Library for component testing
+- Jest for logic testing
+- 80% code coverage target
+
+### Integration Testing
+- API integration testing
+- Cross-component interaction testing
+- Multi-tenant functionality testing
+
+### Performance Testing
+- Lighthouse audits for performance metrics
+- Bundle size analysis
+- Replit-specific constraint testing
+
+## Deployment Considerations
+
+### Replit Optimization
+- Lazy loading for large components
+- Resource-aware feature flagging
+- Efficient state management
+- Minimal bundle size
+
+### Progressive Enhancement
+- Core functionality works without JavaScript
+- Enhanced features with JavaScript enabled
+- Graceful degradation for older browsers
+
+## Success Metrics
+
+### User Experience
+- Page load time < 3 seconds
+- Time to interactive < 5 seconds
+- Accessibility score > 95
+- Mobile usability score > 90
+
+### Developer Experience
+- Component reusability > 80%
+- Code coverage > 80%
+- Build time < 2 minutes
+- Zero critical security vulnerabilities
+
+## Risk Mitigation
+
+### Technical Risks
+- **Resource constraints**: Implement feature flagging
+- **API failures**: Comprehensive error handling
+- **Browser compatibility**: Progressive enhancement
+- **Performance issues**: Lazy loading and optimization
+
+### Timeline Risks
+- **Scope creep**: Strict adherence to MVP features
+- **Integration delays**: Early API integration testing
+- **Resource conflicts**: Clear responsibility assignment

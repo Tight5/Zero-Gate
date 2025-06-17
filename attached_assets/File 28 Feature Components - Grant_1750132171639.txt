@@ -1,0 +1,192 @@
+File 28: Feature Components - Grant Timeline (src/components/grants/GrantTimeline.jsx)
+jsx
+import React from 'react';
+import { Card, Heading, Badge, Button, Checkbox } from '@replit/ui';
+import { Calendar, CheckSquare, Clock, AlertTriangle } from 'lucide-react';
+import { format, addDays, subDays, differenceInDays } from 'date-fns';
+import { useTenant } from '../../contexts/TenantContext';
+import './GrantTimeline.css';
+
+const GrantTimeline = ({ grant, milestones, onMilestoneUpdate }) => {
+  const { getTenantSettings } = useTenant();
+  
+  // Calculate milestone dates (90, 60, 30 days before deadline)
+  const deadline = new Date(grant.submission_deadline);
+  const today = new Date();
+  const daysRemaining = differenceInDays(deadline, today);
+
+  const getMilestoneStatus = (milestoneDate) => {
+    const milestone = new Date(milestoneDate);
+    const daysDiff = differenceInDays(milestone, today);
+    
+    if (daysDiff < 0) return 'overdue';
+    if (daysDiff <= 7) return 'due-soon';
+    return 'upcoming';
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      completed: 'green',
+      in_progress: 'blue',
+      pending: 'gray',
+      overdue: 'red'
+    };
+    return colors[status] || 'gray';
+  };
+
+  const handleTaskToggle = (milestoneId, taskIndex) => {
+    if (onMilestoneUpdate) {
+      onMilestoneUpdate(milestoneId, taskIndex);
+    }
+  };
+
+  return (
+    <div className="grant-timeline">
+      <Card className="timeline-header">
+        <div className="header-content">
+          <div className="grant-info">
+            <Heading size="large">{grant.name}</Heading>
+            <p className="sponsor-name">Sponsored by: {grant.sponsor_name}</p>
+          </div>
+          
+          <div className="deadline-info">
+            <div className="deadline-card">
+              <Calendar className="deadline-icon" />
+              <div className="deadline-details">
+                <span className="deadline-date">
+                  {format(deadline, 'MMM dd, yyyy')}
+                </span>
+                <span className={`days-remaining ${daysRemaining <= 30 ? 'urgent' : ''}`}>
+                  {daysRemaining > 0 ? `${daysRemaining} days remaining` : 'Overdue'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="progress-bar">
+          <div className="progress-track">
+            <div 
+              className="progress-fill"
+              style={{ 
+                width: `${Math.min(100, ((90 - daysRemaining) / 90) * 100)}%` 
+              }}
+            />
+          </div>
+          <span className="progress-text">
+            Timeline Progress: {Math.max(0, Math.min(100, ((90 - daysRemaining) / 90) * 100)).toFixed(0)}%
+          </span>
+        </div>
+      </Card>
+
+      <div className="timeline-content">
+        {milestones.map((milestone, index) => {
+          const milestoneDate = new Date(milestone.milestone_date);
+          const status = getMilestoneStatus(milestoneDate);
+          const isActive = differenceInDays(milestoneDate, today) <= 7 && differenceInDays(milestoneDate, today) >= 0;
+          
+          return (
+            <Card key={milestone.milestone_id} className={`milestone-card ${status} ${isActive ? 'active' : ''}`}>
+              <div className="milestone-header">
+                <div className="milestone-info">
+                  <div className="milestone-title">
+                    <h3>{milestone.title}</h3>
+                    <Badge 
+                      variant="solid" 
+                      color={getStatusColor(milestone.status)}
+                    >
+                      {milestone.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  
+                  <div className="milestone-date">
+                    <Clock size={16} />
+                    <span>{format(milestoneDate, 'MMM dd, yyyy')}</span>
+                    <span className="days-from-now">
+                      ({differenceInDays(milestoneDate, today)} days)
+                    </span>
+                  </div>
+                </div>
+
+                {status === 'overdue' && (
+                  <div className="overdue-warning">
+                    <AlertTriangle size={16} />
+                    <span>Overdue</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="milestone-tasks">
+                <h4>
+                  <CheckSquare size={16} />
+                  Tasks ({milestone.tasks.filter(task => task.completed).length}/{milestone.tasks.length})
+                </h4>
+                
+                <div className="task-list">
+                  {milestone.tasks.map((task, taskIndex) => (
+                    <div key={taskIndex} className={`task-item ${task.completed ? 'completed' : ''}`}>
+                      <Checkbox
+                        checked={task.completed || false}
+                        onChange={() => handleTaskToggle(milestone.milestone_id, taskIndex)}
+                        disabled={milestone.status === 'completed'}
+                      />
+                      <span className="task-text">{task}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="milestone-actions">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {/* Handle milestone update */}}
+                >
+                  Update Status
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {/* Handle add task */}}
+                >
+                  Add Task
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card className="timeline-summary">
+        <h3>Grant Preparation Summary</h3>
+        <div className="summary-stats">
+          <div className="stat-item">
+            <span className="stat-label">Total Milestones:</span>
+            <span className="stat-value">{milestones.length}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Completed:</span>
+            <span className="stat-value">
+              {milestones.filter(m => m.status === 'completed').length}
+            </span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">In Progress:</span>
+            <span className="stat-value">
+              {milestones.filter(m => m.status === 'in_progress').length}
+            </span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Total Tasks:</span>
+            <span className="stat-value">
+              {milestones.reduce((total, m) => total + m.tasks.length, 0)}
+            </span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+export default GrantTimeline;

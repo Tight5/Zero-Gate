@@ -1,0 +1,315 @@
+File 14: Relationships Router (routers/relationships.py)
+python
+"""
+Relationships router for Zero Gate ESO Platform
+Handles relationship mapping and path discovery
+"""
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel, Field
+from utils.tenant_context import require_tenant, TenantContext
+
+logger = logging.getLogger("zero-gate.relationships")
+
+router = APIRouter()
+
+class RelationshipCreate(BaseModel):
+    source_person: str = Field(..., description="Source person identifier")
+    target_person: str = Field(..., description="Target person identifier")
+    relationship_type: str = Field(..., description="Type of relationship")
+    strength: float = Field(0.5, description="Relationship strength (0-1)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+class RelationshipResponse(BaseModel):
+    relationship_id: str
+    source_person: str
+    target_person: str
+    relationship_type: str
+    strength: float
+    metadata: Optional[Dict[str, Any]]
+    created_at: str
+
+class PathDiscoveryRequest(BaseModel):
+    source_id: str = Field(..., description="Starting person ID")
+    target_id: str = Field(..., description="Target person ID")
+    max_depth: int = Field(7, description="Maximum path length")
+
+class PathResponse(BaseModel):
+    source_id: str
+    target_id: str
+    path: List[str]
+    path_length: int
+    path_quality: str
+    relationship_analysis: Dict[str, Any]
+
+@router.get("/", response_model=List[RelationshipResponse])
+async def list_relationships(
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant),
+    relationship_type: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """List all relationships for the tenant"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        if relationship_type:
+            cursor.execute(
+                "SELECT * FROM relationships WHERE relationship_type = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (relationship_type, limit, offset)
+            )
+        else:
+            cursor.execute(
+                "SELECT * FROM relationships ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (limit, offset)
+            )
+        
+        relationships = []
+        for row in cursor.fetchall():
+            metadata = eval(row["metadata"]) if row["metadata"] else None
+            relationships.append(RelationshipResponse(
+                relationship_id=row["relationship_id"],
+                source_person=row["source_person"],
+                target_person=row["target_person"],
+                relationship_type=row["relationship_type"],
+                strength=row["strength"],
+                metadata=metadata,
+                created_at=row["created_at"]
+            ))
+        
+        return relationships
+        
+    except Exception as e:
+        logger.error(f"Error listing relationships for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve relationships")
+
+@router.post("/", response_model=RelationshipResponse)
+async def create_relationship(
+    relationship_data: RelationshipCreate,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Create a new relationship"""
+    try:
+        import uuid
+        
+        relationship_id = str(uuid.uuid4())
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            INSERT INTO relationships (relationship_id, source_person, target_person, 
+                                     relationship_type, strength, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                relationship_id,
+                relationship_data.source_person,
+                relationship_data.target_person,
+                relationship_data.relationship_type,
+                relationship_data.strength,
+                str(relationship_data.metadata) if relationship_data.metadata else None
+            )
+        )
+        
+        conn.commit()
+        
+        # Add to processing agent's graph
+        processing_agent = request.app.state.processing_agent
+        processing_agent.add_relationship(
+            source=relationship_data.source_person,
+            target=relationship_data.target_person,
+            relationship_type=relationship_data.relationship_type,
+            strength=relationship_data.strength,
+            tenant_id=tenant.tenant_id,
+            metadata=relationship_data.metadata or {}
+        )
+        
+        # Fetch the created relationship
+        cursor.execute("SELECT * FROM relationships WHERE relationship_id = ?", (relationship_id,))
+        row = cursor.fetchone()
+        
+        metadata = eval(row["metadata"]) if row["metadata"] else None
+        return RelationshipResponse(
+            relationship_id=row["relationship_id"],
+            source_person=row["source_person"],
+            target_person=row["target_person"],
+            relationship_type=row["relationship_type"],
+            strength=row["strength"],
+            metadata=metadata,
+            created_at=row["created_at"]
+        )
+        
+    except Exception as e:
+        logger.error(f"Error creating relationship for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create relationship")
+
+@router.post("/discover-path", response_model=PathResponse)
+async def discover_relationship_path(
+    path_request: PathDiscoveryRequest,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Discover relationship path between two people"""
+    try:
+        processing_agent = request.app.state.processing_agent
+        
+        # Find path using processing agent
+        path = processing_agent.find_relationship_path(
+            source=path_request.source_id,
+            target=path_request.target_id,
+            tenant_id=tenant.tenant_id,
+            max_depth=path_request.max_depth
+        )
+        
+        if not path:
+            raise HTTPException(status_code=404, detail="No relationship path found")
+        
+        # Analyze path quality
+        path_analysis = processing_agent.analyze_relationship_strength(path)
+        
+        return PathResponse(
+            source_id=path_request.source_id,
+            target_id=path_request.target_id,
+            path=path,
+            path_length=len(path) - 1,
+            path_quality=path_analysis["quality"],
+            relationship_analysis=path_analysis
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error discovering path for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to discover relationship path")
+
+@router.get("/network-stats")
+async def get_network_statistics(
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Get network statistics for the tenant"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        # Get total relationships
+        cursor.execute("SELECT COUNT(*) as total FROM relationships")
+        total_relationships = cursor.fetchone()["total"]
+        
+        # Get relationships by type
+        cursor.execute(
+            "SELECT relationship_type, COUNT(*) as count FROM relationships GROUP BY relationship_type"
+        )
+        relationships_by_type = {row["relationship_type"]: row["count"] for row in cursor.fetchall()}
+        
+        # Get unique people count
+        cursor.execute(
+            "SELECT COUNT(DISTINCT person) as unique_people FROM "
+            "(SELECT source_person as person FROM relationships "
+            "UNION SELECT target_person as person FROM relationships)"
+        )
+        unique_people = cursor.fetchone()["unique_people"]
+        
+        # Calculate average relationship strength
+        cursor.execute("SELECT AVG(strength) as avg_strength FROM relationships")
+        avg_strength = cursor.fetchone()["avg_strength"] or 0
+        
+        return {
+            "total_relationships": total_relationships,
+            "unique_people": unique_people,
+            "relationships_by_type": relationships_by_type,
+            "average_relationship_strength": round(avg_strength, 2),
+            "network_density": round(total_relationships / max(unique_people * (unique_people - 1) / 2, 1), 4)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting network statistics for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve network statistics")
+
+@router.get("/graph-data")
+async def get_graph_visualization_data(
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant),
+    include_weak: bool = False
+):
+    """Get data for graph visualization"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        # Filter based on relationship strength
+        strength_filter = "WHERE strength >= 0.3" if not include_weak else ""
+        
+        cursor.execute(f"""
+            SELECT source_person, target_person, relationship_type, strength, metadata
+            FROM relationships 
+            {strength_filter}
+            ORDER BY strength DESC
+        """)
+        
+        relationships = cursor.fetchall()
+        
+        # Build nodes and edges for visualization
+        nodes = {}
+        edges = []
+        
+        for rel in relationships:
+            # Add source node
+            if rel["source_person"] not in nodes:
+                nodes[rel["source_person"]] = {
+                    "id": rel["source_person"],
+                    "label": rel["source_person"],
+                    "type": "person"
+                }
+            
+            # Add target node
+            if rel["target_person"] not in nodes:
+                nodes[rel["target_person"]] = {
+                    "id": rel["target_person"],
+                    "label": rel["target_person"],
+                    "type": "person"
+                }
+            
+            # Add edge
+            edges.append({
+                "source": rel["source_person"],
+                "target": rel["target_person"],
+                "type": rel["relationship_type"],
+                "strength": rel["strength"],
+                "color": _get_relationship_color(rel["relationship_type"]),
+                "width": max(1, rel["strength"] * 5)
+            })
+        
+        return {
+            "nodes": list(nodes.values()),
+            "edges": edges,
+            "stats": {
+                "node_count": len(nodes),
+                "edge_count": len(edges)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting graph data for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve graph visualization data")
+
+def _get_relationship_color(relationship_type: str) -> str:
+    """Get color for relationship type"""
+    color_map = {
+        "manager": "#3366ff",
+        "colleague": "#10b981",
+        "mentor": "#f59e0b",
+        "sponsor": "#ef4444",
+        "collaborator": "#8b5cf6",
+        "investor": "#06b6d4"
+    }
+    return color_map.get(relationship_type, "#6b7280")

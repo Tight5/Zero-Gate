@@ -1,0 +1,32 @@
+File 2: Nix Dependencies (replit.nix)
+text
+{ pkgs }: {
+  deps = [
+    pkgs.nodejs-18_x
+    pkgs.nodePackages.typescript
+    pkgs.nodePackages.npm
+    pkgs.python310
+    pkgs.python310Packages.pip
+    pkgs.python310Packages.fastapi
+    pkgs.python310Packages.uvicorn
+    pkgs.python310Packages.psycopg2
+    pkgs.python310Packages.sqlalchemy
+    pkgs.python310Packages.pandas
+    pkgs.python310Packages.networkx
+    pkgs.postgresql_15
+    pkgs.redis
+    pkgs.replitPackages.jest
+  ];
+  
+  env = {
+    PYTHON_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+      pkgs.stdenv.cc.cc.lib
+      pkgs.postgresql_15.lib
+    ];
+    PYTHONBIN = "${pkgs.python310}/bin/python3.10";
+    PYTHONPATH = "${pkgs.python310}/lib/python3.10/site-packages";
+    NODE_PATH = "${pkgs.nodejs-18_x}/lib/node_modules";
+    LANG = "en_US.UTF-8";
+    LC_ALL = "en_US.UTF-8";
+  };
+}

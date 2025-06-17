@@ -1,0 +1,146 @@
+File 19: Custom Hooks - Relationship Data (src/hooks/useRelationshipData.js)
+javascript
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useTenant } from '../contexts/TenantContext';
+import { useResource } from '../contexts/ResourceContext';
+import { apiService } from '../services/apiService';
+
+export const useRelationshipData = (options = {}) => {
+  const { currentTenant } = useTenant();
+  const { isFeatureEnabled } = useResource();
+  
+  return useQuery(
+    ['relationships', currentTenant?.id, options.filters],
+    () => {
+      const queryParams = new URLSearchParams({
+        ...(options.relationshipType && { relationship_type: options.relationshipType }),
+        limit: options.limit || 100,
+        offset: options.offset || 0
+      });
+      
+      return apiService.get(`/relationships?${queryParams}`);
+    },
+    {
+      enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
+      staleTime: 5 * 60 * 1000,
+      ...options
+    }
+  );
+};
+
+export const useRelationshipPath = (sourceId, targetId, options = {}) => {
+  const { currentTenant } = useTenant();
+  const { isFeatureEnabled } = useResource();
+  
+  return useQuery(
+    ['relationship-path', currentTenant?.id, sourceId, targetId],
+    () => apiService.post('/relationships/discover-path', {
+      source_id: sourceId,
+      target_id: targetId,
+      max_depth: options.maxDepth || 7
+    }),
+    {
+      enabled: !!currentTenant && !!sourceId && !!targetId && isFeatureEnabled('relationship_mapping'),
+      staleTime: 10 * 60 * 1000,
+      retry: 1,
+      ...options
+    }
+  );
+};
+
+export const useNetworkStats = () => {
+  const { currentTenant } = useTenant();
+  const { isFeatureEnabled } = useResource();
+  
+  return useQuery(
+    ['network-stats', currentTenant?.id],
+    () => apiService.get('/relationships/network-stats'),
+    {
+      enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
+      staleTime: 5 * 60 * 1000,
+      refetchInterval: 10 * 60 * 1000, // Refresh every 10 minutes
+    }
+  );
+};
+
+export const useGraphData = (includeWeak = false) => {
+  const { currentTenant } = useTenant();
+  const { isFeatureEnabled } = useResource();
+  
+  return useQuery(
+    ['graph-data', currentTenant?.id, includeWeak],
+    () => apiService.get(`/relationships/graph-data?include_weak=${includeWeak}`),
+    {
+      enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
+      staleTime: 3 * 60 * 1000,
+      cacheTime: 15 * 60 * 1000,
+    }
+  );
+};
+
+export const useCreateRelationship = () => {
+  const queryClient = useQueryClient();
+  const { currentTenant } = useTenant();
+  
+  return useMutation(
+    (relationshipData) => apiService.post('/relationships', relationshipData),
+    {
+      onSuccess: () => {
+        // Invalidate all relationship-related queries
+        queryClient.invalidateQueries(['relationships', currentTenant?.id]);
+        queryClient.invalidateQueries(['network-stats', currentTenant?.id]);
+        queryClient.invalidateQueries(['graph-data', currentTenant?.id]);
+      },
+    }
+  );
+};
+
+export const useUpdateRelationship = () => {
+  const queryClient = useQueryClient();
+  const { currentTenant } = useTenant();
+  
+  return useMutation(
+    ({ relationshipId, data }) => apiService.put(`/relationships/${relationshipId}`, data),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['relationships', currentTenant?.id]);
+        queryClient.invalidateQueries(['network-stats', currentTenant?.id]);
+        queryClient.invalidateQueries(['graph-data', currentTenant?.id]);
+      },
+    }
+  );
+};
+
+export const useDeleteRelationship = () => {
+  const queryClient = useQueryClient();
+  const { currentTenant } = useTenant();
+  
+  return useMutation(
+    (relationshipId) => apiService.delete(`/relationships/${relationshipId}`),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['relationships', currentTenant?.id]);
+        queryClient.invalidateQueries(['network-stats', currentTenant?.id]);
+        queryClient.invalidateQueries(['graph-data', currentTenant?.id]);
+      },
+    }
+  );
+};
+
+// Utility hook for relationship search
+export const useRelationshipSearch = (searchTerm, options = {}) => {
+  const { currentTenant } = useTenant();
+  
+  return useQuery(
+    ['relationship-search', currentTenant?.id, searchTerm],
+    () => apiService.get(`/relationships/search?q=${encodeURIComponent(searchTerm)}`),
+    {
+      enabled: !!currentTenant && !!searchTerm && searchTerm.length > 2,
+      staleTime: 30 * 1000, // 30 seconds
+      debounce: 300, // Debounce search requests
+      ...options
+    }
+  );
+};
+
+export default useRelationshipData;

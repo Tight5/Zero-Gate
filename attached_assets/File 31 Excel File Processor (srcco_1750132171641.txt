@@ -1,0 +1,328 @@
+File 31: Excel File Processor (src/components/excel/ExcelFileProcessor.jsx)
+jsx
+import React, { useState, useCallback } from 'react';
+import { Card, Button, FileInput, Progress, Alert } from '@replit/ui';
+import { FileSpreadsheet, Upload, AlertCircle, CheckCircle, Download } from 'lucide-react';
+import { useResource } from '../../contexts/ResourceContext';
+import { useTenant } from '../../contexts/TenantContext';
+import { microsoftGraphService } from '../../services/microsoftGraphService';
+import './ExcelFileProcessor.css';
+
+const ExcelFileProcessor = ({ onDataProcessed }) => {
+  const [file, setFile] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  const { isFeatureEnabled } = useResource();
+  const { currentTenant } = useTenant();
+
+  const handleFileSelect = useCallback((selectedFile) => {
+    setFile(selectedFile);
+    setError(null);
+    setResult(null);
+    setProgress(0);
+  }, []);
+
+  const processFile = async () => {
+    if (!file) return;
+
+    setProcessing(true);
+    setError(null);
+    setProgress(10);
+
+    try {
+      // Step 1: Upload file
+      setProgress(25);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tenant_id', currentTenant.id);
+
+      const uploadResponse = await fetch('/api/excel/upload', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'X-Tenant-ID': currentTenant.id
+        }
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('File upload failed');
+      }
+
+      const uploadData = await uploadResponse.json();
+      setProgress(50);
+
+      // Step 2: Process Excel data
+      const processResponse = await microsoftGraphService.getWorkbook(uploadData.fileId);
+      setProgress(75);
+
+      // Step 3: Extract meaningful data
+      const extractedData = await extractRelevantData(processResponse);
+      setProgress(90);
+
+      // Step 4: Generate dashboard suggestions
+      const suggestions = generateDashboardSuggestions(extractedData);
+      setProgress(100);
+
+      const finalResult = {
+        fileId: uploadData.fileId,
+        fileName: file.name,
+        extractedData,
+        suggestions,
+        processedAt: new Date().toISOString()
+      };
+
+      setResult(finalResult);
+      
+      if (onDataProcessed) {
+        onDataProcessed(finalResult);
+      }
+
+    } catch (err) {
+      console.error('Excel processing error:', err);
+      setError(err.message || 'Failed to process Excel file');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const extractRelevantData = async (workbookData) => {
+    const relevantData = {
+      sponsors: [],
+      grants: [],
+      metrics: [],
+      relationships: []
+    };
+
+    // Process each worksheet
+    for (const worksheet of workbookData.worksheets) {
+      const worksheetName = worksheet.name.toLowerCase();
+      
+      if (worksheetName.includes('sponsor')) {
+        relevantData.sponsors = await extractSponsorData(worksheet);
+      } else if (worksheetName.includes('grant')) {
+        relevantData.grants = await extractGrantData(worksheet);
+      } else if (worksheetName.includes('metric') || worksheetName.includes('kpi')) {
+        relevantData.metrics = await extractMetricData(worksheet);
+      } else if (worksheetName.includes('relationship') || worksheetName.includes('contact')) {
+        relevantData.relationships = await extractRelationshipData(worksheet);
+      }
+    }
+
+    return relevantData;
+  };
+
+  const extractSponsorData = async (worksheet) => {
+    // Implementation for sponsor data extraction
+    return [];
+  };
+
+  const extractGrantData = async (worksheet) => {
+    // Implementation for grant data extraction
+    return [];
+  };
+
+  const extractMetricData = async (worksheet) => {
+    // Implementation for metric data extraction
+    return [];
+  };
+
+  const extractRelationshipData = async (worksheet) => {
+    // Implementation for relationship data extraction
+    return [];
+  };
+
+  const generateDashboardSuggestions = (data) => {
+    const suggestions = [];
+
+    if (data.sponsors.length > 0) {
+      suggestions.push({
+        type: 'sponsor_overview',
+        title: 'Sponsor Overview Dashboard',
+        description: 'Track sponsor relationships and engagement metrics',
+        widgets: ['sponsor_list', 'relationship_strength', 'communication_timeline']
+      });
+    }
+
+    if (data.grants.length > 0) {
+      suggestions.push({
+        type: 'grant_pipeline',
+        title: 'Grant Pipeline Dashboard',
+        description: 'Monitor grant applications and deadlines',
+        widgets: ['grant_timeline', 'deadline_tracker', 'success_metrics']
+      });
+    }
+
+    if (data.metrics.length > 0) {
+      suggestions.push({
+        type: 'executive_summary',
+        title: 'Executive Summary Dashboard',
+        description: 'High-level KPIs and organizational metrics',
+        widgets: ['kpi_cards', 'trend_charts', 'goal_progress']
+      });
+    }
+
+    return suggestions;
+  };
+
+  if (!isFeatureEnabled('excel_dashboard')) {
+    return (
+      <Card className="disabled-feature">
+        <div className="disabled-message">
+          <FileSpreadsheet size={48} />
+          <h3>Excel Processing Unavailable</h3>
+          <p>This feature is temporarily disabled due to system resource constraints.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="excel-file-processor">
+      <Card className="processor-card">
+        <div className="processor-header">
+          <h3>
+            <FileSpreadsheet size={24} />
+            Excel File Processor
+          </h3>
+          <p>Upload Excel files to automatically generate dashboards and extract insights</p>
+        </div>
+
+        <div className="file-upload-section">
+          <FileInput
+            accept=".xlsx,.xls"
+            onChange={handleFileSelect}
+            disabled={processing}
+            className="file-input"
+          >
+            <div className="upload-area">
+              <Upload size={48} />
+              <h4>Drop Excel file here or click to browse</h4>
+              <p>Supports .xlsx and .xls files up to 10MB</p>
+            </div>
+          </FileInput>
+
+          {file && (
+            <div className="selected-file">
+              <FileSpreadsheet size={20} />
+              <span className="file-name">{file.name}</span>
+              <span className="file-size">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+            </div>
+          )}
+        </div>
+
+        {processing && (
+          <div className="processing-section">
+            <Progress value={progress} className="progress-bar" />
+            <p className="processing-text">
+              Processing Excel file... {progress}%
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <Alert variant="destructive" className="error-alert">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </Alert>
+        )}
+
+        {result && (
+          <div className="results-section">
+            <Alert variant="success" className="success-alert">
+              <CheckCircle size={16} />
+              <span>File processed successfully!</span>
+            </Alert>
+
+            <div className="extracted-data-summary">
+              <h4>Extracted Data Summary</h4>
+              <div className="data-stats">
+                <div className="stat-item">
+                  <span className="stat-number">{result.extractedData.sponsors.length}</span>
+                  <span className="stat-label">Sponsors</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-number">{result.extractedData.grants.length}</span>
+                  <span className="stat-label">Grants</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-number">{result.extractedData.metrics.length}</span>
+                  <span className="stat-label">Metrics</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-number">{result.extractedData.relationships.length}</span>
+                  <span className="stat-label">Relationships</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="dashboard-suggestions">
+              <h4>Suggested Dashboards</h4>
+              <div className="suggestions-list">
+                {result.suggestions.map((suggestion, index) => (
+                  <div key={index} className="suggestion-card">
+                    <h5>{suggestion.title}</h5>
+                    <p>{suggestion.description}</p>
+                    <div className="suggested-widgets">
+                      {suggestion.widgets.map((widget, widgetIndex) => (
+                        <span key={widgetIndex} className="widget-tag">
+                          {widget.replace('_', ' ')}
+                        </span>
+                      ))}
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => createDashboard(suggestion)}
+                    >
+                      Create Dashboard
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="processor-actions">
+          <Button
+            onClick={processFile}
+            disabled={!file || processing}
+            variant="primary"
+          >
+            {processing ? 'Processing...' : 'Process File'}
+          </Button>
+
+          {result && (
+            <Button
+              variant="outline"
+              onClick={() => downloadProcessedData(result)}
+            >
+              <Download size={16} />
+              Download Results
+            </Button>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const createDashboard = (suggestion) => {
+  console.log('Creating dashboard:', suggestion);
+  // Implementation for dashboard creation
+};
+
+const downloadProcessedData = (result) => {
+  const dataStr = JSON.stringify(result, null, 2);
+  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(dataBlob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `processed_${result.fileName}_${Date.now()}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+export default ExcelFileProcessor;

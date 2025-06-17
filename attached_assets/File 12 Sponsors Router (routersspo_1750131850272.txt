@@ -1,0 +1,294 @@
+File 12: Sponsors Router (routers/sponsors.py)
+python
+"""
+Sponsors router for Zero Gate ESO Platform
+Handles sponsor management and relationship tracking
+"""
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from pydantic import BaseModel, Field
+from utils.tenant_context import require_tenant, TenantContext
+
+logger = logging.getLogger("zero-gate.sponsors")
+
+router = APIRouter()
+
+class SponsorCreate(BaseModel):
+    name: str = Field(..., description="Sponsor organization name")
+    contact_info: Optional[Dict[str, Any]] = Field(None, description="Contact information")
+    relationship_manager: Optional[str] = Field(None, description="Assigned relationship manager")
+
+class SponsorUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_info: Optional[Dict[str, Any]] = None
+    relationship_manager: Optional[str] = None
+    status: Optional[str] = None
+
+class SponsorResponse(BaseModel):
+    sponsor_id: str
+    name: str
+    contact_info: Optional[Dict[str, Any]]
+    relationship_manager: Optional[str]
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+@router.get("/", response_model=List[SponsorResponse])
+async def list_sponsors(
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant),
+    limit: int = 50,
+    offset: int = 0
+):
+    """List all sponsors for the tenant"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT * FROM sponsors ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset)
+        )
+        
+        sponsors = []
+        for row in cursor.fetchall():
+            sponsors.append(SponsorResponse(
+                sponsor_id=row["sponsor_id"],
+                name=row["name"],
+                contact_info=eval(row["contact_info"]) if row["contact_info"] else None,
+                relationship_manager=row["relationship_manager"],
+                status=row["status"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"]
+            ))
+        
+        return sponsors
+        
+    except Exception as e:
+        logger.error(f"Error listing sponsors for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve sponsors")
+
+@router.post("/", response_model=SponsorResponse)
+async def create_sponsor(
+    sponsor_data: SponsorCreate,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Create a new sponsor"""
+    try:
+        import uuid
+        
+        sponsor_id = str(uuid.uuid4())
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            INSERT INTO sponsors (sponsor_id, name, contact_info, relationship_manager, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (
+                sponsor_id,
+                sponsor_data.name,
+                str(sponsor_data.contact_info) if sponsor_data.contact_info else None,
+                sponsor_data.relationship_manager
+            )
+        )
+        
+        conn.commit()
+        
+        # Fetch the created sponsor
+        cursor.execute("SELECT * FROM sponsors WHERE sponsor_id = ?", (sponsor_id,))
+        row = cursor.fetchone()
+        
+        return SponsorResponse(
+            sponsor_id=row["sponsor_id"],
+            name=row["name"],
+            contact_info=eval(row["contact_info"]) if row["contact_info"] else None,
+            relationship_manager=row["relationship_manager"],
+            status=row["status"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"]
+        )
+        
+    except Exception as e:
+        logger.error(f"Error creating sponsor for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create sponsor")
+
+@router.get("/{sponsor_id}", response_model=SponsorResponse)
+async def get_sponsor(
+    sponsor_id: str,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Get a specific sponsor by ID"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM sponsors WHERE sponsor_id = ?", (sponsor_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Sponsor not found")
+        
+        return SponsorResponse(
+            sponsor_id=row["sponsor_id"],
+            name=row["name"],
+            contact_info=eval(row["contact_info"]) if row["contact_info"] else None,
+            relationship_manager=row["relationship_manager"],
+            status=row["status"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving sponsor {sponsor_id} for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve sponsor")
+
+@router.put("/{sponsor_id}", response_model=SponsorResponse)
+async def update_sponsor(
+    sponsor_id: str,
+    sponsor_data: SponsorUpdate,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Update a sponsor"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        # Build update query dynamically
+        update_fields = []
+        update_values = []
+        
+        if sponsor_data.name is not None:
+            update_fields.append("name = ?")
+            update_values.append(sponsor_data.name)
+        
+        if sponsor_data.contact_info is not None:
+            update_fields.append("contact_info = ?")
+            update_values.append(str(sponsor_data.contact_info))
+        
+        if sponsor_data.relationship_manager is not None:
+            update_fields.append("relationship_manager = ?")
+            update_values.append(sponsor_data.relationship_manager)
+        
+        if sponsor_data.status is not None:
+            update_fields.append("status = ?")
+            update_values.append(sponsor_data.status)
+        
+        if not update_fields:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        update_fields.append("updated_at = CURRENT_TIMESTAMP")
+        update_values.append(sponsor_id)
+        
+        query = f"UPDATE sponsors SET {', '.join(update_fields)} WHERE sponsor_id = ?"
+        cursor.execute(query, update_values)
+        
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Sponsor not found")
+        
+        conn.commit()
+        
+        # Fetch the updated sponsor
+        cursor.execute("SELECT * FROM sponsors WHERE sponsor_id = ?", (sponsor_id,))
+        row = cursor.fetchone()
+        
+        return SponsorResponse(
+            sponsor_id=row["sponsor_id"],
+            name=row["name"],
+            contact_info=eval(row["contact_info"]) if row["contact_info"] else None,
+            relationship_manager=row["relationship_manager"],
+            status=row["status"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating sponsor {sponsor_id} for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update sponsor")
+
+@router.delete("/{sponsor_id}")
+async def delete_sponsor(
+    sponsor_id: str,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Delete a sponsor"""
+    try:
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM sponsors WHERE sponsor_id = ?", (sponsor_id,))
+        
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Sponsor not found")
+        
+        conn.commit()
+        
+        return {"message": "Sponsor deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting sponsor {sponsor_id} for tenant {tenant.tenant_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete sponsor")
+
+@router.get("/{sponsor_id}/metrics")
+async def get_sponsor_metrics(
+    sponsor_id: str,
+    request: Request,
+    tenant: TenantContext = Depends(require_tenant)
+):
+    """Get sponsor relationship metrics"""
+    try:
+        processing_agent = request.app.state.processing_agent
+        
+        # Get sponsor data
+        db_manager = request.app.state.db_manager
+        conn = db_manager.get_tenant_database(tenant.tenant_id)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM sponsors WHERE sponsor_id = ?", (sponsor_id,))
+        sponsor = cursor.fetchone()
+        
+        if not sponsor:
+            raise HTTPException(status_code=404, detail="Sponsor not found")
+        
+        # Mock sponsor data for metrics calculation
+        sponsor_data = {
+            "communication_frequency": 85,  # Mock data
+            "avg_response_time": 24,  # hours
+            "engagement_quality": 78,
+            "deliverables_completed": 8,
+            "total_deliverables": 10
+        }
+        
+        # Calculate metrics using processing agent
+        metrics = processing_agent.calculate_sponsor_metrics(sponsor_data)
+        
+        return {
+            "sponsor_id": sponsor_id,
+            "sponsor_name": sponsor["name"],
+            "metrics": metrics,
+            "calculated_at": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating metrics for sponsor {sponsor_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to calculate sponsor metrics")

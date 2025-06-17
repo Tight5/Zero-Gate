@@ -1,0 +1,72 @@
+File 3: Package Configuration (package.json)
+json
+{
+  "name": "zero-gate-eso-platform",
+  "version": "2.5.0",
+  "description": "Multi-tenant platform for Entrepreneur Support Organizations with hybrid relationship mapping",
+  "private": true,
+  "homepage": ".",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.0",
+    "react-scripts": "5.0.1",
+    "@replit/ui": "^1.0.0",
+    "react-query": "^3.39.3",
+    "axios": "^1.6.0",
+    "react-chartjs-2": "^5.2.0",
+    "chart.js": "^4.4.0",
+    "d3": "^7.8.5",
+    "react-force-graph-2d": "^1.25.2",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1",
+    "date-fns": "^2.30.0",
+    "react-datepicker": "^4.25.0",
+    "react-hook-form": "^7.48.2",
+    "react-select": "^5.8.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "lucide-react": "^0.294.0",
+    "jwt-decode": "^4.0.0",
+    "lodash": "^4.17.21",
+    "react-virtualized": "^9.22.5",
+    "web-vitals": "^3.5.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.9.0",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "typescript": "^5.2.2"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "dev": "react-scripts start",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
+    "format": "prettier --write src/**/*.{js,jsx,ts,tsx,css,md}"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:8000"
+}

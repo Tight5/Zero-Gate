@@ -1,0 +1,255 @@
+File 41: ContentCalendar Page (src/pages/ContentCalendar.jsx)
+jsx
+import React, { useState } from 'react';
+import { Calendar, momentLocalizer } from 'react-big-calendar';
+import moment from 'moment';
+import { Card, Button, Select, Badge } from '@replit/ui';
+import { Plus, Filter, Download, Calendar as CalendarIcon } from 'lucide-react';
+import { useTenant } from '../contexts/TenantContext';
+import { useTenantData } from '../hooks/useTenantData';
+import ContentForm from '../components/calendar/ContentForm';
+import CalendarFilters from '../components/calendar/CalendarFilters';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import './ContentCalendar.css';
+
+const localizer = momentLocalizer(moment);
+
+const ContentCalendar = () => {
+  const [view, setView] = useState('month');
+  const [date, setDate] = useState(new Date());
+  const [filters, setFilters] = useState({
+    contentType: 'all',
+    status: 'all',
+    grantId: 'all'
+  });
+  const [showContentForm, setShowContentForm] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  
+  const { currentTenant } = useTenant();
+  
+  const { data: contentData, isLoading } = useTenantData('/content-calendar', {
+    staleTime: 2 * 60 * 1000
+  });
+
+  const { data: grantsData } = useTenantData('/grants', {
+    staleTime: 5 * 60 * 1000
+  });
+
+  const events = React.useMemo(() => {
+    if (!contentData?.content) return [];
+    
+    return contentData.content
+      .filter(item => {
+        if (filters.contentType !== 'all' && item.content_type !== filters.contentType) return false;
+        if (filters.status !== 'all' && item.status !== filters.status) return false;
+        if (filters.grantId !== 'all' && item.grant_id !== filters.grantId) return false;
+        return true;
+      })
+      .map(item => ({
+        id: item.content_id,
+        title: item.title,
+        start: new Date(item.scheduled_date),
+        end: new Date(item.scheduled_date),
+        resource: {
+          type: item.content_type,
+          status: item.status,
+          grant_id: item.grant_id,
+          channel: item.channel
+        }
+      }));
+  }, [contentData, filters]);
+
+  const milestoneEvents = React.useMemo(() => {
+    if (!grantsData?.grants) return [];
+    
+    return grantsData.grants.flatMap(grant =>
+      grant.milestones?.map(milestone => ({
+        id: `milestone-${milestone.milestone_id}`,
+        title: `${grant.name}: ${milestone.title}`,
+        start: new Date(milestone.milestone_date),
+        end: new Date(milestone.milestone_date),
+        resource: {
+          type: 'milestone',
+          status: milestone.status,
+          grant_id: grant.grant_id,
+          isGrantMilestone: true
+        }
+      })) || []
+    );
+  }, [grantsData]);
+
+  const allEvents = [...events, ...milestoneEvents];
+
+  const eventStyleGetter = (event) => {
+    const { resource } = event;
+    let backgroundColor = '#3366ff';
+    
+    const typeColors = {
+      blog_post: '#10b981',
+      social_media: '#f59e0b',
+      newsletter: '#8b5cf6',
+      press_release: '#ef4444',
+      milestone: '#6b7280'
+    };
+
+    backgroundColor = typeColors[resource.type] || '#3366ff';
+
+    if (resource.status === 'completed') {
+      backgroundColor = '#22c55e';
+    } else if (resource.status === 'overdue') {
+      backgroundColor = '#dc2626';
+    }
+
+    return {
+      style: {
+        backgroundColor,
+        borderRadius: '4px',
+        opacity: 0.8,
+        color: 'white',
+        border: '0px',
+        display: 'block'
+      }
+    };
+  };
+
+  const handleSelectEvent = (event) => {
+    console.log('Event selected:', event);
+  };
+
+  const handleSelectSlot = (slotInfo) => {
+    setSelectedSlot(slotInfo);
+    setShowContentForm(true);
+  };
+
+  const handleCreateContent = () => {
+    setSelectedSlot(null);
+    setShowContentForm(true);
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="loading-card">
+        <div className="loading-content">
+          <div className="loading-spinner" />
+          <p>Loading content calendar...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="content-calendar-page">
+      <div className="calendar-header">
+        <div className="header-left">
+          <h2>
+            <CalendarIcon size={24} />
+            Content Calendar
+          </h2>
+          <p>Plan and schedule grant-related content for {currentTenant?.name}</p>
+        </div>
+        
+        <div className="header-controls">
+          <CalendarFilters filters={filters} onFiltersChange={setFilters} />
+          
+          <Button variant="outline" size="sm">
+            <Download size={16} />
+            Export
+          </Button>
+          
+          <Button variant="primary" onClick={handleCreateContent}>
+            <Plus size={16} />
+            Add Content
+          </Button>
+        </div>
+      </div>
+
+      <Card className="calendar-content">
+        <div className="calendar-legend">
+          <div className="legend-items">
+            <div className="legend-item">
+              <div className="legend-color blog-post"></div>
+              <span>Blog Posts</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color social-media"></div>
+              <span>Social Media</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color newsletter"></div>
+              <span>Newsletter</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color press-release"></div>
+              <span>Press Release</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color milestone"></div>
+              <span>Grant Milestones</span>
+            </div>
+          </div>
+        </div>
+
+        <Calendar
+          localizer={localizer}
+          events={allEvents}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: 600 }}
+          view={view}
+          onView={setView}
+          date={date}
+          onNavigate={setDate}
+          eventPropGetter={eventStyleGetter}
+          onSelectEvent={handleSelectEvent}
+          onSelectSlot={handleSelectSlot}
+          selectable
+          popup
+          views={['month', 'week', 'day', 'agenda']}
+          step={60}
+          showMultiDayTimes
+        />
+      </Card>
+
+      <div className="calendar-stats">
+        <Card className="stats-card">
+          <h3>Content Statistics</h3>
+          <div className="stats-grid">
+            <div className="stat-item">
+              <span className="stat-number">{events.length}</span>
+              <span className="stat-label">Scheduled Content</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">
+                {events.filter(e => e.resource.status === 'completed').length}
+              </span>
+              <span className="stat-label">Published</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">
+                {events.filter(e => e.resource.status === 'pending').length}
+              </span>
+              <span className="stat-label">Pending</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">{milestoneEvents.length}</span>
+              <span className="stat-label">Grant Milestones</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {showContentForm && (
+        <ContentForm
+          initialDate={selectedSlot?.start}
+          onClose={() => setShowContentForm(false)}
+          onSubmit={(data) => {
+            console.log('Content created:', data);
+            setShowContentForm(false);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default ContentCalendar;

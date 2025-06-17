@@ -1,0 +1,304 @@
+File 11: Integration Agent (agents/integration.py)
+python
+"""
+Integration Agent for Zero Gate ESO Platform
+Handles Microsoft 365 connection and Excel processing
+"""
+import logging
+import requests
+import json
+import os
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+from msal import ConfidentialClientApplication
+from msgraph import GraphServiceClient
+from msgraph.generated.models.o_data_errors.o_data_error import ODataError
+from utils.resource_monitor import ResourceMonitor
+
+logger = logging.getLogger("zero-gate.integration")
+
+class IntegrationAgent:
+    def __init__(self, resource_monitor: ResourceMonitor):
+        self.resource_monitor = resource_monitor
+        self.graph_clients = {}
+        self.token_cache = {}
+        
+    def get_graph_client(self, tenant_id: str) -> Optional[GraphServiceClient]:
+        """Get or create Microsoft Graph client for tenant"""
+        if tenant_id not in self.graph_clients:
+            try:
+                # Initialize MSAL app for tenant
+                app = ConfidentialClientApplication(
+                    client_id=os.getenv("MICROSOFT_CLIENT_ID"),
+                    client_credential=os.getenv("MICROSOFT_CLIENT_SECRET"),
+                    authority=f"https://login.microsoftonline.com/{tenant_id}"
+                )
+                
+                # Get access token
+                result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
+                
+                if "access_token" in result:
+                    # Create Graph client
+                    graph_client = GraphServiceClient(
+                        credentials=result["access_token"],
+                        scopes=["https://graph.microsoft.com/.default"]
+                    )
+                    
+                    self.graph_clients[tenant_id] = graph_client
+                    self.token_cache[tenant_id] = {
+                        "token": result["access_token"],
+                        "expires_at": datetime.now() + timedelta(seconds=result.get("expires_in", 3600))
+                    }
+                    
+                    logger.info(f"Graph client initialized for tenant {tenant_id}")
+                else:
+                    logger.error(f"Failed to acquire token for tenant {tenant_id}: {result.get('error_description')}")
+                    return None
+                    
+            except Exception as e:
+                logger.error(f"Error initializing Graph client for tenant {tenant_id}: {str(e)}")
+                return None
+        
+        return self.graph_clients.get(tenant_id)
+    
+    async def extract_organizational_relationships(self, tenant_id: str, user_id: str) -> Dict[str, Any]:
+        """Extract organizational relationship data from Microsoft Graph"""
+        if not self.resource_monitor.is_feature_enabled("relationship_mapping"):
+            logger.warning("Relationship extraction disabled due to resource constraints")
+            return {"status": "disabled"}
+        
+        graph_client = self.get_graph_client(tenant_id)
+        if not graph_client:
+            return {"status": "error", "message": "Failed to connect to Microsoft Graph"}
+        
+        try:
+            relationships = {}
+            
+            # Get user's manager
+            try:
+                manager = await graph_client.users.by_user_id(user_id).manager.get()
+                if manager:
+                    relationships["manager"] = {
+                        "id": manager.id,
+                        "display_name": manager.display_name,
+                        "email": manager.mail,
+                        "relationship_type": "manager"
+                    }
+            except ODataError:
+                pass  # User might not have a manager
+            
+            # Get direct reports
+            try:
+                direct_reports = await graph_client.users.by_user_id(user_id).direct_reports.get()
+                if direct_reports and direct_reports.value:
+                    relationships["direct_reports"] = []
+                    for report in direct_reports.value:
+                        relationships["direct_reports"].append({
+                            "id": report.id,
+                            "display_name": report.display_name,
+                            "email": report.mail,
+                            "relationship_type": "direct_report"
+                        })
+            except ODataError:
+                pass
+            
+            # Get collaboration data (people the user works with)
+            try:
+                people = await graph_client.users.by_user_id(user_id).people.get()
+                if people and people.value:
+                    relationships["collaborators"] = []
+                    for person in people.value[:20]:  # Limit to top 20 collaborators
+                        relationships["collaborators"].append({
+                            "id": person.id,
+                            "display_name": person.display_name,
+                            "email": person.scored_email_addresses[0].address if person.scored_email_addresses else None,
+                            "relationship_type": "collaborator",
+                            "score": person.relevance_score if hasattr(person, 'relevance_score') else 0.5
+                        })
+            except ODataError:
+                pass
+            
+            return {
+                "status": "success",
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "relationships": relationships,
+                "extracted_at": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting relationships for user {user_id}: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    async def analyze_communication_patterns(self, tenant_id: str, user_id: str, days: int = 30) -> Dict[str, Any]:
+        """Analyze communication patterns from email metadata"""
+        if not self.resource_monitor.is_feature_enabled("advanced_analytics"):
+            logger.warning("Communication analysis disabled due to resource constraints")
+            return {"status": "disabled"}
+        
+        graph_client = self.get_graph_client(tenant_id)
+        if not graph_client:
+            return {"status": "error", "message": "Failed to connect to Microsoft Graph"}
+        
+        try:
+            # Calculate date range
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            
+            # Get email messages (metadata only)
+            messages = await graph_client.users.by_user_id(user_id).messages.get(
+                filter=f"receivedDateTime ge {start_date.isoformat()} and receivedDateTime le {end_date.isoformat()}",
+                select=["sender", "toRecipients", "receivedDateTime", "isRead", "hasAttachments"],
+                top=1000
+            )
+            
+            communication_data = {}
+            
+            if messages and messages.value:
+                for message in messages.value:
+                    sender_email = message.sender.email_address.address if message.sender else None
+                    
+                    if sender_email and sender_email not in communication_data:
+                        communication_data[sender_email] = {
+                            "email": sender_email,
+                            "name": message.sender.email_address.name if message.sender else None,
+                            "message_count": 0,
+                            "response_rate": 0,
+                            "avg_response_time": 0,
+                            "collaboration_score": 0
+                        }
+                    
+                    if sender_email:
+                        communication_data[sender_email]["message_count"] += 1
+            
+            # Calculate collaboration scores based on frequency
+            total_messages = sum(data["message_count"] for data in communication_data.values())
+            
+            for email, data in communication_data.items():
+                if total_messages > 0:
+                    data["collaboration_score"] = min(1.0, data["message_count"] / total_messages * 10)
+            
+            return {
+                "status": "success",
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "analysis_period_days": days,
+                "communication_patterns": communication_data,
+                "analyzed_at": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing communication patterns for user {user_id}: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    async def process_excel_file(self, tenant_id: str, file_id: str, 
+                               drive_id: str = None) -> Dict[str, Any]:
+        """Process Excel file from OneDrive or SharePoint"""
+        if not self.resource_monitor.is_feature_enabled("excel_dashboard"):
+            logger.warning("Excel processing disabled due to resource constraints")
+            return {"status": "disabled"}
+        
+        graph_client = self.get_graph_client(tenant_id)
+        if not graph_client:
+            return {"status": "error", "message": "Failed to connect to Microsoft Graph"}
+        
+        try:
+            # Get workbook information
+            if drive_id:
+                workbook = await graph_client.drives.by_drive_id(drive_id).items.by_drive_item_id(file_id).workbook.get()
+            else:
+                workbook = await graph_client.me.drive.items.by_drive_item_id(file_id).workbook.get()
+            
+            # Get worksheets
+            worksheets = await workbook.worksheets.get()
+            
+            processed_data = {
+                "file_id": file_id,
+                "worksheets": [],
+                "tables": [],
+                "charts": []
+            }
+            
+            if worksheets and worksheets.value:
+                for worksheet in worksheets.value:
+                    worksheet_data = {
+                        "id": worksheet.id,
+                        "name": worksheet.name,
+                        "position": worksheet.position
+                    }
+                    
+                    # Get tables in worksheet
+                    try:
+                        tables = await worksheet.tables.get()
+                        if tables and tables.value:
+                            for table in tables.value:
+                                table_data = {
+                                    "id": table.id,
+                                    "name": table.name,
+                                    "worksheet_id": worksheet.id,
+                                    "range": table.range
+                                }
+                                
+                                # Get table data
+                                table_range = await table.range().get()
+                                if table_range:
+                                    table_data["values"] = table_range.values
+                                    table_data["headers"] = table_range.values[0] if table_range.values else []
+                                
+                                processed_data["tables"].append(table_data)
+                    except Exception as e:
+                        logger.warning(f"Could not process tables in worksheet {worksheet.name}: {str(e)}")
+                    
+                    processed_data["worksheets"].append(worksheet_data)
+            
+            return {
+                "status": "success",
+                "tenant_id": tenant_id,
+                "processed_data": processed_data,
+                "processed_at": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing Excel file {file_id}: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    def refresh_token_if_needed(self, tenant_id: str) -> bool:
+        """Refresh access token if it's about to expire"""
+        if tenant_id not in self.token_cache:
+            return False
+        
+        token_info = self.token_cache[tenant_id]
+        if datetime.now() >= token_info["expires_at"] - timedelta(minutes=5):
+            # Token expires soon, refresh it
+            try:
+                app = ConfidentialClientApplication(
+                    client_id=os.getenv("MICROSOFT_CLIENT_ID"),
+                    client_credential=os.getenv("MICROSOFT_CLIENT_SECRET"),
+                    authority=f"https://login.microsoftonline.com/{tenant_id}"
+                )
+                
+                result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
+                
+                if "access_token" in result:
+                    self.token_cache[tenant_id] = {
+                        "token": result["access_token"],
+                        "expires_at": datetime.now() + timedelta(seconds=result.get("expires_in", 3600))
+                    }
+                    
+                    # Update Graph client
+                    self.graph_clients[tenant_id] = GraphServiceClient(
+                        credentials=result["access_token"],
+                        scopes=["https://graph.microsoft.com/.default"]
+                    )
+                    
+                    logger.info(f"Token refreshed for tenant {tenant_id}")
+                    return True
+                else:
+                    logger.error(f"Failed to refresh token for tenant {tenant_id}")
+                    return False
+                    
+            except Exception as e:
+                logger.error(f"Error refreshing token for tenant {tenant_id}: {str(e)}")
+                return False
+        
+        return True  # Token is still valid

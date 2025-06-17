@@ -1,0 +1,38 @@
+File 22: App Layout Component (src/components/layout/AppLayout.jsx)
+jsx
+import React, { useState } from 'react';
+import { Outlet } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useTenant } from '../../contexts/TenantContext';
+import Header from './Header';
+import Sidebar from './Sidebar';
+import TenantRequiredGuard from '../common/TenantRequiredGuard';
+import './AppLayout.css';
+
+const AppLayout = () => {
+  const { theme } = useTheme();
+  const { hasTenant } = useTenant();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  const handleMenuToggle = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+  
+  return (
+    <div className={`app-layout ${theme} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <Header onMenuToggle={handleMenuToggle} />
+      <div className="app-container">
+        <Sidebar isCollapsed={sidebarCollapsed} />
+        <main className="content-area">
+          <TenantRequiredGuard>
+            <div className="content-wrapper">
+              <Outlet />
+            </div>
+          </TenantRequiredGuard>
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default AppLayout;

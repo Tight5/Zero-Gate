@@ -1,0 +1,130 @@
+File 43: Frontend Tests - Dashboard Component (src/components/tests/Dashboard.test.jsx)
+jsx
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from 'react-query';
+import Dashboard from '../../pages/Dashboard';
+import { AuthProvider } from '../../contexts/AuthContext';
+import { TenantProvider } from '../../contexts/TenantProvider';
+import { ResourceProvider } from '../../contexts/ResourceContext';
+import { ThemeProvider } from '../../contexts/ThemeContext';
+
+// Mock the dashboard components
+jest.mock('../../components/dashboard/KPICards', () => {
+  return function MockKPICards() {
+    return <div data-testid="kpi-cards">KPI Cards</div>;
+  };
+});
+
+jest.mock('../../components/dashboard/RelationshipStrengthChart', () => {
+  return function MockRelationshipChart() {
+    return <div data-testid="relationship-chart">Relationship Chart</div>;
+  };
+});
+
+jest.mock('../../components/dashboard/GrantStatusTimeline', () => {
+  return function MockGrantTimeline() {
+    return <div data-testid="grant-timeline">Grant Timeline</div>;
+  };
+});
+
+jest.mock('../../components/dashboard/RecentActivity', () => {
+  return function MockRecentActivity() {
+    return <div data-testid="recent-activity">Recent Activity</div>;
+  };
+});
+
+// Mock hooks
+jest.mock('../../contexts/TenantContext', () => ({
+  useTenant: () => ({
+    currentTenant: { id: 'test-tenant', name: 'Test Organization' }
+  })
+}));
+
+jest.mock('../../contexts/ResourceContext', () => ({
+  useResource: () => ({
+    isFeatureEnabled: () => true,
+    features: { relationship_mapping: true, advanced_analytics: true }
+  })
+}));
+
+describe('Dashboard Component', () => {
+  let queryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false }
+      }
+    });
+  });
+
+  const renderDashboard = () => {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <ResourceProvider>
+            <AuthProvider>
+              <TenantProvider>
+                <Dashboard />
+              </TenantProvider>
+            </AuthProvider>
+          </ResourceProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  };
+
+  test('renders dashboard header correctly', async () => {
+    renderDashboard();
+    
+    await waitFor(() => {
+      expect(screen.getByText(/executive dashboard/i)).toBeInTheDocument();
+      expect(screen.getByText(/test organization/i)).toBeInTheDocument();
+    });
+  });
+
+  test('renders all dashboard widgets', async () => {
+    renderDashboard();
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('kpi-cards')).toBeInTheDocument();
+      expect(screen.getByTestId('relationship-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('grant-timeline')).toBeInTheDocument();
+      expect(screen.getByTestId('recent-activity')).toBeInTheDocument();
+    });
+  });
+
+  test('renders action buttons', async () => {
+    renderDashboard();
+    
+    await waitFor(() => {
+      expect(screen.getByText(/customize/i)).toBeInTheDocument();
+      expect(screen.getByText(/export/i)).toBeInTheDocument();
+      expect(screen.getByText(/add widget/i)).toBeInTheDocument();
+    });
+  });
+
+  test('displays quick actions section', async () => {
+    renderDashboard();
+    
+    await waitFor(() => {
+      expect(screen.getByText(/quick actions/i)).toBeInTheDocument();
+      expect(screen.getByText(/add sponsor/i)).toBeInTheDocument();
+      expect(screen.getByText(/create grant/i)).toBeInTheDocument();
+      expect(screen.getByText(/schedule content/i)).toBeInTheDocument();
+      expect(screen.getByText(/map relationship/i)).toBeInTheDocument();
+    });
+  });
+
+  test('shows system health when advanced analytics enabled', async () => {
+    renderDashboard();
+    
+    await waitFor(() => {
+      expect(screen.getByText(/system health/i)).toBeInTheDocument();
+      expect(screen.getByText(/api response time/i)).toBeInTheDocument();
+      expect(screen.getByText(/data sync status/i)).toBeInTheDocument();
+    });
+  });
+});

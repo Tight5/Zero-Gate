@@ -1,0 +1,114 @@
+File 36: Relationship Mapping Page (src/pages/RelationshipMapping.jsx)
+jsx
+import React, { useState } from 'react';
+import { Card, Heading, Button, Tabs, TabsList, TabsTrigger, TabsContent } from '@replit/ui';
+import { Network, Search, Users, MapPin, Settings } from 'lucide-react';
+import { useTenant } from '../contexts/TenantContext';
+import { useResource } from '../contexts/ResourceContext';
+import HybridRelationshipMap from '../components/relationships/HybridRelationshipMap';
+import PathDiscovery from '../components/relationships/PathDiscovery';
+import NetworkAnalytics from '../components/relationships/NetworkAnalytics';
+import RelationshipSettings from '../components/relationships/RelationshipSettings';
+import './RelationshipMapping.css';
+
+const RelationshipMapping = () => {
+  const [activeTab, setActiveTab] = useState('map');
+  const { currentTenant } = useTenant();
+  const { isFeatureEnabled } = useResource();
+
+  if (!isFeatureEnabled('relationship_mapping')) {
+    return (
+      <div className="relationship-mapping-page">
+        <Card className="feature-disabled-card">
+          <div className="disabled-content">
+            <Network size={64} />
+            <Heading size="large">Relationship Mapping Unavailable</Heading>
+            <p>
+              This feature is temporarily disabled due to system resource constraints. 
+              Please try again later or contact support if this issue persists.
+            </p>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relationship-mapping-page">
+      <div className="page-header">
+        <div className="header-content">
+          <div className="title-section">
+            <Heading size="large">
+              <Network size={28} />
+              Relationship Mapping
+            </Heading>
+            <p className="page-subtitle">
+              Visualize and analyze stakeholder connections for {currentTenant?.name}
+            </p>
+          </div>
+          
+          <div className="header-actions">
+            <Button variant="outline">
+              <MapPin size={16} />
+              Import Locations
+            </Button>
+            
+            <Button variant="outline">
+              <Settings size={16} />
+              Map Settings
+            </Button>
+            
+            <Button variant="primary">
+              <Users size={16} />
+              Add Relationship
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="page-content">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mapping-tabs">
+          <TabsList className="tabs-list">
+            <TabsTrigger value="map">
+              <Network size={16} />
+              Hybrid Map
+            </TabsTrigger>
+            <TabsTrigger value="discovery">
+              <Search size={16} />
+              Path Discovery
+            </TabsTrigger>
+            <TabsTrigger value="analytics">
+              <Users size={16} />
+              Network Analytics
+            </TabsTrigger>
+            <TabsTrigger value="settings">
+              <Settings size={16} />
+              Settings
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="map" className="tab-content">
+            <HybridRelationshipMap />
+          </TabsContent>
+
+          <TabsContent value="discovery" className="tab-content">
+            <PathDiscovery />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="tab-content">
+            <NetworkAnalytics />
+          </TabsContent>
+
+          <TabsContent value="settings" className="tab-content">
+            <RelationshipSettings />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
+
+export default RelationshipMapping;

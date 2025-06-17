@@ -1,0 +1,202 @@
+File 26: Feature Components - Hybrid Relationship Map (src/components/relationships/HybridRelationshipMap.jsx)
+jsx
+import React, { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { ForceGraph2D } from 'react-force-graph';
+import { Button, Card, Select, Tabs, TabsList, TabsTrigger, TabsContent } from '@replit/ui';
+import { Map, Network, Maximize2, Filter } from 'lucide-react';
+import { useGraphData } from '../../hooks/useRelationshipData';
+import { useResource } from '../../contexts/ResourceContext';
+import { useTenant } from '../../contexts/TenantContext';
+import 'leaflet/dist/leaflet.css';
+import './HybridRelationshipMap.css';
+
+const HybridRelationshipMap = ({ data, viewMode = 'hybrid' }) => {
+  const mapRef = useRef(null);
+  const graphRef = useRef(null);
+  const { isFeatureEnabled } = useResource();
+  const { currentTenant } = useTenant();
+  const [activeView, setActiveView] = useState(viewMode);
+  const [filters, setFilters] = useState({
+    relationshipType: 'all',
+    strengthThreshold: 0.3,
+    includeWeak: false
+  });
+
+  const { data: graphData, isLoading, error } = useGraphData(filters.includeWeak);
+
+  useEffect(() => {
+    if (!isFeatureEnabled('relationship_mapping')) {
+      console.warn('Relationship mapping disabled due to resource constraints');
+    }
+  }, [isFeatureEnabled]);
+
+  const renderGeographicView = () => (
+    <div className="geographic-view">
+      <MapContainer
+        center={[39.8283, -98.5795]} // Center of US
+        zoom={4}
+        style={{ height: '100%', width: '100%' }}
+        ref={mapRef}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        {graphData?.nodes?.map((node) => (
+          node.lat && node.lng && (
+            <Marker key={node.id} position={[node.lat, node.lng]}>
+              <Popup>
+                <div>
+                  <strong>{node.label}</strong>
+                  <br />
+                  Type: {node.type}
+                  <br />
+                  Connections: {node.connections || 0}
+                </div>
+              </Popup>
+            </Marker>
+          )
+        ))}
+      </MapContainer>
+    </div>
+  );
+
+  const renderNetworkView = () => (
+    <div className="network-view">
+      <ForceGraph2D
+        ref={graphRef}
+        graphData={graphData || { nodes: [], links: [] }}
+        nodeLabel="label"
+        nodeColor={(node) => node.color || '#3366ff'}
+        nodeRelSize={6}
+        linkColor={(link) => link.color || '#999'}
+        linkWidth={(link) => link.width || 1}
+        onNodeClick={(node) => {
+          console.log('Node clicked:', node);
+        }}
+        onLinkClick={(link) => {
+          console.log('Link clicked:', link);
+        }}
+        width={800}
+        height={600}
+      />
+    </div>
+  );
+
+  const renderHybridView = () => (
+    <div className="hybrid-view">
+      <div className="view-split">
+        <div className="geographic-panel">
+          {renderGeographicView()}
+        </div>
+        <div className="network-panel">
+          {renderNetworkView()}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!isFeatureEnabled('relationship_mapping')) {
+    return (
+      <Card className="disabled-feature">
+        <div className="disabled-message">
+          <Network size={48} />
+          <h3>Relationship Mapping Unavailable</h3>
+          <p>This feature is temporarily disabled due to system resource constraints.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="loading-card">
+        <div className="loading-content">
+          <div className="loading-spinner" />
+          <p>Loading relationship data...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="error-card">
+        <div className="error-content">
+          <h3>Failed to Load Relationship Data</h3>
+          <p>{error.message}</p>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="hybrid-relationship-map">
+      <div className="map-header">
+        <div className="header-left">
+          <h2>Relationship Network</h2>
+          <span className="node-count">
+            {graphData?.stats?.node_count || 0} people, {graphData?.stats?.edge_count || 0} connections
+          </span>
+        </div>
+        
+        <div className="header-controls">
+          <Select
+            value={filters.relationshipType}
+            onChange={(e) => setFilters(prev => ({ ...prev, relationshipType: e.target.value }))}
+          >
+            <option value="all">All Relationships</option>
+            <option value="manager">Manager</option>
+            <option value="colleague">Colleague</option>
+            <option value="sponsor">Sponsor</option>
+            <option value="collaborator">Collaborator</option>
+          </Select>
+          
+          <Button variant="outline" size="sm">
+            <Filter size={16} />
+            Filters
+          </Button>
+          
+          <Button variant="outline" size="sm">
+            <Maximize2 size={16} />
+            Fullscreen
+          </Button>
+        </div>
+      </div>
+
+      <Tabs value={activeView} onValueChange={setActiveView} className="view-tabs">
+        <TabsList>
+          <TabsTrigger value="geographic">
+            <Map size={16} />
+            Geographic
+          </TabsTrigger>
+          <TabsTrigger value="network">
+            <Network size={16} />
+            Network
+          </TabsTrigger>
+          <TabsTrigger value="hybrid">
+            Hybrid View
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="geographic" className="view-content">
+          {renderGeographicView()}
+        </TabsContent>
+
+        <TabsContent value="network" className="view-content">
+          {renderNetworkView()}
+        </TabsContent>
+
+        <TabsContent value="hybrid" className="view-content">
+          {renderHybridView()}
+        </TabsContent>
+      </Tabs>
+    </Card>
+  );
+};
+
+export default HybridRelationshipMap;

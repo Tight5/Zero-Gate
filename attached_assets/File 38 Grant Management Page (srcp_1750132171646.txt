@@ -1,0 +1,394 @@
+File 38: Grant Management Page (src/pages/GrantManagement.jsx)
+jsx
+import React, { useState } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Card, Heading, Button, Tabs, TabsList, TabsTrigger, TabsContent, Badge } from '@replit/ui';
+import { Award, Plus, Calendar, Clock, TrendingUp } from 'lucide-react';
+import { useTenantData } from '../hooks/useTenantData';
+import { useTenant } from '../contexts/TenantContext';
+import GrantTimeline from '../components/grants/GrantTimeline';
+import GrantForm from '../components/grants/GrantForm';
+import GrantDetails from '../components/grants/GrantDetails';
+import './GrantManagement.css';
+
+const GrantOverview = () => {
+  const [activeTab, setActiveTab] = useState('active');
+  const navigate = useNavigate();
+  const { currentTenant } = useTenant();
+
+  const { data: grantsData, isLoading, error } = useTenantData('/grants', {
+    refetchInterval: 2 * 60 * 1000 // Refresh every 2 minutes
+  });
+
+  const { data: timelineData } = useTenantData('/grants/upcoming-deadlines', {
+    refetchInterval: 5 * 60 * 1000
+  });
+
+  const filterGrantsByStatus = (status) => {
+    if (!grantsData?.grants) return [];
+    if (status === 'active') return grantsData.grants.filter(g => ['planning', 'in_progress'].includes(g.status));
+    return grantsData.grants.filter(g => g.status === status);
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      planning: 'blue',
+      in_progress: 'yellow',
+      submitted: 'purple',
+      approved: 'green',
+      rejected: 'red',
+      completed: 'gray'
+    };
+    return colors[status] || 'gray';
+  };
+
+  const calculateDaysRemaining = (deadline) => {
+    const today = new Date();
+    const deadlineDate = new Date(deadline);
+    const diffTime = deadlineDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const handleCreateGrant = () => {
+    navigate('/grants/new');
+  };
+
+  const handleGrantClick = (grantId) => {
+    navigate(`/grants/${grantId}`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="grant-overview loading">
+        <Card className="loading-card">
+          <div className="loading-content">
+            <div className="loading-spinner" />
+            <p>Loading grants...</p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="grant-overview error">
+        <Card className="error-card">
+          <h3>Failed to Load Grants</h3>
+          <p>{error.message}</p>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const activeGrants = filterGrantsByStatus('active');
+  const submittedGrants = filterGrantsByStatus('submitted');
+  const completedGrants = filterGrantsByStatus('completed');
+
+  return (
+    <div className="grant-overview">
+      <div className="overview-header">
+        <div className="header-left">
+          <Heading size="large">
+            <Award size={28} />
+            Grant Management
+          </Heading>
+          <p className="overview-subtitle">
+            Track and manage grants for {currentTenant?.name}
+          </p>
+        </div>
+        
+        <div className="header-actions">
+          <Button variant="outline">
+            <Calendar size={16} />
+            View Calendar
+          </Button>
+          
+          <Button variant="primary" onClick={handleCreateGrant}>
+            <Plus size={16} />
+            New Grant Application
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="summary-cards">
+        <Card className="summary-card">
+          <div className="card-content">
+            <div className="card-icon active">
+              <TrendingUp size={24} />
+            </div>
+            <div className="card-stats">
+              <span className="stat-number">{activeGrants.length}</span>
+              <span className="stat-label">Active Applications</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="summary-card">
+          <div className="card-content">
+            <div className="card-icon submitted">
+              <Clock size={24} />
+            </div>
+            <div className="card-stats">
+              <span className="stat-number">{submittedGrants.length}</span>
+              <span className="stat-label">Under Review</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="summary-card">
+          <div className="card-content">
+            <div className="card-icon completed">
+              <Award size={24} />
+            </div>
+            <div className="card-stats">
+              <span className="stat-number">{completedGrants.length}</span>
+              <span className="stat-label">Completed</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="summary-card">
+          <div className="card-content">
+            <div className="card-icon funding">
+              <span className="dollar-sign">$</span>
+            </div>
+            <div className="card-stats">
+              <span className="stat-number">
+                {new Intl.NumberFormat('en-US', {
+                  style: 'currency',
+                  currency: 'USD',
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0
+                }).format(grantsData?.total_funding || 0)}
+              </span>
+              <span className="stat-label">Total Funding</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Grants Tabs */}
+      <Card className="grants-tabs-card">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="active">
+              Active ({activeGrants.length})
+            </TabsTrigger>
+            <TabsTrigger value="submitted">
+              Submitted ({submittedGrants.length})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({completedGrants.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active">
+            <div className="grants-grid">
+              {activeGrants.map((grant) => {
+                const daysRemaining = calculateDaysRemaining(grant.submission_deadline);
+                
+                return (
+                  <Card 
+                    key={grant.grant_id} 
+                    className="grant-card"
+                    onClick={() => handleGrantClick(grant.grant_id)}
+                  >
+                    <div className="grant-header">
+                      <h4 className="grant-title">{grant.name}</h4>
+                      <Badge 
+                        variant="solid" 
+                        color={getStatusColor(grant.status)}
+                      >
+                        {grant.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    
+                    <div className="grant-details">
+                      <div className="grant-sponsor">
+                        <span className="label">Sponsor:</span>
+                        <span className="value">{grant.sponsor_name}</span>
+                      </div>
+                      
+                      <div className="grant-amount">
+                        <span className="label">Amount:</span>
+                        <span className="value">
+                          {grant.amount ? 
+                            new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD'
+                            }).format(grant.amount) : 
+                            'TBD'
+                          }
+                        </span>
+                      </div>
+                      
+                      <div className="grant-deadline">
+                        <span className="label">Deadline:</span>
+                        <span className={`value ${daysRemaining <= 30 ? 'urgent' : ''}`}>
+                          {new Date(grant.submission_deadline).toLocaleDateString()}
+                          {daysRemaining > 0 && (
+                            <span className="days-remaining">
+                              ({daysRemaining} days)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grant-progress">
+                      <div className="progress-info">
+                        <span>Progress</span>
+                        <span>{grant.completion_percentage || 0}%</span>
+                      </div>
+                      <div className="progress-bar">
+                        <div 
+                          className="progress-fill"
+                          style={{ width: `${grant.completion_percentage || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+              
+              {activeGrants.length === 0 && (
+                <div className="empty-state">
+                  <Award size={48} />
+                  <h3>No Active Grant Applications</h3>
+                  <p>Start by creating your first grant application</p>
+                  <Button onClick={handleCreateGrant}>
+                    <Plus size={16} />
+                    Create Grant Application
+                  </Button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="submitted">
+            <div className="grants-grid">
+              {submittedGrants.map((grant) => (
+                <Card 
+                  key={grant.grant_id} 
+                  className="grant-card submitted"
+                  onClick={() => handleGrantClick(grant.grant_id)}
+                >
+                  <div className="grant-header">
+                    <h4 className="grant-title">{grant.name}</h4>
+                    <Badge variant="solid" color="purple">
+                      Under Review
+                    </Badge>
+                  </div>
+                  
+                  <div className="grant-details">
+                    <div className="grant-sponsor">
+                      <span className="label">Sponsor:</span>
+                      <span className="value">{grant.sponsor_name}</span>
+                    </div>
+                    
+                    <div className="grant-submitted">
+                      <span className="label">Submitted:</span>
+                      <span className="value">
+                        {new Date(grant.submitted_date).toLocaleDateString()}
+                      </span>
+                    </div>
+                    
+                    <div className="grant-decision">
+                      <span className="label">Decision Expected:</span>
+                      <span className="value">
+                        {grant.decision_date ? 
+                          new Date(grant.decision_date).toLocaleDateString() : 
+                          'TBD'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+              
+              {submittedGrants.length === 0 && (
+                <div className="empty-state">
+                  <Clock size={48} />
+                  <h3>No Submitted Applications</h3>
+                  <p>Submitted applications will appear here</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="completed">
+            <div className="grants-grid">
+              {completedGrants.map((grant) => (
+                <Card 
+                  key={grant.grant_id} 
+                  className="grant-card completed"
+                  onClick={() => handleGrantClick(grant.grant_id)}
+                >
+                  <div className="grant-header">
+                    <h4 className="grant-title">{grant.name}</h4>
+                    <Badge 
+                      variant="solid" 
+                      color={grant.status === 'approved' ? 'green' : 'red'}
+                    >
+                      {grant.status === 'approved' ? 'Approved' : 'Declined'}
+                    </Badge>
+                  </div>
+                  
+                  <div className="grant-details">
+                    <div className="grant-sponsor">
+                      <span className="label">Sponsor:</span>
+                      <span className="value">{grant.sponsor_name}</span>
+                    </div>
+                    
+                    <div className="grant-result">
+                      <span className="label">Result:</span>
+                      <span className="value">
+                        {grant.status === 'approved' ? 
+                          `Awarded ${new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD'
+                          }).format(grant.awarded_amount || grant.amount)}` :
+                          'Application declined'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+              
+              {completedGrants.length === 0 && (
+                <div className="empty-state">
+                  <Award size={48} />
+                  <h3>No Completed Applications</h3>
+                  <p>Completed applications will appear here</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </Card>
+    </div>
+  );
+};
+
+const GrantManagement = () => {
+  return (
+    <div className="grant-management-page">
+      <Routes>
+        <Route index element={<GrantOverview />} />
+        <Route path="new" element={<GrantForm />} />
+        <Route path=":grantId" element={<GrantDetails />} />
+        <Route path=":grantId/edit" element={<GrantForm />} />
+        <Route path=":grantId/timeline" element={<GrantTimeline />} />
+      </Routes>
+    </div>
+  );
+};
+
+export default GrantManagement;

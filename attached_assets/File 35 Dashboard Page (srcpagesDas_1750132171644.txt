@@ -1,0 +1,187 @@
+File 35: Dashboard Page (src/pages/Dashboard.jsx)
+jsx
+import React from 'react';
+import { Card, Heading, Button } from '@replit/ui';
+import { BarChart3, Plus, Filter, Download } from 'lucide-react';
+import { useTenant } from '../contexts/TenantContext';
+import { useResource } from '../contexts/ResourceContext';
+import KPICards from '../components/dashboard/KPICards';
+import RelationshipStrengthChart from '../components/dashboard/RelationshipStrengthChart';
+import GrantStatusTimeline from '../components/dashboard/GrantStatusTimeline';
+import RecentActivity from '../components/dashboard/RecentActivity';
+import './Dashboard.css';
+
+const Dashboard = () => {
+  const { currentTenant } = useTenant();
+  const { isFeatureEnabled } = useResource();
+
+  const handleExportDashboard = () => {
+    console.log('Exporting dashboard data...');
+    // Implementation for dashboard export
+  };
+
+  const handleCustomizeDashboard = () => {
+    console.log('Opening dashboard customization...');
+    // Implementation for dashboard customization
+  };
+
+  return (
+    <div className="dashboard-page">
+      <div className="dashboard-header">
+        <div className="header-content">
+          <div className="title-section">
+            <Heading size="large">
+              <BarChart3 size={28} />
+              Executive Dashboard
+            </Heading>
+            <p className="dashboard-subtitle">
+              Overview for {currentTenant?.name}
+            </p>
+          </div>
+          
+          <div className="header-actions">
+            <Button variant="outline" onClick={handleCustomizeDashboard}>
+              <Filter size={16} />
+              Customize
+            </Button>
+            
+            <Button variant="outline" onClick={handleExportDashboard}>
+              <Download size={16} />
+              Export
+            </Button>
+            
+            <Button variant="primary">
+              <Plus size={16} />
+              Add Widget
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="dashboard-content">
+        {/* KPI Cards Section */}
+        <section className="dashboard-section">
+          <div className="section-header">
+            <h3>Key Performance Indicators</h3>
+            <span className="section-subtitle">Real-time organizational metrics</span>
+          </div>
+          <KPICards />
+        </section>
+
+        {/* Charts and Visualizations */}
+        <div className="dashboard-grid">
+          <div className="grid-item">
+            <Card className="dashboard-widget">
+              <div className="widget-header">
+                <h4>Relationship Strength Overview</h4>
+                <Button variant="ghost" size="sm">
+                  View Details
+                </Button>
+              </div>
+              <div className="widget-content">
+                {isFeatureEnabled('relationship_mapping') ? (
+                  <RelationshipStrengthChart />
+                ) : (
+                  <div className="feature-disabled">
+                    <p>Relationship mapping temporarily disabled</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid-item">
+            <Card className="dashboard-widget">
+              <div className="widget-header">
+                <h4>Grant Status Timeline</h4>
+                <Button variant="ghost" size="sm">
+                  Manage Grants
+                </Button>
+              </div>
+              <div className="widget-content">
+                <GrantStatusTimeline />
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid-item">
+            <Card className="dashboard-widget">
+              <div className="widget-header">
+                <h4>Recent Activity</h4>
+                <Button variant="ghost" size="sm">
+                  View All
+                </Button>
+              </div>
+              <div className="widget-content">
+                <RecentActivity />
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid-item">
+            <Card className="dashboard-widget">
+              <div className="widget-header">
+                <h4>Quick Actions</h4>
+              </div>
+              <div className="widget-content">
+                <div className="quick-actions">
+                  <Button variant="outline" className="action-button">
+                    <Plus size={16} />
+                    Add Sponsor
+                  </Button>
+                  <Button variant="outline" className="action-button">
+                    <Plus size={16} />
+                    Create Grant
+                  </Button>
+                  <Button variant="outline" className="action-button">
+                    <Plus size={16} />
+                    Schedule Content
+                  </Button>
+                  <Button variant="outline" className="action-button">
+                    <Plus size={16} />
+                    Map Relationship
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* System Status Section */}
+        {isFeatureEnabled('advanced_analytics') && (
+          <section className="dashboard-section">
+            <div className="section-header">
+              <h3>System Health</h3>
+              <span className="section-subtitle">Platform performance and resource usage</span>
+            </div>
+            <Card className="system-health-widget">
+              <div className="health-metrics">
+                <div className="health-metric">
+                  <span className="metric-label">API Response Time</span>
+                  <span className="metric-value good">142ms</span>
+                </div>
+                <div className="health-metric">
+                  <span className="metric-label">Data Sync Status</span>
+                  <span className="metric-value good">Healthy</span>
+                </div>
+                <div className="health-metric">
+                  <span className="metric-label">Active Features</span>
+                  <span className="metric-value">
+                    {Object.values(useResource().features).filter(Boolean).length}/
+                    {Object.keys(useResource().features).length}
+                  </span>
+                </div>
+                <div className="health-metric">
+                  <span className="metric-label">Last Backup</span>
+                  <span className="metric-value">2 hours ago</span>
+                </div>
+              </div>
+            </Card>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

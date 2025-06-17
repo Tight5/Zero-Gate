@@ -1,0 +1,144 @@
+File 32: Dashboard KPI Cards (src/components/dashboard/KPICards.jsx)
+jsx
+import React from 'react';
+import { Card, Badge } from '@replit/ui';
+import { TrendingUp, TrendingDown, Users, Calendar, Award, DollarSign } from 'lucide-react';
+import { useTenantData } from '../../hooks/useTenantData';
+import './KPICards.css';
+
+const KPICards = () => {
+  const { data: kpiData, isLoading, error } = useTenantData('/dashboard/kpis');
+
+  if (isLoading) {
+    return (
+      <div className="kpi-cards loading">
+        {[1, 2, 3, 4].map(i => (
+          <Card key={i} className="kpi-card skeleton">
+            <div className="kpi-skeleton">
+              <div className="skeleton-icon"></div>
+              <div className="skeleton-content">
+                <div className="skeleton-line"></div>
+                <div className="skeleton-line short"></div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="kpi-error">
+        <p>Failed to load KPI data</p>
+      </Card>
+    );
+  }
+
+  const kpis = [
+    {
+      id: 'active_sponsors',
+      title: 'Active Sponsors',
+      value: kpiData?.active_sponsors || 0,
+      change: kpiData?.sponsors_change || 0,
+      icon: Users,
+      color: 'blue'
+    },
+    {
+      id: 'total_grants',
+      title: 'Grant Applications',
+      value: kpiData?.total_grants || 0,
+      change: kpiData?.grants_change || 0,
+      icon: Award,
+      color: 'green'
+    },
+    {
+      id: 'funding_secured',
+      title: 'Funding Secured',
+      value: kpiData?.funding_secured || 0,
+      change: kpiData?.funding_change || 0,
+      icon: DollarSign,
+      color: 'purple',
+      format: 'currency'
+    },
+    {
+      id: 'upcoming_deadlines',
+      title: 'Upcoming Deadlines',
+      value: kpiData?.upcoming_deadlines || 0,
+      change: kpiData?.deadlines_change || 0,
+      icon: Calendar,
+      color: 'orange'
+    }
+  ];
+
+  const formatValue = (value, format) => {
+    switch (format) {
+      case 'currency':
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(value);
+      case 'percentage':
+        return `${value.toFixed(1)}%`;
+      default:
+        return value.toLocaleString();
+    }
+  };
+
+  const getChangeColor = (change) => {
+    if (change > 0) return 'green';
+    if (change < 0) return 'red';
+    return 'gray';
+  };
+
+  const getChangeIcon = (change) => {
+    if (change > 0) return TrendingUp;
+    if (change < 0) return TrendingDown;
+    return null;
+  };
+
+  return (
+    <div className="kpi-cards">
+      {kpis.map((kpi) => {
+        const IconComponent = kpi.icon;
+        const ChangeIcon = getChangeIcon(kpi.change);
+        const changeColor = getChangeColor(kpi.change);
+
+        return (
+          <Card key={kpi.id} className={`kpi-card ${kpi.color}`}>
+            <div className="kpi-header">
+              <div className="kpi-icon">
+                <IconComponent size={24} />
+              </div>
+              <div className="kpi-change">
+                {ChangeIcon && (
+                  <div className={`change-indicator ${changeColor}`}>
+                    <ChangeIcon size={16} />
+                    <span>{Math.abs(kpi.change)}%</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="kpi-content">
+              <h3 className="kpi-title">{kpi.title}</h3>
+              <div className="kpi-value">
+                {formatValue(kpi.value, kpi.format)}
+              </div>
+              
+              {kpi.change !== 0 && (
+                <div className={`kpi-change-text ${changeColor}`}>
+                  {kpi.change > 0 ? '+' : ''}{kpi.change}% from last period
+                </div>
+              )}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+};
+
+export default KPICards;

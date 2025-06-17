@@ -1,0 +1,246 @@
+File 37: Sponsor Management Page (src/pages/SponsorManagement.jsx)
+jsx
+import React, { useState } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Card, Heading, Button, Input, Select, Table } from '@replit/ui';
+import { Building2, Plus, Search, Filter, MoreHorizontal } from 'lucide-react';
+import { useTenantData } from '../hooks/useTenantData';
+import { useTenant } from '../contexts/TenantContext';
+import SponsorProfile from '../components/sponsors/SponsorProfile';
+import SponsorForm from '../components/sponsors/SponsorForm';
+import './SponsorManagement.css';
+
+const SponsorList = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const navigate = useNavigate();
+  const { currentTenant } = useTenant();
+
+  const { data: sponsorsData, isLoading, error } = useTenantData('/sponsors', {
+    refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
+  });
+
+  const filteredSponsors = React.useMemo(() => {
+    if (!sponsorsData?.sponsors) return [];
+    
+    return sponsorsData.sponsors.filter(sponsor => {
+      const matchesSearch = sponsor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           sponsor.relationship_manager?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || sponsor.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [sponsorsData, searchTerm, statusFilter]);
+
+  const handleSponsorClick = (sponsorId) => {
+    navigate(`/sponsors/${sponsorId}`);
+  };
+
+  const handleCreateSponsor = () => {
+    navigate('/sponsors/new');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="sponsor-list loading">
+        <Card className="loading-card">
+          <div className="loading-content">
+            <div className="loading-spinner" />
+            <p>Loading sponsors...</p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="sponsor-list error">
+        <Card className="error-card">
+          <h3>Failed to Load Sponsors</h3>
+          <p>{error.message}</p>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="sponsor-list">
+      <div className="list-header">
+        <div className="header-left">
+          <Heading size="large">
+            <Building2 size={28} />
+            Sponsor Management
+          </Heading>
+          <p className="list-subtitle">
+            Manage relationships with {filteredSponsors.length} sponsors
+          </p>
+        </div>
+        
+        <div className="header-actions">
+          <Button variant="primary" onClick={handleCreateSponsor}>
+            <Plus size={16} />
+            Add Sponsor
+          </Button>
+        </div>
+      </div>
+
+      <Card className="filters-card">
+        <div className="filters-content">
+          <div className="search-section">
+            <div className="search-input">
+              <Search size={16} />
+              <Input
+                placeholder="Search sponsors or relationship managers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <div className="filter-section">
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="pending">Pending</option>
+            </Select>
+            
+            <Button variant="outline" size="sm">
+              <Filter size={16} />
+              More Filters
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="sponsors-table-card">
+        <Table>
+          <thead>
+            <tr>
+              <th>Sponsor Name</th>
+              <th>Relationship Manager</th>
+              <th>Status</th>
+              <th>Active Grants</th>
+              <th>Last Contact</th>
+              <th>Relationship Score</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredSponsors.map((sponsor) => (
+              <tr 
+                key={sponsor.sponsor_id}
+                onClick={() => handleSponsorClick(sponsor.sponsor_id)}
+                className="sponsor-row"
+              >
+                <td>
+                  <div className="sponsor-name-cell">
+                    <div className="sponsor-avatar">
+                      <Building2 size={20} />
+                    </div>
+                    <div className="sponsor-info">
+                      <span className="sponsor-name">{sponsor.name}</span>
+                      <span className="sponsor-type">
+                        {sponsor.contact_info?.type || 'Corporate'}
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span className="relationship-manager">
+                    {sponsor.relationship_manager || 'Unassigned'}
+                  </span>
+                </td>
+                <td>
+                  <span className={`status-badge ${sponsor.status}`}>
+                    {sponsor.status}
+                  </span>
+                </td>
+                <td>
+                  <span className="grant-count">
+                    {sponsor.active_grants || 0}
+                  </span>
+                </td>
+                <td>
+                  <span className="last-contact">
+                    {sponsor.last_contact ? 
+                      new Date(sponsor.last_contact).toLocaleDateString() : 
+                      'Never'
+                    }
+                  </span>
+                </td>
+                <td>
+                  <div className="relationship-score">
+                    <div className="score-bar">
+                      <div 
+                        className="score-fill"
+                        style={{ width: `${(sponsor.relationship_score || 0) * 100}%` }}
+                      />
+                    </div>
+                    <span className="score-text">
+                      {((sponsor.relationship_score || 0) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Handle actions menu
+                    }}
+                  >
+                    <MoreHorizontal size={16} />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+
+        {filteredSponsors.length === 0 && (
+          <div className="empty-state">
+            <Building2 size={48} />
+            <h3>No Sponsors Found</h3>
+            <p>
+              {searchTerm || statusFilter !== 'all' 
+                ? 'Try adjusting your search or filters'
+                : 'Get started by adding your first sponsor'
+              }
+            </p>
+            {!searchTerm && statusFilter === 'all' && (
+              <Button onClick={handleCreateSponsor}>
+                <Plus size={16} />
+                Add First Sponsor
+              </Button>
+            )}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+const SponsorManagement = () => {
+  return (
+    <div className="sponsor-management-page">
+      <Routes>
+        <Route index element={<SponsorList />} />
+        <Route path="new" element={<SponsorForm />} />
+        <Route path=":sponsorId" element={<SponsorProfile />} />
+        <Route path=":sponsorId/edit" element={<SponsorForm />} />
+      </Routes>
+    </div>
+  );
+};
+
+export default SponsorManagement;

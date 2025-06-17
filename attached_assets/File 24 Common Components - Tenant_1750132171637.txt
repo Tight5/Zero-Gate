@@ -1,0 +1,38 @@
+File 24: Common Components - Tenant Required Guard (src/components/common/TenantRequiredGuard.jsx)
+jsx
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useTenant } from '../../contexts/TenantContext';
+import { Card, Heading, Spinner } from '@replit/ui';
+
+const TenantRequiredGuard = ({ children }) => {
+  const { currentTenant, loading, availableTenants } = useTenant();
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <Spinner size="large" />
+        <p>Loading organization information...</p>
+      </div>
+    );
+  }
+
+  if (!currentTenant && availableTenants.length > 0) {
+    return <Navigate to="/tenant-selection" replace />;
+  }
+
+  if (!currentTenant && availableTenants.length === 0) {
+    return (
+      <div className="no-tenant-container">
+        <Card>
+          <Heading size="large">No Access</Heading>
+          <p>You don't have access to any organizations. Please contact your administrator.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  return children;
+};
+
+export default TenantRequiredGuard;
