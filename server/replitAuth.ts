@@ -108,8 +108,14 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    const hostWithPort = req.get('host') || req.hostname;
-    passport.authenticate(`replitauth:${hostWithPort}`, {
+    // Extract hostname without port for strategy matching
+    const host = req.get('host') || req.hostname;
+    const hostname = host.split(':')[0];
+    
+    console.log(`Login attempt for hostname: ${hostname}`);
+    console.log(`Available domains: ${process.env.REPLIT_DOMAINS}`);
+    
+    passport.authenticate(`replitauth:${hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
