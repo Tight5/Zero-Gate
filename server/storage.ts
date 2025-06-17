@@ -223,12 +223,23 @@ export class DatabaseStorage implements IStorage {
 
   // Grant milestone operations
   async getGrantMilestones(grantId: string, tenantId: string): Promise<GrantMilestone[]> {
-    return await db
-      .select()
+    const result = await db
+      .select({
+        id: grantMilestones.id,
+        grantId: grantMilestones.grantId,
+        title: grantMilestones.title,
+        description: grantMilestones.description,
+        milestoneDate: grantMilestones.milestoneDate,
+        status: grantMilestones.status,
+        tasks: grantMilestones.tasks,
+        createdAt: grantMilestones.createdAt,
+        updatedAt: grantMilestones.updatedAt,
+      })
       .from(grantMilestones)
       .innerJoin(grants, eq(grantMilestones.grantId, grants.id))
       .where(and(eq(grantMilestones.grantId, grantId), eq(grants.tenantId, tenantId)))
       .orderBy(grantMilestones.milestoneDate);
+    return result;
   }
 
   async createGrantMilestone(milestone: InsertGrantMilestone): Promise<GrantMilestone> {

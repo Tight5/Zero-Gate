@@ -278,7 +278,10 @@ export default function ContentCalendar() {
                           <Textarea 
                             placeholder="Content description or notes"
                             className="min-h-[100px]"
-                            {...field} 
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
                           />
                         </FormControl>
                         <FormMessage />
@@ -309,7 +312,7 @@ export default function ContentCalendar() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Status</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select status" />
@@ -442,8 +445,8 @@ export default function ContentCalendar() {
                         >
                           <div className="font-medium truncate">{item.title}</div>
                           <div className="flex items-center space-x-1">
-                            <Badge variant="secondary" className={`text-xs ${getContentTypeColor(item.contentType)}`}>
-                              {item.contentType}
+                            <Badge variant="secondary" className="text-xs">
+                              {item.platform || 'General'}
                             </Badge>
                           </div>
                         </div>
@@ -479,12 +482,12 @@ export default function ContentCalendar() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <h3 className="text-lg font-medium">{item.title}</h3>
-                        <Badge className={getContentTypeColor(item.contentType)}>
+                        <Badge variant="secondary">
                           <Tag className="w-3 h-3 mr-1" />
-                          {item.contentType}
+                          {item.platform || 'General'}
                         </Badge>
-                        <Badge className={getStatusColor(item.status)}>
-                          {item.status}
+                        <Badge className={getStatusColor(item.status || 'draft')}>
+                          {item.status || 'Draft'}
                         </Badge>
                       </div>
                       <div className="flex items-center text-sm text-muted-foreground mb-2">
