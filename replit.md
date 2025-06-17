@@ -24,8 +24,9 @@ The Zero Gate ESO Platform is a sophisticated multi-tenant Executive Service Org
 ### Database Architecture
 - **Database**: PostgreSQL (configured for Neon serverless)
 - **ORM**: Drizzle ORM with migrations
-- **Multi-tenancy**: Tenant-based data isolation with middleware
-- **Schema**: Includes users, tenants, sponsors, grants, relationships, and content calendar tables
+- **Multi-tenancy**: Row-Level Security (RLS) policies for complete tenant isolation
+- **Security**: PostgreSQL RLS policies enforce tenant boundaries at database level
+- **Schema**: Includes users, tenants, sponsors, grants, relationships, and content calendar tables with comprehensive RLS protection
 
 ## Key Components
 
