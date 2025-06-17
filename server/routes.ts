@@ -15,18 +15,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
-  // Tenant context middleware
-  const requireTenant = async (req: any, res: any, next: any) => {
-    const tenantId = req.headers['x-tenant-id'];
-    if (!tenantId) {
-      return res.status(400).json({ message: "Tenant ID required" });
-    }
-    req.tenantId = tenantId;
-    next();
-  };
+  // Apply tenant context middleware to all authenticated routes
+  app.use('/api', isAuthenticated, setUserContext);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -68,7 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Dashboard routes
-  app.get('/api/dashboard/kpis', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/dashboard/kpis', requireTenantAccess, async (req: any, res) => {
     try {
       const kpis = await storage.getDashboardKPIs(req.tenantId);
       res.json(kpis);
@@ -89,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sponsor routes
-  app.get('/api/sponsors', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/sponsors', requireTenantAccess, async (req: any, res) => {
     try {
       const sponsors = await storage.getSponsors(req.tenantId);
       res.json(sponsors);
@@ -99,7 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/sponsors', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.post('/api/sponsors', requireTenantAccess, async (req: any, res) => {
     try {
       const sponsorData = insertSponsorSchema.parse({
         ...req.body,
@@ -113,7 +106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/sponsors/:id', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/sponsors/:id', requireTenantAccess, async (req: any, res) => {
     try {
       const sponsor = await storage.getSponsor(req.params.id, req.tenantId);
       if (!sponsor) {
@@ -126,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/sponsors/:id', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.put('/api/sponsors/:id', requireTenantAccess, async (req: any, res) => {
     try {
       const updateData = insertSponsorSchema.partial().parse(req.body);
       const sponsor = await storage.updateSponsor(req.params.id, updateData, req.tenantId);
@@ -137,7 +130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/sponsors/:id', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.delete('/api/sponsors/:id', requireTenantAccess, async (req: any, res) => {
     try {
       await storage.deleteSponsor(req.params.id, req.tenantId);
       res.json({ message: "Sponsor deleted successfully" });
@@ -148,7 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Grant routes
-  app.get('/api/grants', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/grants', requireTenantAccess, async (req: any, res) => {
     try {
       const grants = await storage.getGrants(req.tenantId);
       res.json(grants);
@@ -158,7 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/grants', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.post('/api/grants', requireTenantAccess, async (req: any, res) => {
     try {
       const grantData = insertGrantSchema.parse({
         ...req.body,
@@ -172,7 +165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/grants/:id', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/grants/:id', requireTenantAccess, async (req: any, res) => {
     try {
       const grant = await storage.getGrant(req.params.id, req.tenantId);
       if (!grant) {
@@ -185,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/grants/:id/timeline', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/grants/:id/timeline', requireTenantAccess, async (req: any, res) => {
     try {
       const grant = await storage.getGrant(req.params.id, req.tenantId);
       if (!grant) {
@@ -218,7 +211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/grants/:id/milestones', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/grants/:id/milestones', requireTenantAccess, async (req: any, res) => {
     try {
       const milestones = await storage.getGrantMilestones(req.params.id, req.tenantId);
       res.json(milestones);
@@ -228,7 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/grants/:grantId/milestones/:milestoneId/status', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.put('/api/grants/:grantId/milestones/:milestoneId/status', requireTenantAccess, async (req: any, res) => {
     try {
       const { status } = req.body;
       if (!['pending', 'in_progress', 'completed'].includes(status)) {
@@ -248,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Relationship routes
-  app.get('/api/relationships', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/relationships', requireTenantAccess, async (req: any, res) => {
     try {
       const relationships = await storage.getRelationships(req.tenantId);
       res.json(relationships);
@@ -258,7 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/relationships', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.post('/api/relationships', requireTenantAccess, async (req: any, res) => {
     try {
       const relationshipData = insertRelationshipSchema.parse({
         ...req.body,
@@ -272,7 +265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/relationships/discover-path', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.post('/api/relationships/discover-path', requireTenantAccess, async (req: any, res) => {
     try {
       const { source_id, target_id } = req.body;
       if (!source_id || !target_id) {
@@ -300,7 +293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Content calendar routes
-  app.get('/api/content-calendar', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.get('/api/content-calendar', requireTenantAccess, async (req: any, res) => {
     try {
       const content = await storage.getContentCalendar(req.tenantId);
       res.json({ content });
@@ -310,7 +303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/content-calendar', isAuthenticated, requireTenant, async (req: any, res) => {
+  app.post('/api/content-calendar', requireTenantAccess, async (req: any, res) => {
     try {
       const contentData = insertContentCalendarSchema.parse({
         ...req.body,
