@@ -11,7 +11,8 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
+  isLoading: boolean;
+  isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -87,7 +88,8 @@ export function useAuth() {
 
   return {
     user,
-    loading,
+    isLoading: loading,
+    isAuthenticated: !!user,
     login,
     logout,
     checkAuth,

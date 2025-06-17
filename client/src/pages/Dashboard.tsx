@@ -8,7 +8,7 @@ import SystemResources from "@/components/dashboard/SystemResources";
 import RecentActivity from "@/components/dashboard/RecentActivity";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
-export default function Dashboard() {
+function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -76,3 +76,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+export default Dashboard;
