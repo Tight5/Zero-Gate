@@ -1,15 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import performanceMonitor from "./middleware/performanceMonitor";
-import memoryGuard from "./middleware/memoryGuard";
-import { poolManager } from "./middleware/connectionPool";
-
+// Import monitoring modules dynamically to avoid memory issues
 const app = express();
-
-// Apply preventative middleware before other middleware
-app.use(performanceMonitor);
-app.use(memoryGuard);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -48,46 +41,54 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
 
   // Health check endpoints for monitoring
-  app.get('/health', (req: Request, res: Response) => {
-    const { monitor } = require('./middleware/performanceMonitor');
-    const { memoryGuard: memGuard } = require('./middleware/memoryGuard');
-    
-    const healthStatus = {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      performance: monitor.getHealthStatus(),
-      memory: memGuard.getHealthStatus(),
-      connectionPools: poolManager.getHealthSummary(),
-      version: process.env.npm_package_version || '1.0.0'
-    };
+  app.get('/health', async (req: Request, res: Response) => {
+    try {
+      const { monitor } = await import('./middleware/performanceMonitor.js');
+      const { memoryGuard } = await import('./middleware/memoryGuard.js');
+      
+      const healthStatus = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        performance: monitor.getHealthStatus(),
+        memory: memoryGuard.getHealthStatus(),
+        connectionPools: poolManager.getHealthSummary(),
+        version: process.env.npm_package_version || '1.0.0'
+      };
 
-    const isHealthy = 
-      healthStatus.performance.status === 'healthy' &&
-      healthStatus.memory.status === 'normal' &&
-      healthStatus.connectionPools.unhealthyPools === 0;
+      const isHealthy = 
+        healthStatus.performance.status === 'healthy' &&
+        healthStatus.memory.status === 'normal' &&
+        healthStatus.connectionPools.unhealthyPools === 0;
 
-    res.status(isHealthy ? 200 : 503).json(healthStatus);
+      res.status(isHealthy ? 200 : 503).json(healthStatus);
+    } catch (error) {
+      res.status(503).json({ error: 'Health check failed', message: error.message });
+    }
   });
 
   // Detailed metrics endpoint for debugging
-  app.get('/metrics', (req: Request, res: Response) => {
-    const { monitor } = require('./middleware/performanceMonitor');
-    const { memoryGuard: memGuard } = require('./middleware/memoryGuard');
-    
-    res.json({
-      performance: monitor.getDetailedMetrics(),
-      memory: memGuard.getHealthStatus(),
-      connectionPools: poolManager.getHealthSummary(),
-      system: {
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        uptime: process.uptime(),
-        cpuUsage: process.cpuUsage(),
-        memoryUsage: process.memoryUsage()
-      }
-    });
+  app.get('/metrics', async (req: Request, res: Response) => {
+    try {
+      const { monitor } = await import('./middleware/performanceMonitor.js');
+      const { memoryGuard } = await import('./middleware/memoryGuard.js');
+      
+      res.json({
+        performance: monitor.getDetailedMetrics(),
+        memory: memoryGuard.getHealthStatus(),
+        connectionPools: poolManager.getHealthSummary(),
+        system: {
+          nodeVersion: process.version,
+          platform: process.platform,
+          arch: process.arch,
+          uptime: process.uptime(),
+          cpuUsage: process.cpuUsage(),
+          memoryUsage: process.memoryUsage()
+        }
+      });
+    } catch (error) {
+      res.status(503).json({ error: 'Metrics unavailable', message: error.message });
+    }
   });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
