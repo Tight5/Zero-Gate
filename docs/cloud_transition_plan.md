@@ -37,7 +37,7 @@ nodeGroups:
     desiredCapacity: 3
     minSize: 2
     maxSize: 10
-
+  
   - name: gpu-nodes # For relationship mapping algorithms
     instanceType: p3.2xlarge
     desiredCapacity: 1
@@ -82,8 +82,8 @@ jobs:
       - name: Run Tests
         run: |
           npm test
-          npm run test:backend
-
+          python -m pytest
+  
   build:
     needs: test
     runs-on: ubuntu-latest
@@ -92,13 +92,12 @@ jobs:
         run: |
           docker build -t zero-gate-frontend:${{ github.sha }} ./frontend
           docker build -t zero-gate-backend:${{ github.sha }} ./backend
-      
       - name: Push to ECR
         run: |
           aws ecr get-login-password | docker login --username AWS --password-stdin
           docker push zero-gate-frontend:${{ github.sha }}
           docker push zero-gate-backend:${{ github.sha }}
-
+  
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -114,25 +113,23 @@ jobs:
 ### Container Configuration
 ```dockerfile
 # Backend Dockerfile
-FROM node:18-slim
+FROM python:3.10-slim
 WORKDIR /app
 
 # Install dependencies
-COPY package*.json ./
-RUN npm ci --only=production
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
 COPY . .
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
+  CMD curl -f http://localhost:8000/health || exit 1
 
-EXPOSE 5000
-CMD ["npm", "run", "start"]
-```
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-```dockerfile
 # Frontend Dockerfile
 FROM node:18-alpine AS builder
 WORKDIR /app
@@ -142,7 +139,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
@@ -155,70 +152,71 @@ CMD ["nginx", "-g", "daemon off;"]
 #!/usr/bin/env python3
 """
 Zero Gate Database Migration Script
-Migrates from Replit PostgreSQL to AWS RDS PostgreSQL
+Migrates from Replit SQLite to AWS RDS PostgreSQL
 """
 
 import os
 import psycopg2
+import sqlite3
 from datetime import datetime
 
 class DatabaseMigrator:
     def __init__(self):
-        self.source_db_url = os.getenv('REPLIT_DATABASE_URL')
-        self.target_db_url = os.getenv('AWS_POSTGRES_URL')
-
+        self.replit_db_path = os.getenv('REPLIT_DB_PATH')
+        self.postgres_url = os.getenv('POSTGRES_CONNECTION_URL')
+    
     def migrate_tenant_data(self, tenant_id):
-        """Migrate individual tenant data"""
-        source_conn = psycopg2.connect(self.source_db_url)
-        target_conn = psycopg2.connect(self.target_db_url)
+        """Migrate individual tenant database"""
+        sqlite_path = f"storage/tenant_{tenant_id}.db"
+        sqlite_conn = sqlite3.connect(sqlite_path)
+        postgres_conn = psycopg2.connect(self.postgres_url)
         
         try:
             # Migrate sponsors
-            self._migrate_table(source_conn, target_conn, 'sponsors', tenant_id)
+            self._migrate_table(sqlite_conn, postgres_conn, 'sponsors', tenant_id)
             
             # Migrate grants
-            self._migrate_table(source_conn, target_conn, 'grants', tenant_id)
+            self._migrate_table(sqlite_conn, postgres_conn, 'grants', tenant_id)
             
             # Migrate relationships
-            self._migrate_table(source_conn, target_conn, 'relationships', tenant_id)
+            self._migrate_table(sqlite_conn, postgres_conn, 'relationships', tenant_id)
             
             print(f"✅ Migrated tenant {tenant_id}")
             
         except Exception as e:
             print(f"❌ Failed to migrate tenant {tenant_id}: {str(e)}")
-            target_conn.rollback()
+            postgres_conn.rollback()
             raise
         finally:
-            source_conn.close()
-            target_conn.close()
+            sqlite_conn.close()
+            postgres_conn.close()
 
-    def _migrate_table(self, source_conn, target_conn, table_name, tenant_id):
+    def _migrate_table(self, sqlite_conn, postgres_conn, table_name, tenant_id):
         """Migrate specific table with tenant context"""
-        source_cursor = source_conn.cursor()
-        source_cursor.execute(f"SELECT * FROM {table_name} WHERE tenant_id = %s", (tenant_id,))
+        cursor = sqlite_conn.cursor()
+        cursor.execute(f"SELECT * FROM {table_name}")
         
-        target_cursor = target_conn.cursor()
+        pg_cursor = postgres_conn.cursor()
         
-        for row in source_cursor.fetchall():
-            placeholders = ','.join(['%s'] * len(row))
+        for row in cursor.fetchall():
+            # Add tenant_id to the row data
+            row_data = list(row) + [tenant_id]
+            placeholders = ','.join(['%s'] * len(row_data))
             
-            target_cursor.execute(
-                f"INSERT INTO {table_name} VALUES ({placeholders})",
-                row
+            pg_cursor.execute(
+                f"INSERT INTO tenant_data.{table_name} VALUES ({placeholders})",
+                row_data
             )
         
-        target_conn.commit()
+        postgres_conn.commit()
 
     def run_migration(self):
         """Execute complete migration"""
         print("🚀 Starting Zero Gate database migration...")
         
-        # Get list of tenants
-        source_conn = psycopg2.connect(self.source_db_url)
-        cursor = source_conn.cursor()
-        cursor.execute("SELECT DISTINCT id FROM tenants")
-        tenant_ids = [row[0] for row in cursor.fetchall()]
-        source_conn.close()
+        # Get list of tenant databases
+        tenant_files = [f for f in os.listdir('storage') if f.startswith('tenant_')]
+        tenant_ids = [f.replace('tenant_', '').replace('.db', '') for f in tenant_files]
         
         for tenant_id in tenant_ids:
             self.migrate_tenant_data(tenant_id)
@@ -241,7 +239,7 @@ echo "🗂️ Starting file migration to S3..."
 aws s3 mb s3://zero-gate-files --region us-east-1
 
 # Sync all files
-aws s3 sync /tmp/storage s3://zero-gate-files/storage \
+aws s3 sync /home/runner/storage s3://zero-gate-files/storage \
   --exclude "*.db" \
   --delete
 
@@ -276,18 +274,18 @@ spec:
       - name: backend
         image: zero-gate-backend:latest
         ports:
-        - containerPort: 5000
+        - containerPort: 8000
         env:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: db-credentials
               key: url
-        - name: SESSION_SECRET
+        - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: app-secrets
-              key: session-secret
+              key: jwt-secret
         resources:
           requests:
             memory: "256Mi"
@@ -298,12 +296,11 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 5000
+            port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
-```
 
-```yaml
+---
 # Frontend Deployment
 apiVersion: apps/v1
 kind: Deployment
@@ -331,9 +328,8 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "200m"
-```
 
-```yaml
+---
 # Load Balancer Service
 apiVersion: v1
 kind: Service
@@ -351,33 +347,6 @@ spec:
     protocol: TCP
 ```
 
-### Environment Configuration
-```yaml
-# ConfigMap for application settings
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: zero-gate-config
-data:
-  NODE_ENV: "production"
-  PGHOST: "zero-gate-db.cluster-xyz.us-east-1.rds.amazonaws.com"
-  PGPORT: "5432"
-  PGDATABASE: "zero_gate_prod"
-```
-
-```yaml
-# Secrets for sensitive data
-apiVersion: v1
-kind: Secret
-metadata:
-  name: app-secrets
-type: Opaque
-stringData:
-  session-secret: "production-session-secret-key"
-  pguser: "zero_gate_user"
-  pgpassword: "secure-database-password"
-```
-
 ## Phase 5: Testing & Validation (Days 4-5)
 
 ### Migration Validation Checklist
@@ -387,186 +356,61 @@ stringData:
 - [ ] **Multi-tenancy**: Verify tenant isolation maintained
 - [ ] **Relationship Mapping**: Test path discovery functionality
 - [ ] **Grant Timelines**: Confirm milestone calculations work
+- [ ] **Microsoft Integration**: Validate Graph API connections
 - [ ] **Performance**: Benchmark response times vs Replit
 
 ### Automated Testing Suite
-```javascript
-// Performance validation tests
-class ProductionValidationTests {
-  constructor(baseUrl) {
-    this.baseUrl = baseUrl;
-    this.authToken = null;
-  }
+```python
+import pytest
+import requests
+import time
 
-  async testAuthentication() {
-    const response = await fetch(`${this.baseUrl}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: "test@example.com",
-        password: "test-password"
-      })
-    });
+class ProductionValidationTests:
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self.auth_token = None
     
-    if (!response.ok) throw new Error(`Authentication failed: ${response.status}`);
-    const data = await response.json();
-    this.authToken = data.token;
-  }
+    def test_authentication(self):
+        """Test user authentication works"""
+        response = requests.post(f"{self.base_url}/api/auth/login", json={
+            "email": "test@example.com",
+            "password": "test-password"
+        })
+        assert response.status_code == 200
+        self.auth_token = response.json()["token"]
 
-  async testTenantIsolation() {
-    const headers = { 
-      'Authorization': `Bearer ${this.authToken}`,
-      'Content-Type': 'application/json'
-    };
-    
-    // Test tenant 1 data
-    const response1 = await fetch(`${this.baseUrl}/api/sponsors`, {
-      headers: { ...headers, 'X-Tenant-ID': 'tenant-1' }
-    });
-    
-    // Test tenant 2 data  
-    const response2 = await fetch(`${this.baseUrl}/api/sponsors`, {
-      headers: { ...headers, 'X-Tenant-ID': 'tenant-2' }
-    });
-    
-    const data1 = await response1.json();
-    const data2 = await response2.json();
-    
-    // Verify different data sets
-    if (JSON.stringify(data1) === JSON.stringify(data2)) {
-      throw new Error('Tenant isolation failed');
-    }
-  }
+    def test_tenant_isolation(self):
+        """Verify tenant data isolation"""
+        headers = {"Authorization": f"Bearer {self.auth_token}"}
+        
+        # Test tenant 1 data
+        response1 = requests.get(
+            f"{self.base_url}/api/sponsors",
+            headers={**headers, "X-Tenant-ID": "tenant-1"}
+        )
+        
+        # Test tenant 2 data  
+        response2 = requests.get(
+            f"{self.base_url}/api/sponsors", 
+            headers={**headers, "X-Tenant-ID": "tenant-2"}
+        )
+        
+        # Verify different data sets
+        assert response1.json() != response2.json()
 
-  async testPerformance() {
-    const headers = { 
-      'Authorization': `Bearer ${this.authToken}`,
-      'X-Tenant-ID': 'tenant-1'
-    };
-    
-    const startTime = performance.now();
-    const response = await fetch(`${this.baseUrl}/api/dashboard/kpis`, { headers });
-    const endTime = performance.now();
-    
-    if (!response.ok) throw new Error(`Dashboard request failed: ${response.status}`);
-    
-    const responseTime = endTime - startTime;
-    if (responseTime > 2000) {
-      throw new Error(`Response time too slow: ${responseTime}ms`);
-    }
-  }
-}
-```
-
-## Phase 6: DNS Cutover (Day 6)
-
-### DNS Migration Strategy
-```bash
-# 1. Lower TTL before migration
-aws route53 change-resource-record-sets --hosted-zone-id Z123456789 \
---change-batch '{
-  "Changes": [{
-    "Action": "UPSERT",
-    "ResourceRecordSet": {
-      "Name": "app.zerogate.com",
-      "Type": "CNAME",
-      "TTL": 60,
-      "ResourceRecords": [{"Value": "replit-url.com"}]
-    }
-  }]
-}'
-
-# 2. Wait for TTL expiration (1 hour)
-# 3. Update to new load balancer
-aws route53 change-resource-record-sets --hosted-zone-id Z123456789 \
---change-batch '{
-  "Changes": [{
-    "Action": "UPSERT",
-    "ResourceRecordSet": {
-      "Name": "app.zerogate.com",
-      "Type": "CNAME",
-      "TTL": 300,
-      "ResourceRecords": [{"Value": "k8s-loadbalancer.elb.amazonaws.com"}]
-    }
-  }]
-}'
-```
-
-### Rollback Plan
-```bash
-# Emergency rollback procedure
-echo "🚨 Initiating rollback to Replit..."
-
-# 1. Revert DNS immediately
-aws route53 change-resource-record-sets --hosted-zone-id Z123456789 \
---change-batch '{
-  "Changes": [{
-    "Action": "UPSERT",
-    "ResourceRecordSet": {
-      "Name": "app.zerogate.com",
-      "Type": "CNAME",
-      "TTL": 60,
-      "ResourceRecords": [{"Value": "replit-backup.com"}]
-    }
-  }]
-}'
-
-# 2. Restart Replit instance
-# 3. Notify users of temporary service restoration
-# 4. Investigate and fix cloud issues
-```
-
-## Phase 7: Post-Migration Optimization (Week 2)
-
-### Monitoring Setup
-```yaml
-# Prometheus monitoring configuration
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: prometheus-config
-data:
-  prometheus.yml: |
-    global:
-      scrape_interval: 15s
-    
-    scrape_configs:
-    - job_name: 'zero-gate-backend'
-      static_configs:
-      - targets: ['zero-gate-backend:5000']
-      metrics_path: '/metrics'
-
-    - job_name: 'zero-gate-frontend'
-      static_configs:
-      - targets: ['zero-gate-frontend:80']
-```
-
-### Auto-scaling Configuration
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: zero-gate-backend-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: zero-gate-backend
-  minReplicas: 3
-  maxReplicas: 20
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    def test_performance(self):
+        """Verify response times meet SLA"""
+        headers = {"Authorization": f"Bearer {self.auth_token}"}
+        
+        start_time = time.time()
+        response = requests.get(
+            f"{self.base_url}/api/dashboard/kpis",
+            headers={**headers, "X-Tenant-ID": "tenant-1"}
+        )
+        end_time = time.time()
+        
+        assert response.status_code == 200
+        assert (end_time - start_time) < 2.0  # Under 2 seconds
 ```
 
 ## Success Metrics
@@ -582,19 +426,5 @@ spec:
 - **Cost per User**: $2-3/user/month at scale
 - **Break-even**: 400+ active users
 - **ROI**: 6-month payback period
-
-## Risk Mitigation
-
-### Technical Risks
-- **Data Loss**: Multiple backups, point-in-time recovery
-- **Downtime**: Blue-green deployment, instant rollback
-- **Performance**: Load testing, auto-scaling
-- **Security**: WAF, encryption, regular audits
-
-### Business Risks  
-- **User Disruption**: Maintenance windows, communication plan
-- **Cost Overrun**: Budget monitoring, cost alerts
-- **Feature Regression**: Comprehensive testing, user acceptance testing
-- **Vendor Lock-in**: Multi-cloud strategy, portable containers
 
 This transition plan ensures a smooth migration from Replit to a production-ready cloud environment while maintaining the Zero Gate ESO platform's functionality and performance standards.

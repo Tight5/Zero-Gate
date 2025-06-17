@@ -11,7 +11,7 @@
 ### Database Performance Indicators
 - **Query Response Time**: >500ms average for standard queries
 - **Connection Pool**: >80% utilization indicates connection limits
-- **Tenant Database Size**: Individual tenant PostgreSQL tables >100MB
+- **Tenant Database Size**: Individual tenant SQLite files >100MB
 - **Relationship Graph**: >50,000 nodes/edges per tenant causing performance degradation
 
 ## Application Performance Metrics
@@ -53,7 +53,7 @@
 ### Storage Requirements
 - **File Storage**: >5GB uploaded documents and Excel files
 - **Database Size**: Central PostgreSQL >1GB
-- **Tenant Databases**: Aggregate tenant data >500MB
+- **Tenant Databases**: Aggregate SQLite files >500MB
 - **Cache Usage**: Redis memory >256MB
 
 ## Business Success Indicators
@@ -117,7 +117,7 @@ Most indicators below thresholds:
 - **CPU Cores**: Limited by plan tier
 - **Network I/O**: Potential throttling on high usage
 - **Storage**: File system performance limitations
-- **Database Connections**: PostgreSQL connection limits
+- **Database Connections**: SQLite connection limits
 
 ### Optimization Strategies Before Scaling
 1. **Code Optimization**: Profile and optimize hot paths
@@ -146,6 +146,7 @@ Most indicators below thresholds:
 
 ### Automated Alerts
 ```javascript
+// Example alert configuration
 const alerts = {
   cpu_usage: { threshold: 80, duration: '15m' },
   memory_usage: { threshold: 85, duration: '10m' },
