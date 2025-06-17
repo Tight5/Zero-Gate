@@ -1,6 +1,6 @@
 """
-FastAPI application with JWT authentication and tenant context
-Provides modern authentication endpoints alongside the existing Express.js server
+FastAPI application with JWT authentication and comprehensive RESTful API
+Provides modern authentication endpoints and full CRUD operations for sponsors, grants, and relationships
 """
 
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -23,6 +23,11 @@ from auth.jwt_auth import (
     TokenData
 )
 
+# Import API route modules
+from api.sponsors import router as sponsors_router
+from api.grants import router as grants_router
+from api.relationships import router as relationships_router
+
 # Database setup
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,12 +41,30 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="Zero Gate ESO Platform - JWT Auth Service",
-    description="JWT-based authentication with tenant context and role-based permissions",
-    version="1.0.0",
-    docs_url="/auth-docs",
-    redoc_url="/auth-redoc",
-    lifespan=lifespan
+    title="Zero Gate ESO Platform - Complete API",
+    description="Comprehensive RESTful API with JWT authentication, tenant context, and full CRUD operations for sponsors, grants, and relationships including seven-degree path discovery",
+    version="2.0.0",
+    docs_url="/api-docs",
+    redoc_url="/api-redoc",
+    lifespan=lifespan,
+    openapi_tags=[
+        {
+            "name": "authentication",
+            "description": "JWT-based authentication with role-based permissions"
+        },
+        {
+            "name": "sponsors",
+            "description": "Sponsor management with tier classification and metrics"
+        },
+        {
+            "name": "grants",
+            "description": "Grant tracking with timeline analysis and milestone management"
+        },
+        {
+            "name": "relationships",
+            "description": "Relationship mapping with seven-degree path discovery and network analytics"
+        }
+    ]
 )
 
 # Configure CORS
@@ -59,8 +82,11 @@ app.add_middleware(
     allowed_hosts=["*"]  # Configure appropriately for production
 )
 
-# Include authentication routes
+# Include all routers
 app.include_router(auth_router)
+app.include_router(sponsors_router)
+app.include_router(grants_router)
+app.include_router(relationships_router)
 
 # Health check endpoint
 @app.get("/health")
