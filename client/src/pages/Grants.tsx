@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/Header";
@@ -13,7 +14,7 @@ import { Plus, Target, Calendar, DollarSign } from "lucide-react";
 export default function Grants() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [selectedTenant] = useState("default-tenant");
+  const { selectedTenant } = useTenant();
   const [selectedGrant, setSelectedGrant] = useState<any>(null);
 
   useEffect(() => {
