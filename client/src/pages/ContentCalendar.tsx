@@ -27,11 +27,11 @@ export default function ContentCalendar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: contentItems = [], isLoading } = useQuery({
+  const { data: contentItems = [], isLoading } = useQuery<ContentCalendar[]>({
     queryKey: ['/api/content-calendar'],
   });
 
-  const { data: grants = [] } = useQuery({
+  const { data: grants = [] } = useQuery<any[]>({
     queryKey: ['/api/grants'],
   });
 
@@ -49,7 +49,7 @@ export default function ContentCalendar() {
 
   const createItemMutation = useMutation({
     mutationFn: async (data: ContentCalendarFormData) => 
-      await apiRequest('/api/content-calendar', data),
+      await apiRequest('POST', '/api/content-calendar', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       setIsDialogOpen(false);
@@ -71,7 +71,7 @@ export default function ContentCalendar() {
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<ContentCalendarFormData> }) =>
-      await apiRequest(`/api/content-calendar/${id}`, data),
+      await apiRequest('PATCH', `/api/content-calendar/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       setIsDialogOpen(false);
@@ -93,7 +93,7 @@ export default function ContentCalendar() {
 
   const deleteItemMutation = useMutation({
     mutationFn: async (id: string) => 
-      await apiRequest(`/api/content-calendar/${id}`),
+      await apiRequest('DELETE', `/api/content-calendar/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       toast({
@@ -123,10 +123,11 @@ export default function ContentCalendar() {
     form.reset({
       title: item.title,
       content: item.content || '',
-      contentType: item.contentType,
       scheduledDate: new Date(item.scheduledDate),
-      status: item.status,
+      status: item.status || 'draft',
       grantId: item.grantId || '',
+      platform: item.platform || '',
+      tenantId: 'default-tenant',
     });
     setIsDialogOpen(true);
   };
@@ -245,22 +246,21 @@ export default function ContentCalendar() {
                     />
                     <FormField
                       control={form.control}
-                      name="contentType"
+                      name="platform"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Content Type</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <FormLabel>Platform</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Select type" />
+                                <SelectValue placeholder="Select platform" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="post">Post</SelectItem>
-                              <SelectItem value="article">Article</SelectItem>
-                              <SelectItem value="video">Video</SelectItem>
-                              <SelectItem value="newsletter">Newsletter</SelectItem>
                               <SelectItem value="social">Social Media</SelectItem>
+                              <SelectItem value="website">Website</SelectItem>
+                              <SelectItem value="email">Email</SelectItem>
+                              <SelectItem value="blog">Blog</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
