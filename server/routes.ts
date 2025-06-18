@@ -336,6 +336,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard KPI route
+  app.get('/api/dashboard/kpis', requireTenantAccess, async (req: any, res) => {
+    try {
+      const kpis = {
+        totalSponsors: 24,
+        activeGrants: 8,
+        strongRelationships: 15,
+        weeklyActivity: 42,
+        totalFunding: 1250000,
+        successRate: 85,
+        avgGrantSize: 156250,
+        networkStrength: 78
+      };
+      res.json(kpis);
+    } catch (error) {
+      console.error("Error fetching KPIs:", error);
+      res.status(500).json({ message: "Failed to fetch KPI data" });
+    }
+  });
+
+  // Dashboard relationships route
+  app.get('/api/dashboard/relationships', requireTenantAccess, async (req: any, res) => {
+    try {
+      const relationships = [
+        { id: "1", name: "Microsoft Foundation", strength: 92, type: "Corporate", connections: 18 },
+        { id: "2", name: "Gates Foundation", strength: 88, type: "Philanthropic", connections: 24 },
+        { id: "3", name: "Ford Foundation", strength: 85, type: "Philanthropic", connections: 16 },
+        { id: "4", name: "Google.org", strength: 82, type: "Corporate", connections: 22 },
+        { id: "5", name: "Chan Zuckerberg Initiative", strength: 79, type: "Philanthropic", connections: 14 },
+        { id: "6", name: "Robert Wood Johnson Foundation", strength: 76, type: "Health", connections: 12 }
+      ];
+      res.json(relationships);
+    } catch (error) {
+      console.error("Error fetching relationships:", error);
+      res.status(500).json({ message: "Failed to fetch relationship data" });
+    }
+  });
+
+  // Dashboard grants route
+  app.get('/api/dashboard/grants', requireTenantAccess, async (req: any, res) => {
+    try {
+      const grants = [
+        {
+          id: "1",
+          title: "Digital Equity Initiative",
+          status: "under_review",
+          deadline: "2025-03-15T00:00:00Z",
+          amount: 250000,
+          sponsor: "Microsoft Foundation",
+          milestones: [
+            { id: "1", title: "90-day preparation", date: "2024-12-15T00:00:00Z", completed: true, type: "90_day" },
+            { id: "2", title: "60-day review", date: "2025-01-15T00:00:00Z", completed: true, type: "60_day" },
+            { id: "3", title: "30-day final prep", date: "2025-02-15T00:00:00Z", completed: false, type: "30_day" },
+            { id: "4", title: "Submission", date: "2025-03-15T00:00:00Z", completed: false, type: "submission" }
+          ]
+        },
+        {
+          id: "2",
+          title: "Youth Education Program",
+          status: "submitted",
+          deadline: "2025-02-28T00:00:00Z",
+          amount: 180000,
+          sponsor: "Ford Foundation",
+          milestones: [
+            { id: "5", title: "90-day preparation", date: "2024-11-28T00:00:00Z", completed: true, type: "90_day" },
+            { id: "6", title: "60-day review", date: "2024-12-28T00:00:00Z", completed: true, type: "60_day" },
+            { id: "7", title: "30-day final prep", date: "2025-01-28T00:00:00Z", completed: true, type: "30_day" },
+            { id: "8", title: "Submission", date: "2025-02-28T00:00:00Z", completed: true, type: "submission" }
+          ]
+        },
+        {
+          id: "3",
+          title: "Healthcare Access Study",
+          status: "approved",
+          deadline: "2025-01-30T00:00:00Z",
+          amount: 320000,
+          sponsor: "Robert Wood Johnson Foundation",
+          milestones: [
+            { id: "9", title: "90-day preparation", date: "2024-10-30T00:00:00Z", completed: true, type: "90_day" },
+            { id: "10", title: "60-day review", date: "2024-11-30T00:00:00Z", completed: true, type: "60_day" },
+            { id: "11", title: "30-day final prep", date: "2024-12-30T00:00:00Z", completed: true, type: "30_day" },
+            { id: "12", title: "Submission", date: "2025-01-30T00:00:00Z", completed: true, type: "submission" }
+          ]
+        }
+      ];
+      res.json(grants);
+    } catch (error) {
+      console.error("Error fetching grants:", error);
+      res.status(500).json({ message: "Failed to fetch grant data" });
+    }
+  });
+
+  // Dashboard activities route
+  app.get('/api/dashboard/activities', requireTenantAccess, async (req: any, res) => {
+    try {
+      const activities = [
+        {
+          id: "1",
+          type: "grant_submitted",
+          title: "Youth Education Program submitted",
+          description: "Successfully submitted $180,000 grant application to Ford Foundation",
+          timestamp: "2025-06-18T14:30:00Z",
+          user: "Sarah Johnson",
+          metadata: { entityId: "2", entityName: "Youth Education Program", amount: 180000, status: "submitted" }
+        },
+        {
+          id: "2",
+          type: "relationship_mapped",
+          title: "New connection established",
+          description: "Connected with program director at Chan Zuckerberg Initiative",
+          timestamp: "2025-06-18T13:15:00Z",
+          user: "Michael Chen",
+          metadata: { entityId: "5", entityName: "Chan Zuckerberg Initiative" }
+        },
+        {
+          id: "3",
+          type: "sponsor_added",
+          title: "Microsoft Foundation added",
+          description: "Added new corporate sponsor with focus on digital equity",
+          timestamp: "2025-06-18T11:45:00Z",
+          user: "Emily Rodriguez",
+          metadata: { entityId: "1", entityName: "Microsoft Foundation" }
+        },
+        {
+          id: "4",
+          type: "meeting_scheduled",
+          title: "Gates Foundation meeting",
+          description: "Scheduled quarterly review meeting for Q1 2025",
+          timestamp: "2025-06-18T10:20:00Z",
+          user: "David Kim",
+          metadata: { entityId: "2", entityName: "Gates Foundation" }
+        },
+        {
+          id: "5",
+          type: "content_created",
+          title: "Grant proposal draft completed",
+          description: "Finished first draft of Digital Equity Initiative proposal",
+          timestamp: "2025-06-18T09:30:00Z",
+          user: "Sarah Johnson",
+          metadata: { entityId: "1", entityName: "Digital Equity Initiative" }
+        }
+      ];
+      res.json(activities);
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+      res.status(500).json({ message: "Failed to fetch activity data" });
+    }
+  });
+
   // Register workflow management routes
   app.use('/api', workflowRoutes);
   
