@@ -1,0 +1,51 @@
+Prompts to Facilitate Proper Development
+To ensure consistent, maintainable, and efficient progress on the Zero Gate ESO Platform, the following structured prompts will guide both backend and frontend development phases.
+
+1. Backend Infrastructure
+Database Schema and Security
+“Create a PostgreSQL schema for multi-tenant isolation using row-level security. Include tables for tenants, users, sponsors, grants, relationships, and content calendar. Define RLS policies that restrict each tenant’s access to their own data.”
+
+Authentication & Authorization
+“Implement JWT-based authentication in FastAPI with tenant context. Provide endpoints for login, logout, token refresh, and password reset. Enforce role-based permissions for admin, manager, user, and viewer roles.”
+
+API Endpoints
+“Develop RESTful FastAPI routes for sponsors, grants, and relationships. Each route must validate tenant context, perform CRUD operations, and return Pydantic models. Include endpoints for sponsor metrics, grant timelines, and seven-degree path discovery.”
+
+2. AI Orchestration Agents
+Orchestration Agent
+“Build an asyncio-based orchestration agent that manages workflow tasks (sponsor analysis, grant timeline, relationship mapping). Integrate resource monitoring to enable or disable features based on CPU and memory thresholds.”
+
+Processing Agent
+“Implement a ProcessingAgent using NetworkX to maintain a relationship graph. Provide methods to add edges, estimate distances via landmarks, and find shortest paths up to seven degrees. Include sponsor metrics and grant timeline generation logic.”
+
+Integration Agent
+“Create an IntegrationAgent that uses MSAL to authenticate with Microsoft Graph. Implement methods to extract organizational relationships, analyze email communication patterns, and process Excel files for dashboard data.”
+
+3. Frontend Application
+Project Setup
+“Initialize a React application with TypeScript, React Router, React Query, and @replit/ui. Configure global contexts for AuthContext, TenantContext, ThemeContext, and ResourceContext. Ensure strict type safety and environment variable integration.”
+
+Authentication UI
+“Develop Login and TenantSelection pages. The Login form must include email/password fields, validation, 'Remember me' option, and OAuth for Microsoft. The TenantSelection grid should display available organizations with role badges and support switching tenants.”
+
+Dashboard Components
+“Build an Executive Dashboard with KPI cards, a relationship strength chart, a grant status timeline, and a recent activity feed. Use responsive grid layouts and implement loading skeletons and error boundaries.”
+
+Relationship Mapping
+“Create HybridRelationshipMap with geographic and network views using React-Leaflet and ForceGraph2D. Include filter controls, node and edge styling by type and strength, and a path discovery interface with seven-degree analysis.”
+
+Grant Management
+“Implement GrantManagement pages: a multi-tab overview (active, submitted, completed), GrantForm wizard, GrantDetails view, and GrantTimeline component with 90/60/30-day milestones and task management.”
+
+Content Calendar
+“Design ContentCalendar using react-big-calendar. Support views for month, week, day, and agenda. Integrate grant milestones, drag-and-drop scheduling, event styling by type and status, and a form modal for content creation.”
+
+4. Testing & Quality Assurance
+Backend Tests
+“Write pytest suites for tenant isolation, grant timeline generation, and path discovery. Simulate multiple tenants to verify data segregation and error handling for missing or invalid tenant contexts.”
+
+Frontend Tests
+“Use React Testing Library and Jest to test critical components: Login, Dashboard, RelationshipMapping, SponsorManagement, and GrantManagement. Mock contexts and API calls to validate UI behavior under loading, success, and error states.”
+
+Performance Benchmarks
+“Implement a load-test script using k6 or similar tool. Simulate user authentication, dashboard loading, path discovery, and grant operations under varying concurrency. Set thresholds for p95 response time <2s and error rate <5%.”
