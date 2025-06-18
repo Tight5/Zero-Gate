@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, ChevronRight, LogOut } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Building2, Users, ChevronRight, LogOut, Search, Shield, Crown, UserCheck, Eye, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 
 const TenantSelection = () => {
   const [selectedTenant, setSelectedTenant] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [switching, setSwitching] = useState(false);
   const { user, logout } = useAuth();
   const { availableTenants, switchTenant, loading, currentTenant } = useTenant();
 
@@ -27,22 +30,47 @@ const TenantSelection = () => {
     setSelectedTenant(tenant);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedTenant) {
-      switchTenant(selectedTenant.id);
+      setSwitching(true);
+      try {
+        await switchTenant(selectedTenant.id);
+        // Navigation will happen automatically via the context
+      } catch (error) {
+        console.error('Failed to switch tenant:', error);
+        setSwitching(false);
+      }
     }
+  };
+
+  const getRoleIcon = (role) => {
+    const icons = {
+      owner: Crown,
+      admin: Shield,
+      manager: UserCheck,
+      user: Users,
+      viewer: Eye
+    };
+    return icons[role] || Users;
   };
 
   const getRoleColor = (role) => {
     const colors = {
-      owner: 'purple',
-      admin: 'blue',
-      manager: 'green',
-      user: 'gray',
-      viewer: 'orange'
+      owner: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700',
+      admin: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700',
+      manager: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-700',
+      user: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700',
+      viewer: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700'
     };
-    return colors[role] || 'gray';
+    return colors[role] || colors.user;
   };
+
+  // Filter tenants based on search query
+  const filteredTenants = availableTenants.filter(tenant =>
+    tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tenant.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tenant.role.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -93,9 +121,25 @@ const TenantSelection = () => {
           </div>
 
           <div className="tenants-list">
-            <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white">Your Organizations</h3>
-            <div className="tenants-grid grid grid-cols-1 md:grid-cols-2 gap-6">
-              {availableTenants.map((tenant) => (
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Your Organizations ({filteredTenants.length})
+              </h3>
+              {availableTenants.length > 3 && (
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search organizations..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div className="tenants-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredTenants.map((tenant) => (
                 <Card
                   key={tenant.id}
                   className={`tenant-card cursor-pointer transition-all duration-200 hover:shadow-lg border-2 ${
@@ -122,15 +166,11 @@ const TenantSelection = () => {
                         <div className="tenant-meta flex items-center justify-between mt-4">
                           <div className="tenant-role">
                             <Badge 
-                              className={`
-                                ${getRoleColor(tenant.role) === 'purple' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' : ''}
-                                ${getRoleColor(tenant.role) === 'blue' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''}
-                                ${getRoleColor(tenant.role) === 'green' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
-                                ${getRoleColor(tenant.role) === 'gray' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' : ''}
-                                ${getRoleColor(tenant.role) === 'orange' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' : ''}
-                              `}
+                              variant="outline"
+                              className={`flex items-center gap-1 ${getRoleColor(tenant.role)}`}
                             >
-                              {tenant.role}
+                              {React.createElement(getRoleIcon(tenant.role), { className: "h-3 w-3" })}
+                              {tenant.role.charAt(0).toUpperCase() + tenant.role.slice(1)}
                             </Badge>
                           </div>
                           
@@ -168,13 +208,32 @@ const TenantSelection = () => {
           <div className="selection-actions flex justify-center mt-8">
             <Button
               onClick={handleContinue}
-              disabled={!selectedTenant || selectedTenant.status !== 'active'}
+              disabled={!selectedTenant || selectedTenant.status !== 'active' || switching}
               className="continue-button min-w-[250px] h-12 text-base"
             >
-              Continue to {selectedTenant?.name || 'Organization'}
-              <ChevronRight className="h-4 w-4 ml-2" />
+              {switching ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Switching...
+                </>
+              ) : (
+                <>
+                  Continue to {selectedTenant?.name || 'Organization'}
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </>
+              )}
             </Button>
           </div>
+
+          {filteredTenants.length === 0 && searchQuery && (
+            <div className="no-results text-center py-8">
+              <div className="text-gray-500 dark:text-gray-400">
+                <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium mb-2">No organizations found</p>
+                <p className="text-sm">Try adjusting your search terms</p>
+              </div>
+            </div>
+          )}
         </Card>
 
         <div className="selection-help mt-8">

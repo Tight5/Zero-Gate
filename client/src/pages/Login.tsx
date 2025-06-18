@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { Eye, EyeOff, Mail, Lock, Building2, AlertCircle, Monitor } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Building2, AlertCircle, Monitor, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 
@@ -66,19 +66,46 @@ export default function Login() {
     setLoginError(null);
 
     try {
-      // For now, redirect to the main auth flow since we're using Replit Auth
-      // In a full implementation, this would handle email/password authentication
-      window.location.href = '/api/login';
+      // Make API call to login endpoint
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          rememberMe: data.rememberMe,
+        }),
+      });
+
+      if (response.ok) {
+        // Successful login - redirect to tenant selection
+        window.location.href = '/tenant-selection';
+      } else {
+        const errorData = await response.json();
+        setLoginError(errorData.message || 'Login failed. Please check your credentials and try again.');
+      }
     } catch (error) {
-      setLoginError('Login failed. Please check your credentials and try again.');
+      setLoginError('Network error. Please check your connection and try again.');
+      console.error('Login error:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleMicrosoftLogin = () => {
-    // Redirect to Replit Auth which handles Microsoft OAuth
-    window.location.href = '/api/login';
+    // Add loading state for Microsoft OAuth
+    setIsSubmitting(true);
+    setLoginError(null);
+    
+    // Add tracking parameters for Microsoft OAuth
+    const params = new URLSearchParams({
+      provider: 'microsoft',
+      redirect_url: window.location.origin + '/tenant-selection'
+    });
+    
+    window.location.href = `/api/login?${params.toString()}`;
   };
 
   return (
@@ -113,7 +140,11 @@ export default function Login() {
                 className="w-full h-11 text-sm font-medium"
                 disabled={isSubmitting}
               >
-                <Monitor className="mr-2 h-4 w-4" />
+                {isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Monitor className="mr-2 h-4 w-4" />
+                )}
                 Continue with Microsoft
               </Button>
             </div>
@@ -210,7 +241,7 @@ export default function Login() {
               >
                 {isSubmitting ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Signing In...
                   </>
                 ) : (
