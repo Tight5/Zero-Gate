@@ -25,7 +25,7 @@ export function AuthModeProvider({ children }: AuthModeProviderProps) {
     return savedMode && ['tenant', 'admin'].includes(savedMode) ? savedMode : 'tenant';
   });
 
-  // Email configuration
+  // Email configuration - production tenant and admin emails
   const TENANT_EMAIL = 'clint.phillips@thecenter.nasdaq.org';
   const ADMIN_EMAIL = 'admin@tight5digital.com';
 

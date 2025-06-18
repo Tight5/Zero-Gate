@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
+import { useAuthMode } from './AuthModeContext';
 
 interface Tenant {
   id: string;
@@ -30,6 +31,9 @@ interface TenantContextType {
   getTenantFeatures: () => string[];
   isTenantFeatureEnabled: (feature: string) => boolean;
   getTenantSetting: <T = any>(key: string, defaultValue?: T) => T;
+  isAdminMode: boolean;
+  toggleAdminMode: () => void;
+  isAdmin: boolean;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -39,10 +43,17 @@ interface TenantProviderProps {
 }
 
 export function TenantProvider({ children }: TenantProviderProps) {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAdminMode: authModeIsAdmin, getCurrentEmail } = useAuthMode();
   const [currentTenantId, setCurrentTenantId] = useState<string | null>(
     localStorage.getItem('currentTenantId')
   );
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(
+    localStorage.getItem('admin-mode') === 'true'
+  );
+  
+  // Check if user is admin based on email
+  const isAdmin = user?.email === 'admin@tight5digital.com' || getCurrentEmail() === 'admin@tight5digital.com';
 
   // Fetch available tenants
   const {
@@ -77,9 +88,19 @@ export function TenantProvider({ children }: TenantProviderProps) {
   useEffect(() => {
     if (!isAuthenticated) {
       setCurrentTenantId(null);
+      setIsAdminMode(false);
       localStorage.removeItem('currentTenantId');
+      localStorage.removeItem('admin-mode');
     }
   }, [isAuthenticated]);
+
+  // Sync admin mode with auth mode context
+  useEffect(() => {
+    if (authModeIsAdmin !== isAdminMode && isAdmin) {
+      setIsAdminMode(authModeIsAdmin);
+      localStorage.setItem('admin-mode', authModeIsAdmin.toString());
+    }
+  }, [authModeIsAdmin, isAdminMode, isAdmin]);
 
   const switchTenant = (tenantId: string) => {
     const tenant = availableTenants.find(t => t.id === tenantId);
@@ -87,6 +108,19 @@ export function TenantProvider({ children }: TenantProviderProps) {
       setCurrentTenantId(tenantId);
       localStorage.setItem('currentTenantId', tenantId);
       // Reload page to clear any tenant-specific cached data
+      window.location.reload();
+    }
+  };
+
+  // Toggle between admin and tenant mode
+  const toggleAdminMode = () => {
+    if (isAdmin) {
+      const newAdminMode = !isAdminMode;
+      setIsAdminMode(newAdminMode);
+      localStorage.setItem('admin-mode', newAdminMode.toString());
+      // Clear cached data when switching modes
+      localStorage.removeItem('auth-cache');
+      // Force reload to ensure clean state
       window.location.reload();
     }
   };
@@ -126,7 +160,10 @@ export function TenantProvider({ children }: TenantProviderProps) {
     switchTenant,
     getTenantFeatures,
     isTenantFeatureEnabled,
-    getTenantSetting
+    getTenantSetting,
+    isAdminMode,
+    toggleAdminMode,
+    isAdmin
   };
 
   return (
@@ -146,13 +183,15 @@ export function useTenant(): TenantContextType {
 
 // Custom hook for tenant-aware API requests
 export function useTenantRequest() {
-  const { currentTenant } = useTenant();
+  const { currentTenant, isAdminMode } = useTenant();
   
   return {
     getTenantHeaders: () => ({
       'X-Tenant-ID': currentTenant?.id || '',
+      'X-Admin-Mode': isAdminMode.toString(),
     }),
     tenantId: currentTenant?.id || null,
+    isAdminMode,
   };
 }
 

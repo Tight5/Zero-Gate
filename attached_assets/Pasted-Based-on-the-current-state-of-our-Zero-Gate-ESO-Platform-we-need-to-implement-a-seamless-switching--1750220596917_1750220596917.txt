@@ -1,0 +1,308 @@
+Based on the current state of our Zero Gate ESO Platform, we need to implement a seamless switching mechanism between tenant mode (clint.phillips@thecenter.nasdaq.org) and admin/development mode (admin@tight5digital.com) . This functionality is critical for proper platform management and development while maintaining the multi-tenant architecture we've established .
+
+Current System Architecture
+Our platform currently implements:
+
+Multi-tenant isolation using database schemas and middleware 
+
+Microsoft 365 integration for authentication 
+
+React-based frontend with context providers 
+
+FastAPI backend with tenant context middleware 
+
+However, we're experiencing critical memory usage issues (96% - RED ZONE) that need to be addressed while implementing this new functionality .
+
+Implementation Strategy
+1. Enhanced Tenant Context Provider
+We'll extend our existing TenantContext to support admin mode switching:
+
+jsx
+// src/contexts/TenantContext.jsx
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+
+const TenantContext = createContext();
+
+export const TenantProvider = ({ children }) => {
+  const { user } = useAuth();
+  const [currentTenant, setCurrentTenant] = useState(null);
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [availableTenants, setAvailableTenants] = useState([]);
+  
+  // Check if user is admin
+  const isAdmin = user?.email === 'admin@tight5digital.com';
+  
+  // Toggle between admin and tenant mode
+  const toggleAdminMode = () => {
+    if (isAdmin) {
+      setIsAdminMode(!isAdminMode);
+    }
+  };
+  
+  // Switch tenant (for both admin and regular users)
+  const switchTenant = (tenantId) => {
+    // Implementation for tenant switching
+  };
+  
+  return (
+    <TenantContext.Provider value={{
+      currentTenant,
+      isAdminMode,
+      availableTenants,
+      switchTenant,
+      toggleAdminMode,
+      isAdmin
+    }}>
+      {children}
+    </TenantContext.Provider>
+  );
+};
+
+export const useTenant = () => useContext(TenantContext);
+This implementation allows for dynamic context switching while maintaining the current tenant state .
+
+2. Backend Middleware Enhancement
+We need to modify our TenantMiddleware to handle admin mode:
+
+python
+# utils/tenant_context.py
+class TenantMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Extract tenant ID and admin mode flag from headers
+        tenant_id = self._get_tenant_id(request)
+        is_admin_mode = request.headers.get("X-Admin-Mode") == "true"
+        
+        # Get user email from token
+        user_email = self._get_user_email(request)
+        
+        # Check if user is admin
+        is_admin = user_email == "admin@tight5digital.com"
+        
+        # If admin mode is requested but user is not admin, reject
+        if is_admin_mode and not is_admin:
+            return Response(
+                content='{"detail": "Unauthorized for admin mode"}',
+                status_code=status.HTTP_403_FORBIDDEN,
+                headers={"Content-Type": "application/json"}
+            )
+            
+        # Set admin context for admin users in admin mode
+        if is_admin and is_admin_mode:
+            request.state.is_admin_mode = True
+            # Allow access to all tenants
+        else:
+            request.state.is_admin_mode = False
+            # Validate tenant access as before
+            
+        # Process request with tenant/admin context
+        response = await call_next(request)
+        return response
+This middleware enhancement ensures proper tenant isolation while allowing admin access when appropriate .
+
+3. Frontend Admin Mode UI Components
+We'll add UI components to facilitate mode switching:
+
+jsx
+// src/components/common/AdminModeToggle.jsx
+import React from 'react';
+import { Button, Badge } from '@replit/ui';
+import { useTenant } from '../../contexts/TenantContext';
+
+const AdminModeToggle = () => {
+  const { isAdmin, isAdminMode, toggleAdminMode } = useTenant();
+  
+  if (!isAdmin) return null;
+  
+  return (
+    <div className="admin-mode-toggle">
+      <Button 
+        variant={isAdminMode ? "primary" : "outline"}
+        onClick={toggleAdminMode}
+      >
+        {isAdminMode ? "Exit Admin Mode" : "Enter Admin Mode"}
+      </Button>
+      
+      {isAdminMode && (
+        <Badge color="red">ADMIN MODE</Badge>
+      )}
+    </div>
+  );
+};
+
+export default AdminModeToggle;
+This component will only be visible to admin users and allows for easy mode switching .
+
+4. Microsoft 365 OAuth Integration
+For the tenant user (clint.phillips@thecenter.nasdaq.org), we'll leverage Microsoft 365 OAuth:
+
+javascript
+// src/services/authService.js
+import { microsoftGraphService } from './microsoftGraphService';
+
+// Configure Microsoft OAuth for tenant
+const tenantEmail = 'clint.phillips@thecenter.nasdaq.org';
+const adminEmail = 'admin@tight5digital.com';
+
+export const loginWithMicrosoft = async () => {
+  try {
+    const authUrl = await microsoftGraphService.getAuthorizationUrl();
+    window.location.href = authUrl;
+  } catch (error) {
+    console.error('Microsoft login error:', error);
+    throw error;
+  }
+};
+
+export const handleMicrosoftCallback = async (code, state) => {
+  try {
+    const tokenResponse = await microsoftGraphService.exchangeCodeForToken(code, state);
+    const userInfo = await microsoftGraphService.getCurrentUser();
+    
+    // Check if user is admin or tenant
+    const isAdmin = userInfo.mail === adminEmail;
+    
+    // Store authentication info
+    localStorage.setItem('token', tokenResponse.accessToken);
+    localStorage.setItem('refreshToken', tokenResponse.refreshToken);
+    localStorage.setItem('userEmail', userInfo.mail);
+    localStorage.setItem('isAdmin', isAdmin);
+    
+    return { userInfo, isAdmin };
+  } catch (error) {
+    console.error('Microsoft callback error:', error);
+    throw error;
+  }
+};
+This implementation handles both tenant and admin authentication through Microsoft OAuth .
+
+5. API Service Enhancement
+We'll modify our API service to include admin mode headers:
+
+javascript
+// src/services/apiService.js
+import axios from 'axios';
+
+class ApiService {
+  constructor() {
+    this.api = axios.create({
+      baseURL: process.env.REACT_APP_API_URL || '/api'
+    });
+    
+    // Add request interceptor for auth and tenant headers
+    this.api.interceptors.request.use(config => {
+      const token = localStorage.getItem('token');
+      const currentTenant = JSON.parse(localStorage.getItem('currentTenant'));
+      const isAdminMode = localStorage.getItem('isAdminMode') === 'true';
+      
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      if (currentTenant?.id) {
+        config.headers['X-Tenant-ID'] = currentTenant.id;
+      }
+      
+      if (isAdminMode) {
+        config.headers['X-Admin-Mode'] = 'true';
+      }
+      
+      return config;
+    });
+  }
+  
+  // API methods
+  async get(endpoint, params = {}) {
+    try {
+      const response = await this.api.get(endpoint, { params });
+      return response.data;
+    } catch (error) {
+      this._handleError(error);
+      throw error;
+    }
+  }
+  
+  // Other methods (post, put, delete)
+}
+
+export const apiService = new ApiService();
+This ensures all API requests include the necessary headers for tenant context and admin mode .
+
+Header Component Update
+We'll update the Header component to include the admin mode toggle and tenant information:
+
+jsx
+// src/components/layout/Header.jsx
+import React from 'react';
+import { useTenant } from '../../contexts/TenantContext';
+import { useAuth } from '../../contexts/AuthContext';
+import AdminModeToggle from '../common/AdminModeToggle';
+
+const Header = ({ onMenuToggle }) => {
+  const { currentTenant, isAdminMode } = useTenant();
+  const { user } = useAuth();
+  
+  return (
+    <header className={`app-header ${isAdminMode ? 'admin-mode' : ''}`}>
+      <div className="header-left">
+        {/* Existing header content */}
+      </div>
+      
+      <div className="header-center">
+        {isAdminMode ? (
+          <span className="admin-indicator">ADMIN MODE</span>
+        ) : (
+          <span className="tenant-indicator">
+            {currentTenant?.name || 'No Tenant Selected'}
+          </span>
+        )}
+      </div>
+      
+      <div className="header-right">
+        <AdminModeToggle />
+        {/* Existing user menu */}
+      </div>
+    </header>
+  );
+};
+This provides clear visual indication of the current mode and tenant context .
+
+Performance Optimization
+Given the critical memory usage (96%), we need to implement optimizations alongside this feature:
+
+Implement React.memo for components to prevent unnecessary re-renders 
+
+Use lazy loading for admin-specific components 
+
+Optimize the orchestration agent to properly disable features at high memory usage 
+
+Implement proper database connection pooling to reduce memory consumption 
+
+Security Considerations
+Ensure proper validation of admin credentials 
+
+Implement role-based access control for admin functions 
+
+Maintain tenant isolation even in admin mode 
+
+Use secure token storage and refresh mechanisms 
+
+Implementation Plan
+Update TenantContext provider with admin mode support
+
+Modify backend middleware for admin context
+
+Create admin mode UI components
+
+Enhance API service with admin headers
+
+Update Header component
+
+Implement performance optimizations
+
+Test tenant and admin mode switching
+
+Deploy changes with monitoring for memory usage
+
+Conclusion
+This implementation allows for seamless switching between tenant mode (clint.phillips@thecenter.nasdaq.org) and admin mode (admin@tight5digital.com) while maintaining proper tenant isolation and security . The approach leverages our existing architecture while addressing the critical memory usage issues currently affecting the platform .
