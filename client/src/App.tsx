@@ -32,6 +32,7 @@ import Grants from '@/pages/Grants';
 import Relationships from '@/pages/Relationships';
 import ContentCalendar from '@/pages/ContentCalendar';
 import Settings from '@/pages/Settings';
+import Debug from '@/pages/Debug';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
