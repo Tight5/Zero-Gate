@@ -10,10 +10,10 @@ interface MemoryMetrics {
 
 class MemoryOptimizer {
   private lastGC: number = 0;
-  private gcInterval: number = 2000; // 2 seconds for extreme emergency mode
-  private criticalThreshold: number = 85; // Emergency threshold at 85%
-  private warningThreshold: number = 75; // Warning at 75%
-  private emergencyThreshold: number = 90; // Immediate action at 90%
+  private gcInterval: number = 1000; // 1 second for critical emergency mode
+  private criticalThreshold: number = 80; // Emergency threshold at 80%
+  private warningThreshold: number = 70; // Warning at 70%
+  private emergencyThreshold: number = 85; // Immediate action at 85%
 
   getMemoryMetrics(): MemoryMetrics {
     const usage = process.memoryUsage();
