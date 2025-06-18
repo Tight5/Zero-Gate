@@ -11,5 +11,12 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Configure connection pool with memory optimization
+export const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  max: 5, // Limit max connections to prevent memory bloat
+  idleTimeoutMillis: 30000, // Close idle connections after 30s
+  connectionTimeoutMillis: 5000, // Timeout connection attempts after 5s
+});
+
 export const db = drizzle({ client: pool, schema });
