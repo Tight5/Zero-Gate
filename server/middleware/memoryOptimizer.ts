@@ -10,9 +10,9 @@ interface MemoryMetrics {
 
 class MemoryOptimizer {
   private lastGC: number = 0;
-  private gcInterval: number = 30000; // 30 seconds
-  private criticalThreshold: number = 85;
-  private warningThreshold: number = 75;
+  private gcInterval: number = 5000; // 5 seconds for emergency mode
+  private criticalThreshold: number = 70; // Lower threshold for more aggressive GC
+  private warningThreshold: number = 60;
 
   getMemoryMetrics(): MemoryMetrics {
     const usage = process.memoryUsage();
@@ -31,18 +31,21 @@ class MemoryOptimizer {
     const now = Date.now();
     const timeSinceLastGC = now - this.lastGC;
     
-    // Force GC if memory is critical or if enough time has passed
+    // Emergency mode: Force GC more aggressively
     return (
       metrics.percentage >= this.criticalThreshold ||
-      (metrics.percentage >= this.warningThreshold && timeSinceLastGC > this.gcInterval)
+      (metrics.percentage >= this.warningThreshold && timeSinceLastGC > this.gcInterval) ||
+      timeSinceLastGC > 10000 // Force GC every 10 seconds
     );
   }
 
   triggerGarbageCollection(): void {
     if (global.gc) {
+      // Multiple GC passes for emergency situations
       global.gc();
+      setTimeout(() => global.gc(), 100);
       this.lastGC = Date.now();
-      console.log('🧹 Garbage collection triggered');
+      console.log('🧹 Emergency garbage collection triggered');
     }
   }
 

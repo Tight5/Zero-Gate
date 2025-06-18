@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Target, Network, Calendar, TrendingUp } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
+import { memo, useMemo, useCallback } from "react";
 
-export default function KPICards() {
+const KPICards = memo(function KPICards() {
   const { selectedTenant } = useTenant();
 
   const { data: kpis, isLoading } = useQuery({
@@ -20,7 +21,7 @@ export default function KPICards() {
     },
   });
 
-  const cards = [
+  const cards = useMemo(() => [
     {
       title: "Total Sponsors",
       value: kpis?.sponsors || 0,
@@ -53,7 +54,7 @@ export default function KPICards() {
       bgColor: "bg-orange-50",
       description: "Scheduled content pieces",
     },
-  ];
+  ], [kpis]);
 
   if (isLoading) {
     return (
@@ -105,4 +106,6 @@ export default function KPICards() {
       })}
     </div>
   );
-}
+});
+
+export default KPICards;

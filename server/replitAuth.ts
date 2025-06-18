@@ -23,24 +23,29 @@ const getOidcConfig = memoize(
 );
 
 export function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  // Optimized session TTL for memory efficiency
+  const sessionTtl = 2 * 60 * 60 * 1000; // 2 hours instead of 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: "sessions",
+    // Optimize session cleanup for memory management
+    pruneSessionInterval: 15 * 60, // Clean expired sessions every 15 minutes
+    touchAfter: 24 * 3600 // Only touch session if not accessed for 24 hours
   });
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Reset expiration on activity
     cookie: {
       httpOnly: true,
-      secure: false, // Set to false for development to fix auth issues
+      secure: false, // Set to false for development
       maxAge: sessionTtl,
-      sameSite: 'lax' // Add sameSite for security
+      sameSite: 'lax'
     },
   });
 }
