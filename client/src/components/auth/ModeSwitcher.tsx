@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,13 +11,13 @@ interface ModeSwitcherProps {
   showCard?: boolean;
 }
 
-export function ModeSwitcher({ className = '', showCard = false }: ModeSwitcherProps) {
+const ModeSwitcher = memo(function ModeSwitcher({ className = '', showCard = false }: ModeSwitcherProps) {
   const { mode, switchMode, getCurrentEmail, isAdminMode, isTenantMode } = useAuthMode();
 
-  const handleModeChange = (checked: boolean) => {
+  const handleModeChange = useCallback((checked: boolean) => {
     const newMode = checked ? 'admin' : 'tenant';
     switchMode(newMode);
-  };
+  }, [switchMode]);
 
   const content = (
     <div className={`mode-switcher ${className}`}>
@@ -98,4 +98,7 @@ export function ModeSwitcher({ className = '', showCard = false }: ModeSwitcherP
   }
 
   return content;
-}
+});
+
+export { ModeSwitcher };
+export default ModeSwitcher;
