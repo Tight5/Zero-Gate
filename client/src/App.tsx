@@ -8,6 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 // Global Contexts
 import { AuthProvider } from './contexts/AuthContext';
+import { AuthModeProvider } from './contexts/AuthModeContext';
 import { TenantProvider } from './contexts/TenantContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ResourceProvider } from './contexts/ResourceContext';
@@ -181,19 +182,21 @@ function App() {
   return (
     <ThemeProvider defaultTheme="system">
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TenantProvider>
-            <ResourceProvider>
-              <TooltipProvider>
-                <div className="min-h-screen bg-background text-foreground">
-                  <AppRouter />
-                  <Toaster />
-                  {env.isDevelopment && <ReactQueryDevtools initialIsOpen={false} />}
-                </div>
-              </TooltipProvider>
-            </ResourceProvider>
-          </TenantProvider>
-        </AuthProvider>
+        <AuthModeProvider>
+          <AuthProvider>
+            <TenantProvider>
+              <ResourceProvider>
+                <TooltipProvider>
+                  <div className="min-h-screen bg-background text-foreground">
+                    <AppRouter />
+                    <Toaster />
+                    {env.isDevelopment && <ReactQueryDevtools initialIsOpen={false} />}
+                  </div>
+                </TooltipProvider>
+              </ResourceProvider>
+            </TenantProvider>
+          </AuthProvider>
+        </AuthModeProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
