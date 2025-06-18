@@ -27,18 +27,20 @@ setInterval(() => {
   const memUsage = process.memoryUsage();
   const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
   
-  if (memPercent >= 95 && global.gc) {
-    // Emergency mode: Multiple GC passes
+  if (memPercent >= 90 && global.gc) {
+    // Emergency mode: Multiple GC passes at 90%+
     console.log(`🚨 EMERGENCY: ${memPercent}% memory usage, forcing aggressive cleanup`);
     global.gc();
+    setTimeout(() => global.gc(), 50);
     setTimeout(() => global.gc(), 100);
     setTimeout(() => global.gc(), 200);
-    setTimeout(() => global.gc(), 500);
-  } else if (memPercent >= 90 && global.gc) {
-    // Critical mode: Double GC
+    setTimeout(() => global.gc(), 400);
+  } else if (memPercent >= 85 && global.gc) {
+    // Critical mode: Triple GC at 85%+
     console.log(`⚠️ CRITICAL: ${memPercent}% memory usage, forcing cleanup`);
     global.gc();
-    setTimeout(() => global.gc(), 100);
+    setTimeout(() => global.gc(), 50);
+    setTimeout(() => global.gc(), 150);
   } else if (memPercent > 75 && global.gc) {
     global.gc();
   }
