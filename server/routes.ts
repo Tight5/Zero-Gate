@@ -485,6 +485,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // System management routes for debugging
+  app.post('/api/system/gc', isAuthenticated, async (req: any, res) => {
+    try {
+      // Force garbage collection if available
+      if (global.gc) {
+        global.gc();
+        res.json({ 
+          success: true, 
+          message: "Garbage collection triggered successfully",
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        res.json({ 
+          success: false, 
+          message: "Garbage collection not available - run with --expose-gc flag",
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error("Error triggering garbage collection:", error);
+      res.status(500).json({ message: "Failed to trigger garbage collection" });
+    }
+  });
+
+  app.get('/api/system/diagnostics', isAuthenticated, async (req: any, res) => {
+    try {
+      const diagnostics = {
+        timestamp: new Date().toISOString(),
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        cpuUsage: process.cpuUsage(),
+        resourceUsage: process.resourceUsage ? process.resourceUsage() : null,
+        environment: {
+          nodeEnv: process.env.NODE_ENV,
+          databaseUrl: process.env.DATABASE_URL ? 'configured' : 'not configured',
+          sessionSecret: process.env.SESSION_SECRET ? 'configured' : 'not configured'
+        }
+      };
+
+      res.json(diagnostics);
+    } catch (error) {
+      console.error("Error fetching diagnostics:", error);
+      res.status(500).json({ message: "Failed to fetch system diagnostics" });
+    }
+  });
+
   // Register workflow management routes
   app.use('/api', workflowRoutes);
   
