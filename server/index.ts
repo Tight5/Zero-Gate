@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { memoryOptimizer } from "./middleware/memoryOptimizer";
+import { memoryLeakDetector } from "./middleware/memoryLeakDetector";
 
 // Memory optimization: limit request size and enable compression
 const app = express();
@@ -11,6 +12,7 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 // Apply memory optimization middleware
 app.use(memoryOptimizer.middleware);
+app.use(memoryLeakDetector.middleware);
 
 // Aggressive memory management
 process.on('warning', (warning) => {
@@ -20,14 +22,27 @@ process.on('warning', (warning) => {
   }
 });
 
-// Schedule regular garbage collection
+// Emergency memory management with aggressive GC
 setInterval(() => {
   const memUsage = process.memoryUsage();
   const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-  if (memPercent > 75 && global.gc) {
+  
+  if (memPercent >= 95 && global.gc) {
+    // Emergency mode: Multiple GC passes
+    console.log(`🚨 EMERGENCY: ${memPercent}% memory usage, forcing aggressive cleanup`);
+    global.gc();
+    setTimeout(() => global.gc(), 100);
+    setTimeout(() => global.gc(), 200);
+    setTimeout(() => global.gc(), 500);
+  } else if (memPercent >= 90 && global.gc) {
+    // Critical mode: Double GC
+    console.log(`⚠️ CRITICAL: ${memPercent}% memory usage, forcing cleanup`);
+    global.gc();
+    setTimeout(() => global.gc(), 100);
+  } else if (memPercent > 75 && global.gc) {
     global.gc();
   }
-}, 30000); // Every 30 seconds
+}, 10000); // Every 10 seconds for emergency mode
 
 // Lightweight logging middleware - minimal memory usage
 app.use((req, res, next) => {
