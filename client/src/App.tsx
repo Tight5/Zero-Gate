@@ -160,6 +160,14 @@ function AppRouter() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/debug" 
+          element={
+            <ProtectedRoute>
+              <Debug />
+            </ProtectedRoute>
+          } 
+        />
         
         {/* 404 Route */}
         <Route path="*" element={<NotFound />} />

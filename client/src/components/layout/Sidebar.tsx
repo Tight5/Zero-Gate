@@ -8,7 +8,8 @@ import {
   Calendar,
   FileText,
   Settings,
-  HelpCircle
+  HelpCircle,
+  Bug
 } from "lucide-react";
 
 const navigationItems = [
@@ -49,6 +50,11 @@ const bottomItems = [
     title: "Settings",
     href: "/settings",
     icon: Settings,
+  },
+  {
+    title: "Debug",
+    href: "/debug",
+    icon: Bug,
   },
   {
     title: "Help",
