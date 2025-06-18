@@ -20,7 +20,7 @@ import { queryClient } from './lib/queryClient';
 import env from './config/env';
 
 // Hooks
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 // Pages
 import NotFound from '@/pages/not-found';
