@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import workflowRoutes from "./routes/workflows";
+import processingRoutes from "./routes/processing";
 import { setUserContext, requireTenantAccess, requireTenantRole } from "./middleware/tenantContext";
 import { 
   insertTenantSchema, 
@@ -320,6 +321,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register workflow management routes
   app.use('/api', workflowRoutes);
+  
+  // ProcessingAgent routes for NetworkX integration
+  app.use('/api/processing', processingRoutes);
 
   const httpServer = createServer(app);
   return httpServer;
