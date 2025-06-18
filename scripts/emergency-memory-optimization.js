@@ -160,7 +160,7 @@ app.use((req, res, next) => {
 }
 
 // Run optimization if called directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const optimizer = new EmergencyMemoryOptimizer();
   optimizer.run()
     .then(report => {
@@ -174,4 +174,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = EmergencyMemoryOptimizer;
+export default EmergencyMemoryOptimizer;

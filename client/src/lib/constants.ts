@@ -52,12 +52,12 @@ export const RESOURCE_THRESHOLDS = {
   emergency: 98,
 } as const;
 
-// Refresh intervals (in milliseconds)
+// Refresh intervals (in milliseconds) - optimized for memory conservation
 export const REFRESH_INTERVALS = {
-  metrics: env.autoRefreshInterval,
-  dashboard: 30000, // 30 seconds
-  notifications: 60000, // 1 minute
-  health: 10000, // 10 seconds
+  metrics: 15000, // 15 seconds (reduced from 5s)
+  dashboard: 60000, // 60 seconds (reduced from 30s)
+  notifications: 120000, // 2 minutes (reduced from 1m)
+  health: 20000, // 20 seconds (reduced from 10s)
 } as const;
 
 // Route paths
