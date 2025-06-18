@@ -14,7 +14,10 @@ app.use((req, res, next) => {
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
+    // Only capture small responses to prevent memory leaks
+    if (bodyJson && JSON.stringify(bodyJson).length < 200) {
+      capturedJsonResponse = bodyJson;
+    }
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
@@ -32,6 +35,9 @@ app.use((req, res, next) => {
 
       log(logLine);
     }
+    
+    // Clear captured response to prevent memory retention
+    capturedJsonResponse = undefined;
   });
 
   next();
@@ -44,6 +50,11 @@ app.use((req, res, next) => {
   app.get('/health', (req: Request, res: Response) => {
     const memUsage = process.memoryUsage();
     const memPercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
+    
+    // Force garbage collection if memory is high
+    if (memPercent > 85 && global.gc) {
+      global.gc();
+    }
     
     const healthStatus = {
       status: memPercent < 90 ? 'ok' : 'critical',
