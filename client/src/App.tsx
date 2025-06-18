@@ -18,8 +18,10 @@ import { queryClient } from './lib/queryClient';
 // Environment Configuration
 import env from './config/env';
 
-// Pages
+// Hooks
 import { useAuth } from './contexts/AuthContext';
+
+// Pages
 import NotFound from '@/pages/not-found';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';

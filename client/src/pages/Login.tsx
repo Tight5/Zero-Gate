@@ -9,8 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { Eye, EyeOff, Mail, Lock, Building2, AlertCircle } from 'lucide-react';
-import { SiMicrosoft } from 'react-icons/si';
+import { Eye, EyeOff, Mail, Lock, Building2, AlertCircle, Monitor } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 
@@ -114,7 +113,7 @@ export default function Login() {
                 className="w-full h-11 text-sm font-medium"
                 disabled={isSubmitting}
               >
-                <SiMicrosoft className="mr-2 h-4 w-4" />
+                <Monitor className="mr-2 h-4 w-4" />
                 Continue with Microsoft
               </Button>
             </div>
