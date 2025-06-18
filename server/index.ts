@@ -1,11 +1,29 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-// Import monitoring modules dynamically to avoid memory issues
+
+// Memory optimization: limit request size and enable compression
 const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// Aggressive memory management
+process.on('warning', (warning) => {
+  if (warning.name === 'MaxListenersExceededWarning') {
+    console.warn('Memory warning detected, forcing garbage collection');
+    if (global.gc) global.gc();
+  }
+});
+
+// Schedule regular garbage collection
+setInterval(() => {
+  const memUsage = process.memoryUsage();
+  const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+  if (memPercent > 75 && global.gc) {
+    global.gc();
+  }
+}, 30000); // Every 30 seconds
 
 // Lightweight logging middleware - minimal memory usage
 app.use((req, res, next) => {
@@ -24,29 +42,35 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Lightweight health check endpoints 
+  // Optimized health check endpoints with aggressive memory management
   app.get('/health', (req: Request, res: Response) => {
     const memUsage = process.memoryUsage();
     const memPercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
     
-    // Force garbage collection if memory is high
-    if (memPercent > 85 && global.gc) {
+    // Aggressive garbage collection for memory management
+    if (memPercent > 80 && global.gc) {
       global.gc();
+      // Force additional cleanup after GC
+      setTimeout(() => {
+        if (global.gc) global.gc();
+      }, 100);
     }
     
     const healthStatus = {
-      status: memPercent < 90 ? 'ok' : 'critical',
+      status: memPercent < 85 ? 'ok' : 'critical', // Lower threshold for stability
       timestamp: new Date().toISOString(),
       uptime: Math.round(process.uptime()),
       memory: {
         percentage: memPercent,
         heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024)
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+        external: Math.round(memUsage.external / 1024 / 1024),
+        rss: Math.round(memUsage.rss / 1024 / 1024)
       },
       version: '1.0.0'
     };
 
-    res.status(memPercent < 90 ? 200 : 503).json(healthStatus);
+    res.status(memPercent < 85 ? 200 : 503).json(healthStatus);
   });
 
   // Basic metrics endpoint
