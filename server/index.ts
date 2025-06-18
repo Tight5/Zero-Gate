@@ -1,12 +1,16 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { memoryOptimizer } from "./middleware/memoryOptimizer";
 
 // Memory optimization: limit request size and enable compression
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// Apply memory optimization middleware
+app.use(memoryOptimizer.middleware);
 
 // Aggressive memory management
 process.on('warning', (warning) => {

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback, memo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
@@ -8,11 +8,11 @@ import SystemResources from "@/components/dashboard/SystemResources";
 import RecentActivity from "@/components/dashboard/RecentActivity";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
-function Dashboard() {
+const Dashboard = memo(function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
 
-  useEffect(() => {
+  const handleAuthRedirect = useCallback(() => {
     if (!isLoading && !isAuthenticated) {
       toast({
         title: "Unauthorized",
@@ -22,9 +22,12 @@ function Dashboard() {
       setTimeout(() => {
         window.location.href = "/api/login";
       }, 500);
-      return;
     }
   }, [isAuthenticated, isLoading, toast]);
+
+  useEffect(() => {
+    handleAuthRedirect();
+  }, [handleAuthRedirect]);
 
   if (isLoading) {
     return (
@@ -75,6 +78,6 @@ function Dashboard() {
       </div>
     </div>
   );
-}
+});
 
 export default Dashboard;

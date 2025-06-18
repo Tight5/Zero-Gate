@@ -129,24 +129,33 @@ class ResourceMonitor:
         states['authentication'] = FeatureState.ENABLED
         states['basic_crud'] = FeatureState.ENABLED
         
-        # Resource-intensive features
-        if cpu > self.thresholds.cpu_critical or memory > self.thresholds.memory_critical:
-            # Emergency mode - disable non-essential features
+        # Aggressive memory management - trigger at 85% threshold
+        if memory >= 85 or cpu > self.thresholds.cpu_critical:
+            # Emergency mode - disable non-essential features immediately
             states['relationship_mapping'] = FeatureState.DISABLED
             states['advanced_analytics'] = FeatureState.DISABLED
             states['background_sync'] = FeatureState.DISABLED
             states['file_processing'] = FeatureState.DISABLED
-            states['grant_timeline_analysis'] = FeatureState.DEGRADED
-            logger.warning(f"Emergency mode: CPU={cpu}%, Memory={memory}%")
+            states['grant_timeline_analysis'] = FeatureState.DISABLED
+            logger.warning(f"CRITICAL: Emergency memory management activated - Memory={memory}%, CPU={cpu}%")
             
-        elif cpu > self.thresholds.cpu_high or memory > self.thresholds.memory_high:
-            # High usage - degrade some features
-            states['relationship_mapping'] = FeatureState.DEGRADED
+        elif memory >= 80 or cpu > self.thresholds.cpu_high:
+            # High usage - aggressively degrade features
+            states['relationship_mapping'] = FeatureState.DISABLED
             states['advanced_analytics'] = FeatureState.DISABLED
             states['background_sync'] = FeatureState.DEGRADED
             states['file_processing'] = FeatureState.DEGRADED
+            states['grant_timeline_analysis'] = FeatureState.DEGRADED
+            logger.warning(f"HIGH: Aggressive memory management - Memory={memory}%, CPU={cpu}%")
+            
+        elif memory >= 75:
+            # Warning level - start disabling memory-intensive features
+            states['relationship_mapping'] = FeatureState.DEGRADED
+            states['advanced_analytics'] = FeatureState.DEGRADED
+            states['background_sync'] = FeatureState.ENABLED
+            states['file_processing'] = FeatureState.ENABLED
             states['grant_timeline_analysis'] = FeatureState.ENABLED
-            logger.info(f"High resource usage: CPU={cpu}%, Memory={memory}%")
+            logger.info(f"WARNING: Memory management engaged - Memory={memory}%, CPU={cpu}%")
             
         else:
             # Normal operation
