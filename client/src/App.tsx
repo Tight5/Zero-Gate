@@ -34,6 +34,7 @@ import Relationships from '@/pages/Relationships';
 import ContentCalendar from '@/pages/ContentCalendar';
 import Settings from '@/pages/Settings';
 import Debug from '@/pages/Debug';
+import Reports from '@/pages/Reports';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -166,6 +167,14 @@ function AppRouter() {
           element={
             <ProtectedRoute>
               <Debug />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/reports" 
+          element={
+            <ProtectedRoute>
+              <Reports />
             </ProtectedRoute>
           } 
         />
