@@ -18,14 +18,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
-  // Apply tenant context middleware to all authenticated routes
-  app.use('/api', isAuthenticated, setUserContext);
+  // Apply tenant context middleware only to tenant-specific routes
+  app.use('/api/tenants', isAuthenticated, setUserContext);
+  app.use('/api/sponsors', isAuthenticated, setUserContext);
+  app.use('/api/grants', isAuthenticated, setUserContext);
+  app.use('/api/relationships', isAuthenticated, setUserContext);
+  app.use('/api/content-calendar', isAuthenticated, setUserContext);
+  app.use('/api/dashboard', isAuthenticated, setUserContext);
 
-  // Auth routes
-  app.get('/api/auth/user', async (req: any, res) => {
+  // Auth routes - simplified for debugging
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
+      if (!user) {
+        // Create user if doesn't exist
+        const newUser = await storage.upsertUser({
+          id: userId,
+          email: req.user.claims.email,
+          firstName: req.user.claims.first_name,
+          lastName: req.user.claims.last_name,
+          profileImageUrl: req.user.claims.profile_image_url,
+        });
+        return res.json({ ...newUser, tenants: [] });
+      }
       const tenants = await storage.getUserTenants(userId);
       res.json({ ...user, tenants });
     } catch (error) {

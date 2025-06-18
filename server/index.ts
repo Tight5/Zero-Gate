@@ -7,37 +7,15 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Lightweight logging middleware - minimal memory usage
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    // Only capture small responses to prevent memory leaks
-    if (bodyJson && JSON.stringify(bodyJson).length < 200) {
-      capturedJsonResponse = bodyJson;
-    }
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
+  
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+    if (req.path.startsWith("/api") && duration > 100) {
+      log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
     }
-    
-    // Clear captured response to prevent memory retention
-    capturedJsonResponse = undefined;
   });
 
   next();
