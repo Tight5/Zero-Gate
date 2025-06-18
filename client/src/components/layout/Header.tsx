@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthMode } from "@/contexts/AuthModeContext";
+import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
@@ -14,7 +15,8 @@ import { Zap, Settings, LogOut, Bell } from "lucide-react";
 
 export default function Header() {
   const { user } = useAuth();
-  const { isAdminMode } = useAuthMode();
+  const { isAdminMode, getCurrentEmail } = useAuthMode();
+  const { isAdmin, toggleAdminMode } = useTenant();
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
