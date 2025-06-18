@@ -1,22 +1,27 @@
 """
-Integration layer for connecting the orchestration agent with Express.js backend
-Handles workflow task execution and resource monitoring integration
+IntegrationAgent: Microsoft Graph integration with MSAL authentication
+Handles organizational data extraction, email pattern analysis, and Excel processing
 """
 
 import asyncio
-import aiohttp
 import json
-import os
-from typing import Dict, Any, Optional
-from datetime import datetime
-from .orchestration import (
-    OrchestrationAgent, 
-    ResourceThresholds, 
-    WorkflowTask,
-    create_sponsor_analysis_task,
-    create_grant_timeline_task,
-    create_relationship_mapping_task
-)
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Tuple, Set
+from dataclasses import dataclass, asdict
+import requests
+from collections import defaultdict, Counter
+import re
+import msal
+import pandas as pd
+import openpyxl
+from io import BytesIO
+import base64
+import time
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class ExpressIntegration:
     """Integration layer for communicating with Express.js backend"""
