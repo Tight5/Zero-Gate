@@ -22,13 +22,14 @@ import env from './config/env';
 import { useAuth } from './contexts/AuthContext';
 import NotFound from '@/pages/not-found';
 import Landing from '@/pages/Landing';
+import Login from '@/pages/Login';
+import TenantSelection from '@/pages/TenantSelection';
 import Dashboard from '@/pages/Dashboard';
 import Sponsors from '@/pages/Sponsors';
 import Grants from '@/pages/Grants';
 import Relationships from '@/pages/Relationships';
 import ContentCalendar from '@/pages/ContentCalendar';
 import Settings from '@/pages/Settings';
-import TenantSelection from '@/pages/TenantSelection';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -76,6 +77,22 @@ function AppRouter() {
         {/* Public Routes */}
         <Route 
           path="/" 
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          } 
+        />
+        <Route 
+          path="/login" 
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          } 
+        />
+        <Route 
+          path="/landing" 
           element={
             <PublicRoute>
               <Landing />

@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building, Users, Search, CheckCircle, ArrowRight } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { Building, Users, Search, CheckCircle, ArrowRight, Crown, Shield, User, Settings, LogOut } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 
 export default function TenantSelection() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { availableTenants, currentTenant, switchTenant, isLoading } = useTenant();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(currentTenant?.id || null);
@@ -31,6 +33,32 @@ export default function TenantSelection() {
   const handleContinue = () => {
     if (selectedTenantId) {
       switchTenant(selectedTenantId);
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return <Crown className="h-3 w-3" />;
+      case 'manager':
+        return <Shield className="h-3 w-3" />;
+      case 'user':
+        return <User className="h-3 w-3" />;
+      default:
+        return <User className="h-3 w-3" />;
+    }
+  };
+
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'default' as const;
+      case 'manager':
+        return 'secondary' as const;
+      case 'user':
+        return 'outline' as const;
+      default:
+        return 'outline' as const;
     }
   };
 
@@ -59,19 +87,35 @@ export default function TenantSelection() {
 
         {/* User Info */}
         {user && (
-          <Card className="max-w-md mx-auto">
+          <Card className="max-w-2xl mx-auto">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                {user.profileImageUrl && (
-                  <img
-                    src={user.profileImageUrl}
-                    alt="Profile"
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
-                )}
-                <div>
-                  <p className="font-medium">{user.firstName} {user.lastName}</p>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12">
+                    {user.profileImageUrl && (
+                      <AvatarImage src={user.profileImageUrl} alt="Profile" />
+                    )}
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {user.firstName?.[0]}{user.lastName?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold text-lg">{user.firstName} {user.lastName}</p>
+                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                    <Badge variant="outline" className="mt-1 text-xs">
+                      {availableTenants.length} organization{availableTenants.length !== 1 ? 's' : ''} available
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => window.location.href = '/settings'}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={logout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -111,78 +155,112 @@ export default function TenantSelection() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {filteredTenants.map((tenant) => (
-                <Card
-                  key={tenant.id}
-                  className={`cursor-pointer transition-all hover:shadow-md ${
-                    selectedTenantId === tenant.id
-                      ? 'ring-2 ring-primary border-primary'
-                      : 'hover:border-primary/50'
-                  }`}
-                  onClick={() => handleTenantSelect(tenant.id)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Building className="h-5 w-5 text-primary" />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filteredTenants.map((tenant) => {
+                // Mock user role for each tenant (in real app, this would come from API)
+                const userRole = tenant.id === '1' ? 'admin' : tenant.id === '2' ? 'manager' : 'user';
+                
+                return (
+                  <Card
+                    key={tenant.id}
+                    className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${
+                      selectedTenantId === tenant.id
+                        ? 'ring-2 ring-primary border-primary shadow-md'
+                        : 'hover:border-primary/30'
+                    }`}
+                    onClick={() => handleTenantSelect(tenant.id)}
+                  >
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                            <Building className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <CardTitle className="text-lg font-semibold">{tenant.name}</CardTitle>
+                            <CardDescription className="text-sm">{tenant.domain}</CardDescription>
+                            
+                            {/* Role Badge */}
+                            <div className="mt-2">
+                              <Badge variant={getRoleBadgeVariant(userRole)} className="text-xs">
+                                {getRoleIcon(userRole)}
+                                <span className="ml-1 capitalize">{userRole}</span>
+                              </Badge>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-lg">{tenant.name}</CardTitle>
-                          <CardDescription>{tenant.domain}</CardDescription>
+                        {selectedTenantId === tenant.id && (
+                          <CheckCircle className="h-5 w-5 text-primary animate-in zoom-in-50 duration-200" />
+                        )}
+                      </div>
+                    </CardHeader>
+                    
+                    <CardContent className="pt-0 space-y-4">
+                      {/* Organization Stats */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center p-2 bg-accent/50 rounded-lg">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Users</span>
+                          </div>
+                          <p className="text-sm font-semibold">{tenant.settings.limits.users}</p>
+                        </div>
+                        <div className="text-center p-2 bg-accent/50 rounded-lg">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <Building className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Sponsors</span>
+                          </div>
+                          <p className="text-sm font-semibold">{tenant.settings.limits.sponsors}</p>
                         </div>
                       </div>
-                      {selectedTenantId === tenant.id && (
-                        <CheckCircle className="h-5 w-5 text-primary" />
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-3">
+
                       {/* Features */}
                       <div>
-                        <p className="text-sm font-medium mb-2">Available Features</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Available Features</p>
                         <div className="flex flex-wrap gap-1">
-                          {tenant.settings.features.slice(0, 3).map((feature) => (
-                            <Badge key={feature} variant="secondary" className="text-xs">
-                              {feature}
+                          {tenant.settings.features.slice(0, 2).map((feature) => (
+                            <Badge key={feature} variant="outline" className="text-xs py-0">
+                              {feature.replace(/([A-Z])/g, ' $1').trim()}
                             </Badge>
                           ))}
-                          {tenant.settings.features.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{tenant.settings.features.length - 3} more
+                          {tenant.settings.features.length > 2 && (
+                            <Badge variant="secondary" className="text-xs py-0">
+                              +{tenant.settings.features.length - 2}
                             </Badge>
                           )}
                         </div>
                       </div>
 
-                      {/* Limits */}
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
-                          <span>{tenant.settings.limits.users} users</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Building className="h-4 w-4" />
-                          <span>{tenant.settings.limits.sponsors} sponsors</span>
-                        </div>
+                      {/* Quick Actions */}
+                      <Separator />
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Click to select</span>
+                        {selectedTenantId === tenant.id && (
+                          <span className="text-primary font-medium">Selected</span>
+                        )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Continue Button */}
         {selectedTenantId && (
-          <div className="text-center">
-            <Button onClick={handleContinue} size="lg" className="min-w-32">
-              Continue
-              <ArrowRight className="ml-2 h-4 w-4" />
+          <div className="text-center space-y-3">
+            <Button 
+              onClick={handleContinue} 
+              size="lg" 
+              className="min-w-40 h-12 text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              Continue to Dashboard
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
+            <p className="text-xs text-muted-foreground">
+              You can switch organizations anytime from Settings
+            </p>
           </div>
         )}
 
