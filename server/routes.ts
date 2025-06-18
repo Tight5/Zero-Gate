@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import workflowRoutes from "./routes/workflows";
 import { setUserContext, requireTenantAccess, requireTenantRole } from "./middleware/tenantContext";
 import { 
   insertTenantSchema, 
@@ -316,6 +317,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create content calendar item" });
     }
   });
+
+  // Register workflow management routes
+  app.use('/api', workflowRoutes);
 
   const httpServer = createServer(app);
   return httpServer;
