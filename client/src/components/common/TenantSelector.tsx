@@ -1,34 +1,39 @@
-
-import { useTenant } from './TenantProvider';
+import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTenant } from '@/contexts/TenantContext';
 
-export function TenantSelector() {
-  const { currentTenant, setCurrentTenant, tenants, loading } = useTenant();
+const TenantSelector = () => {
+  const { currentTenant, availableTenants, switchTenant, isMultiTenant } = useTenant();
 
-  if (loading || tenants.length <= 1) {
+  if (!isMultiTenant || availableTenants.length <= 1) {
     return null;
   }
 
+  const handleTenantChange = (tenantId: string) => {
+    if (tenantId !== currentTenant?.id) {
+      switchTenant(tenantId);
+    }
+  };
+
   return (
-    <Select
-      value={currentTenant?.id}
-      onValueChange={(value) => {
-        const tenant = tenants.find(t => t.id === value);
-        if (tenant) {
-          setCurrentTenant(tenant);
-        }
-      }}
-    >
-      <SelectTrigger className="w-48">
-        <SelectValue placeholder="Select tenant" />
-      </SelectTrigger>
-      <SelectContent>
-        {tenants.map((tenant) => (
-          <SelectItem key={tenant.id} value={tenant.id}>
-            {tenant.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="tenant-selector">
+      <Select
+        value={currentTenant?.id || ''}
+        onValueChange={handleTenantChange}
+      >
+        <SelectTrigger className="w-48">
+          <SelectValue placeholder="Select Organization" />
+        </SelectTrigger>
+        <SelectContent>
+          {availableTenants.map((tenant) => (
+            <SelectItem key={tenant.id} value={tenant.id}>
+              {tenant.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
-}
+};
+
+export default TenantSelector;
