@@ -1,36 +1,120 @@
-import React, { useState } from 'react';
+/**
+ * Content Calendar Page
+ * Strategic communication planning with grant milestone integration
+ * Based on attached asset 41 specifications
+ */
+
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Plus, Edit3, Trash2, Clock, Tag, Users } from 'lucide-react';
+import { 
+  Calendar as CalendarIcon, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Clock, 
+  Tag, 
+  Users,
+  Filter,
+  Download,
+  Grid,
+  List,
+  Target,
+  Share,
+  Bell,
+  CheckCircle
+} from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { insertContentCalendarSchema, type InsertContentCalendar, type ContentCalendar } from '@shared/schema';
-import { apiRequest } from '@/lib/queryClient';
+import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth } from 'date-fns';
+import { 
+  format, 
+  startOfMonth, 
+  endOfMonth, 
+  eachDayOfInterval, 
+  isSameDay, 
+  isSameMonth,
+  addDays,
+  subDays,
+  isToday,
+  isFuture,
+  isPast
+} from 'date-fns';
+import { cn } from '@/lib/utils';
 
-type ContentCalendarFormData = InsertContentCalendar;
+// Content calendar schemas
+const contentItemSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  content: z.string().min(1, 'Content is required'),
+  contentType: z.enum(['post', 'email', 'newsletter', 'announcement', 'milestone-update', 'thank-you']),
+  channel: z.enum(['social-media', 'email', 'website', 'newsletter', 'press-release']),
+  scheduledDate: z.date({ required_error: 'Scheduled date is required' }),
+  status: z.enum(['draft', 'scheduled', 'published', 'cancelled']),
+  grantId: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  assignee: z.string().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium')
+});
+
+type ContentItem = z.infer<typeof contentItemSchema> & {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+interface Grant {
+  id: string;
+  title: string;
+  organization: string;
+  amount: number;
+  submissionDeadline: Date;
+  status: string;
+  milestones: Array<{
+    id: string;
+    title: string;
+    dueDate: Date;
+    status: string;
+    type: string;
+  }>;
+}
 
 export default function ContentCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<ContentCalendar | null>(null);
-  const [viewMode, setViewMode] = useState<'month' | 'list'>('month');
+  const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+  const [viewMode, setViewMode] = useState<'calendar' | 'timeline' | 'list'>('calendar');
+  const [filters, setFilters] = useState({
+    contentType: 'all',
+    status: 'all',
+    grantId: 'all',
+    channel: 'all',
+    assignee: 'all'
+  });
+  const [showMilestones, setShowMilestones] = useState(true);
   
   const { toast } = useToast();
   const { selectedTenant } = useTenant();
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: contentItems = [], isLoading } = useQuery<ContentCalendar[]>({
-    queryKey: ['/api/content-calendar'],
+  // Fetch content items
+  const { data: contentItems = [], isLoading } = useQuery<ContentItem[]>({
+    queryKey: ['/api/content-calendar', selectedTenant],
     queryFn: async () => {
       const res = await fetch('/api/content-calendar', {
         credentials: 'include',
@@ -41,11 +125,12 @@ export default function ContentCalendar() {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return res.json();
     },
-    enabled: !!selectedTenant,
+    enabled: !!selectedTenant && isAuthenticated,
   });
 
-  const { data: grants = [] } = useQuery<any[]>({
-    queryKey: ['/api/grants'],
+  // Fetch grants for milestone integration
+  const { data: grants = [] } = useQuery<Grant[]>({
+    queryKey: ['/api/grants', selectedTenant],
     queryFn: async () => {
       const res = await fetch('/api/grants', {
         credentials: 'include',
@@ -56,24 +141,38 @@ export default function ContentCalendar() {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return res.json();
     },
-    enabled: !!selectedTenant,
+    enabled: !!selectedTenant && isAuthenticated,
   });
 
-  const form = useForm<ContentCalendarFormData>({
-    resolver: zodResolver(insertContentCalendarSchema),
+  const form = useForm<z.infer<typeof contentItemSchema>>({
+    resolver: zodResolver(contentItemSchema),
     defaultValues: {
       title: '',
       content: '',
-      scheduledDate: new Date(),
+      contentType: 'post',
+      channel: 'social-media',
+      scheduledDate: selectedDate,
       status: 'draft',
-      grantId: '',
-      tenantId: 'default-tenant',
+      priority: 'medium',
+      tags: [],
     },
   });
 
+  // Mutations for CRUD operations
   const createItemMutation = useMutation({
-    mutationFn: async (data: ContentCalendarFormData) => 
-      await apiRequest('POST', '/api/content-calendar', data),
+    mutationFn: async (data: z.infer<typeof contentItemSchema>) => {
+      const res = await fetch('/api/content-calendar', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': selectedTenant,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       setIsDialogOpen(false);
@@ -94,8 +193,19 @@ export default function ContentCalendar() {
   });
 
   const updateItemMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<ContentCalendarFormData> }) =>
-      await apiRequest('PATCH', `/api/content-calendar/${id}`, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<z.infer<typeof contentItemSchema>> }) => {
+      const res = await fetch(`/api/content-calendar/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': selectedTenant,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/content-calendar'] });
       setIsDialogOpen(false);
