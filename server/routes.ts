@@ -20,13 +20,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
+  // Debug mode: Make dashboard accessible without auth for debugging
+  app.use('/api/dashboard', dashboardRoutes);
+  
   // Apply tenant context middleware only to tenant-specific routes
   app.use('/api/tenants', isAuthenticated, setUserContext);
-  app.use('/api/sponsors', isAuthenticated, setUserContext);
+  app.use('/api/sponsors', isAuthenticated, setUserContext);  
   app.use('/api/grants', isAuthenticated, setUserContext);
   app.use('/api/relationships', isAuthenticated, setUserContext);
   app.use('/api/content-calendar', isAuthenticated, setUserContext);
-  app.use('/api/dashboard', dashboardRoutes);
 
   // Auth routes - simplified for debugging
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
