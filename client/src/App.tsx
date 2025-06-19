@@ -4,7 +4,14 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { queryClient } from './lib/queryClient';
 
-// Import pages directly for now
+// Import context providers
+import { AuthProvider } from './contexts/AuthContext';
+import { TenantProvider } from './contexts/TenantContext';
+import { ResourceProvider } from './contexts/ResourceContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+
+// Import layout and pages
+import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import Sponsors from '@/pages/Sponsors';
 import Grants from '@/pages/Grants';
@@ -13,6 +20,7 @@ import ContentCalendar from '@/pages/ContentCalendar';
 import Settings from '@/pages/Settings';
 import Debug from '@/pages/Debug';
 import Reports from '@/pages/Reports';
+import Analytics from '@/pages/Analytics';
 import NotFound from '@/pages/not-found';
 
 // Simple layout component

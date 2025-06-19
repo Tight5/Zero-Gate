@@ -22,8 +22,7 @@ interface AuthContextType {
   refetch: () => void;
 }
 
-// Export types for external use
-export type { User, AuthContextType };
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
