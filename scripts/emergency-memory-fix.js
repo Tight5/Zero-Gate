@@ -106,11 +106,11 @@ class EmergencyMemoryFix {
 }
 
 // Execute immediately if run directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const fixer = new EmergencyMemoryFix();
   fixer.deployImmediateFixes().then(report => {
     console.log('📋 Emergency Fix Report:', JSON.stringify(report, null, 2));
   });
 }
 
-module.exports = EmergencyMemoryFix;
+export default EmergencyMemoryFix;
