@@ -229,14 +229,13 @@ class MicrosoftGraphService {
         skip: (options.offset || 0).toString()
       });
 
-      const response = await apiRequest('GET', `${this.endpoints.files}?${queryParams}`);
-      const data = await response.json();
+      const response = await apiService.get(`${this.endpoints.files}?${queryParams}`);
       
-      if (data.success) {
+      if (response.success) {
         return {
-          files: data.files || [],
-          hasMore: data.hasMore || false,
-          total: data.total || 0
+          files: response.data.files || [],
+          hasMore: response.data.hasMore || false,
+          total: response.data.total || 0
         };
       } else {
         throw new Error('Failed to get files');
@@ -250,11 +249,10 @@ class MicrosoftGraphService {
   async getWorkbook(fileId: string, driveId?: string): Promise<WorkbookData> {
     try {
       const params = driveId ? `?driveId=${driveId}` : '';
-      const response = await apiRequest('GET', `${this.endpoints.workbooks}/${fileId}${params}`);
-      const data = await response.json();
+      const response = await apiService.get(`${this.endpoints.workbooks}/${fileId}${params}`);
       
-      if (data.success) {
-        return data.workbook;
+      if (response.success) {
+        return response.data.workbook;
       } else {
         throw new Error('Failed to get workbook');
       }
@@ -275,17 +273,15 @@ class MicrosoftGraphService {
       if (driveId) queryParams.set('driveId', driveId);
       if (range) queryParams.set('range', range);
 
-      const response = await apiRequest(
-        'GET',
+      const response = await apiService.get(
         `${this.endpoints.workbooks}/${fileId}/worksheets/${worksheetId}/data?${queryParams}`
       );
-      const data = await response.json();
       
-      if (data.success) {
+      if (response.success) {
         return {
-          values: data.values || [],
-          headers: data.headers || [],
-          range: data.range || ''
+          values: response.data.values || [],
+          headers: response.data.headers || [],
+          range: response.data.range || ''
         };
       } else {
         throw new Error('Failed to get worksheet data');
@@ -298,15 +294,14 @@ class MicrosoftGraphService {
 
   async extractRelationships(userId: string = 'me'): Promise<RelationshipData> {
     try {
-      const response = await apiRequest('GET', `${this.endpoints.relationships}/${userId}`);
-      const data = await response.json();
+      const response = await apiService.get(`${this.endpoints.relationships}/${userId}`);
       
-      if (data.success) {
+      if (response.success) {
         return {
-          manager: data.manager,
-          directReports: data.directReports || [],
-          colleagues: data.colleagues || [],
-          collaborators: data.collaborators || []
+          manager: response.data.manager,
+          directReports: response.data.directReports || [],
+          colleagues: response.data.colleagues || [],
+          collaborators: response.data.collaborators || []
         };
       } else {
         throw new Error('Failed to extract relationships');
@@ -322,18 +317,16 @@ class MicrosoftGraphService {
     timeframe: string = '30days'
   ): Promise<CollaborationAnalysis> {
     try {
-      const response = await apiRequest(
-        'GET',
+      const response = await apiService.get(
         `${this.endpoints.relationships}/${userId}/collaboration?timeframe=${timeframe}`
       );
-      const data = await response.json();
       
-      if (data.success) {
+      if (response.success) {
         return {
-          collaborationScore: data.collaborationScore || 0,
-          topCollaborators: data.topCollaborators || [],
-          communicationPatterns: data.communicationPatterns || {},
-          meetingInsights: data.meetingInsights || {}
+          collaborationScore: response.data.collaborationScore || 0,
+          topCollaborators: response.data.topCollaborators || [],
+          communicationPatterns: response.data.communicationPatterns || {},
+          meetingInsights: response.data.meetingInsights || {}
         };
       } else {
         throw new Error('Failed to analyze collaboration');
@@ -346,10 +339,9 @@ class MicrosoftGraphService {
 
   async disconnectAccount(): Promise<boolean> {
     try {
-      const response = await apiRequest('DELETE', this.endpoints.token);
-      const data = await response.json();
+      const response = await apiService.delete(this.endpoints.token);
       
-      if (data.success) {
+      if (response.success) {
         this.setConnectedStatus(false);
         localStorage.removeItem('msGraphLastSync');
         localStorage.removeItem('msGraphPermissions');

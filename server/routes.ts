@@ -5,6 +5,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import integrationRoutes from "./routes/integration";
 import workflowRoutes from "./routes/workflows";
 import processingRoutes from "./routes/processing";
+import { registerMicrosoftRoutes } from "./routes/microsoft";
 import { setUserContext, requireTenantAccess, requireTenantRole } from "./middleware/tenantContext";
 import { 
   insertTenantSchema, 
