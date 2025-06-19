@@ -8,12 +8,25 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
-if (!process.env.REPLIT_DOMAINS) {
+// Development mode check
+const isDevelopment = process.env.NODE_ENV === "development";
+
+if (!isDevelopment && !process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
 }
 
 const getOidcConfig = memoize(
   async () => {
+    if (isDevelopment) {
+      // Return mock config for development
+      return {
+        issuer: 'https://dev.replit.com',
+        authorization_endpoint: '/api/login',
+        token_endpoint: '/api/token',
+        userinfo_endpoint: '/api/userinfo'
+      };
+    }
+    
     return await client.discovery(
       new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
       process.env.REPL_ID!
@@ -23,46 +36,68 @@ const getOidcConfig = memoize(
 );
 
 export function getSession() {
-  // Optimized session TTL for memory efficiency
-  const sessionTtl = 2 * 60 * 60 * 1000; // 2 hours instead of 1 week
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  
+  if (isDevelopment) {
+    // Use memory store for development
+    return session({
+      secret: 'development-secret-key',
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        secure: false, // Allow non-HTTPS in development
+        maxAge: sessionTtl,
+      },
+    });
+  }
+
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: true,
+    createTableIfMissing: false,
     ttl: sessionTtl,
     tableName: "sessions",
-    // Optimize session cleanup for memory management
-    pruneSessionInterval: 15 * 60, // Clean expired sessions every 15 minutes
-    touchAfter: 24 * 3600 // Only touch session if not accessed for 24 hours
   });
+  
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
-    rolling: true, // Reset expiration on activity
     cookie: {
       httpOnly: true,
-      secure: false, // Set to false for development
+      secure: true,
       maxAge: sessionTtl,
-      sameSite: 'lax'
     },
   });
 }
 
 function updateUserSession(
   user: any,
-  tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
+  tokens: any
 ) {
+  if (isDevelopment) {
+    user.claims = {
+      sub: 'dev-user-123',
+      email: 'developer@zerogate.dev',
+      first_name: 'Developer',
+      last_name: 'User',
+      profile_image_url: null,
+      exp: Math.floor(Date.now() / 1000) + 3600
+    };
+    user.access_token = 'dev-access-token';
+    user.expires_at = user.claims.exp;
+    return;
+  }
+
   user.claims = tokens.claims();
   user.access_token = tokens.access_token;
   user.refresh_token = tokens.refresh_token;
   user.expires_at = user.claims?.exp;
 }
 
-async function upsertUser(
-  claims: any,
-) {
+async function upsertUser(claims: any) {
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
@@ -78,10 +113,46 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  if (isDevelopment) {
+    // Development mode authentication
+    app.get("/api/login", (req, res) => {
+      const user = {
+        claims: {
+          sub: 'dev-user-123',
+          email: 'developer@zerogate.dev',
+          first_name: 'Developer',
+          last_name: 'User',
+          profile_image_url: null,
+          exp: Math.floor(Date.now() / 1000) + 3600
+        }
+      };
+      
+      req.login(user, (err) => {
+        if (err) {
+          console.error('Login error:', err);
+          return res.redirect('/');
+        }
+        res.redirect('/dashboard');
+      });
+    });
+
+    app.get("/api/logout", (req, res) => {
+      req.logout(() => {
+        res.redirect('/');
+      });
+    });
+
+    passport.serializeUser((user: any, cb) => cb(null, user));
+    passport.deserializeUser((user: any, cb) => cb(null, user));
+    
+    return;
+  }
+
+  // Production Replit Auth setup
   const config = await getOidcConfig();
 
   const verify: VerifyFunction = async (
-    tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
+    tokens: any,
     verified: passport.AuthenticateCallback
   ) => {
     const user = {};
@@ -90,14 +161,7 @@ export async function setupAuth(app: Express) {
     verified(null, user);
   };
 
-  const domains = process.env.REPLIT_DOMAINS!.split(",");
-  
-  // Add localhost for development
-  if (process.env.NODE_ENV === 'development') {
-    domains.push('localhost:5000');
-  }
-  
-  for (const domain of domains) {
+  for (const domain of process.env.REPLIT_DOMAINS!.split(",")) {
     const strategy = new Strategy(
       {
         name: `replitauth:${domain}`,
@@ -114,14 +178,7 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    // Extract hostname without port for strategy matching
-    const host = req.get('host') || req.hostname;
-    const hostname = host.split(':')[0];
-    
-    console.log(`Login attempt for hostname: ${hostname}`);
-    console.log(`Available domains: ${process.env.REPLIT_DOMAINS}`);
-    
-    passport.authenticate(`replitauth:${hostname}`, {
+    passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
@@ -147,6 +204,22 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  if (isDevelopment) {
+    // Development mode bypass
+    if (!req.user) {
+      const user = {
+        claims: {
+          sub: 'dev-user-123',
+          email: 'developer@zerogate.dev',
+          first_name: 'Developer',
+          last_name: 'User'
+        }
+      };
+      req.user = user;
+    }
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

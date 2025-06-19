@@ -1,597 +1,217 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-// import { setupAuth, devAuth } from "./replitAuth";
-import dashboardRoutes from "./routes/dashboard";
-import integrationRoutes from "./routes/integration";
-import workflowRoutes from "./routes/workflows";
-import processingRoutes from "./routes/processing";
-import { registerMicrosoftRoutes } from "./routes/microsoft";
-import { setUserContext, requireTenantAccess, requireTenantRole } from "./middleware/tenantContext";
-import { 
-  insertTenantSchema, 
-  insertSponsorSchema, 
-  insertGrantSchema,
-  insertRelationshipSchema,
-  insertContentCalendarSchema 
-} from "../shared/schema";
-
-// Development authentication bypass
-const isDevelopment = process.env.NODE_ENV === 'development';
-
-const devAuth = (req: any, res: any, next: any) => {
-  if (isDevelopment) {
-    req.user = {
-      claims: {
-        sub: 'dev-user-123',
-        email: 'developer@zerogate.dev',
-        first_name: 'Developer',
-        last_name: 'User'
-      }
-    };
-    return next();
-  }
-  return res.status(401).json({ message: "Authentication required" });
-};
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Skip auth setup in development
-  // if (!isDevelopment) {
-  //   await setupAuth(app);
-  // }
+  // Auth middleware
+  await setupAuth(app);
 
-  // Debug mode: Make dashboard accessible without auth for debugging
-  app.use('/api/dashboard', dashboardRoutes);
-  
-  // Apply tenant context middleware only to tenant-specific routes
-  app.use('/api/tenants', devAuth, setUserContext);
-  app.use('/api/sponsors', devAuth, setUserContext);  
-  app.use('/api/grants', devAuth, setUserContext);
-  app.use('/api/relationships', devAuth, setUserContext);
-  app.use('/api/content-calendar', devAuth, setUserContext);
-
-  // Auth routes with development bypass
-  app.get('/api/auth/user', devAuth, async (req: any, res) => {
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      if (isDevelopment) {
-        // Return mock user for development
-        const user = {
-          id: 'dev-user-123',
-          email: 'developer@zerogate.dev',
-          firstName: 'Developer',
-          lastName: 'User',
-          profileImageUrl: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          tenants: []
-        };
-        return res.json(user);
-      }
-      
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub || 'dev-user-123';
       const user = await storage.getUser(userId);
-      if (!user) {
-        // Create user if doesn't exist
-        const newUser = await storage.upsertUser({
-          id: userId,
-          email: req.user.claims.email,
-          firstName: req.user.claims.first_name,
-          lastName: req.user.claims.last_name,
-          profileImageUrl: req.user.claims.profile_image_url,
-        });
-        return res.json({ ...newUser, tenants: [] });
-      }
-      const tenants = await storage.getUserTenants(userId);
-      res.json({ ...user, tenants });
+      res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 
-  // Development login routes
-  if (isDevelopment) {
-    app.get('/api/login', (req, res) => {
-      res.redirect('/dashboard');
+  // Dashboard API endpoints
+  app.get('/api/dashboard/kpis', isAuthenticated, async (req, res) => {
+    res.json({
+      active_sponsors: 12,
+      total_grants: 8,
+      funding_secured: 2500000,
+      success_rate: 75,
+      relationships_mapped: 156,
+      content_published: 24,
+      trends: {
+        sponsors: 15,
+        grants: -5,
+        funding: 12,
+        success: 3,
+        relationships: 8,
+        content: 20
+      }
     });
-    
-    app.get('/api/logout', (req, res) => {
-      res.redirect('/');
+  });
+
+  app.get('/api/dashboard/relationships', isAuthenticated, async (req, res) => {
+    res.json({
+      strength_distribution: [
+        { range: "90-100%", count: 12, color: "#10b981" },
+        { range: "70-89%", count: 24, color: "#3b82f6" },
+        { range: "50-69%", count: 18, color: "#f59e0b" },
+        { range: "30-49%", count: 8, color: "#ef4444" },
+        { range: "0-29%", count: 4, color: "#6b7280" }
+      ]
     });
-  }
-
-  // Tenant routes
-  app.post('/api/tenants', devAuth, async (req: any, res) => {
-    try {
-      const tenantData = insertTenantSchema.parse(req.body);
-      const tenant = await storage.createTenant(tenantData);
-      
-      // Add user as admin of the new tenant
-      await storage.joinTenant(req.user.claims.sub, tenant.id, 'admin');
-      
-      res.json(tenant);
-    } catch (error) {
-      console.error("Error creating tenant:", error);
-      res.status(500).json({ message: "Failed to create tenant" });
-    }
   });
 
-  app.get('/api/tenants/:id', devAuth, async (req: any, res) => {
-    try {
-      const tenant = await storage.getTenant(req.params.id);
-      if (!tenant) {
-        return res.status(404).json({ message: "Tenant not found" });
-      }
-      res.json(tenant);
-    } catch (error) {
-      console.error("Error fetching tenant:", error);
-      res.status(500).json({ message: "Failed to fetch tenant" });
-    }
-  });
-
-  // Dashboard routes
-  app.get('/api/dashboard/kpis', requireTenantAccess, async (req: any, res) => {
-    try {
-      const kpis = await storage.getDashboardKPIs(req.tenantId);
-      res.json(kpis);
-    } catch (error) {
-      console.error("Error fetching KPIs:", error);
-      res.status(500).json({ message: "Failed to fetch KPIs" });
-    }
-  });
-
-  app.get('/api/dashboard/metrics', devAuth, async (req: any, res) => {
-    try {
-      const metrics = await storage.getSystemMetrics();
-      res.json(metrics);
-    } catch (error) {
-      console.error("Error fetching metrics:", error);
-      res.status(500).json({ message: "Failed to fetch metrics" });
-    }
-  });
-
-  // Sponsor routes
-  app.get('/api/sponsors', requireTenantAccess, async (req: any, res) => {
-    try {
-      const sponsors = await storage.getSponsors(req.tenantId);
-      res.json(sponsors);
-    } catch (error) {
-      console.error("Error fetching sponsors:", error);
-      res.status(500).json({ message: "Failed to fetch sponsors" });
-    }
-  });
-
-  app.post('/api/sponsors', requireTenantAccess, async (req: any, res) => {
-    try {
-      const sponsorData = insertSponsorSchema.parse({
-        ...req.body,
-        tenantId: req.tenantId
-      });
-      const sponsor = await storage.createSponsor(sponsorData);
-      res.json(sponsor);
-    } catch (error) {
-      console.error("Error creating sponsor:", error);
-      res.status(500).json({ message: "Failed to create sponsor" });
-    }
-  });
-
-  app.get('/api/sponsors/:id', requireTenantAccess, async (req: any, res) => {
-    try {
-      const sponsor = await storage.getSponsor(req.params.id, req.tenantId);
-      if (!sponsor) {
-        return res.status(404).json({ message: "Sponsor not found" });
-      }
-      res.json(sponsor);
-    } catch (error) {
-      console.error("Error fetching sponsor:", error);
-      res.status(500).json({ message: "Failed to fetch sponsor" });
-    }
-  });
-
-  app.put('/api/sponsors/:id', requireTenantAccess, async (req: any, res) => {
-    try {
-      const updateData = insertSponsorSchema.partial().parse(req.body);
-      const sponsor = await storage.updateSponsor(req.params.id, updateData, req.tenantId);
-      res.json(sponsor);
-    } catch (error) {
-      console.error("Error updating sponsor:", error);
-      res.status(500).json({ message: "Failed to update sponsor" });
-    }
-  });
-
-  app.delete('/api/sponsors/:id', requireTenantAccess, async (req: any, res) => {
-    try {
-      await storage.deleteSponsor(req.params.id, req.tenantId);
-      res.json({ message: "Sponsor deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting sponsor:", error);
-      res.status(500).json({ message: "Failed to delete sponsor" });
-    }
-  });
-
-  // Grant routes
-  app.get('/api/grants', requireTenantAccess, async (req: any, res) => {
-    try {
-      const grants = await storage.getGrants(req.tenantId);
-      res.json(grants);
-    } catch (error) {
-      console.error("Error fetching grants:", error);
-      res.status(500).json({ message: "Failed to fetch grants" });
-    }
-  });
-
-  app.post('/api/grants', requireTenantAccess, async (req: any, res) => {
-    try {
-      const grantData = insertGrantSchema.parse({
-        ...req.body,
-        tenantId: req.tenantId
-      });
-      const grant = await storage.createGrant(grantData);
-      res.json(grant);
-    } catch (error) {
-      console.error("Error creating grant:", error);
-      res.status(500).json({ message: "Failed to create grant" });
-    }
-  });
-
-  app.get('/api/grants/:id', requireTenantAccess, async (req: any, res) => {
-    try {
-      const grant = await storage.getGrant(req.params.id, req.tenantId);
-      if (!grant) {
-        return res.status(404).json({ message: "Grant not found" });
-      }
-      res.json(grant);
-    } catch (error) {
-      console.error("Error fetching grant:", error);
-      res.status(500).json({ message: "Failed to fetch grant" });
-    }
-  });
-
-  app.get('/api/grants/:id/timeline', requireTenantAccess, async (req: any, res) => {
-    try {
-      const grant = await storage.getGrant(req.params.id, req.tenantId);
-      if (!grant) {
-        return res.status(404).json({ message: "Grant not found" });
-      }
-      
-      const milestones = await storage.getGrantMilestones(req.params.id, req.tenantId);
-      
-      const today = new Date();
-      const deadline = grant.submissionDeadline ? new Date(grant.submissionDeadline) : null;
-      const daysRemaining = deadline ? Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
-      
-      res.json({
-        grant_id: grant.id,
-        grant_name: grant.name,
-        submission_deadline: grant.submissionDeadline,
-        status: grant.status,
-        days_remaining: daysRemaining,
-        milestones: milestones.map(m => ({
-          milestone_id: m.id,
-          title: m.title,
-          date: m.milestoneDate,
-          status: m.status,
-          tasks: m.tasks
-        }))
-      });
-    } catch (error) {
-      console.error("Error fetching grant timeline:", error);
-      res.status(500).json({ message: "Failed to fetch grant timeline" });
-    }
-  });
-
-  app.get('/api/grants/:id/milestones', requireTenantAccess, async (req: any, res) => {
-    try {
-      const milestones = await storage.getGrantMilestones(req.params.id, req.tenantId);
-      res.json(milestones);
-    } catch (error) {
-      console.error("Error fetching milestones:", error);
-      res.status(500).json({ message: "Failed to fetch milestones" });
-    }
-  });
-
-  app.put('/api/grants/:grantId/milestones/:milestoneId/status', requireTenantAccess, async (req: any, res) => {
-    try {
-      const { status } = req.body;
-      if (!['pending', 'in_progress', 'completed'].includes(status)) {
-        return res.status(400).json({ message: "Invalid status value" });
-      }
-      
-      const milestone = await storage.updateGrantMilestone(
-        req.params.milestoneId,
-        { status },
-        req.tenantId
-      );
-      res.json(milestone);
-    } catch (error) {
-      console.error("Error updating milestone status:", error);
-      res.status(500).json({ message: "Failed to update milestone status" });
-    }
-  });
-
-  // Relationship routes
-  app.get('/api/relationships', requireTenantAccess, async (req: any, res) => {
-    try {
-      const relationships = await storage.getRelationships(req.tenantId);
-      res.json(relationships);
-    } catch (error) {
-      console.error("Error fetching relationships:", error);
-      res.status(500).json({ message: "Failed to fetch relationships" });
-    }
-  });
-
-  app.post('/api/relationships', requireTenantAccess, async (req: any, res) => {
-    try {
-      const relationshipData = insertRelationshipSchema.parse({
-        ...req.body,
-        tenantId: req.tenantId
-      });
-      const relationship = await storage.createRelationship(relationshipData);
-      res.json(relationship);
-    } catch (error) {
-      console.error("Error creating relationship:", error);
-      res.status(500).json({ message: "Failed to create relationship" });
-    }
-  });
-
-  app.post('/api/relationships/discover-path', requireTenantAccess, async (req: any, res) => {
-    try {
-      const { source_id, target_id } = req.body;
-      if (!source_id || !target_id) {
-        return res.status(400).json({ message: "Source and target IDs required" });
-      }
-      
-      const pathResult = await storage.findRelationshipPath(source_id, target_id, req.tenantId);
-      
-      if (pathResult.path) {
-        res.json({
-          path_found: true,
-          degrees_of_separation: pathResult.degrees,
-          path: pathResult.path
-        });
-      } else {
-        res.status(404).json({
-          path_found: false,
-          message: "No path found within 7 degrees of separation"
-        });
-      }
-    } catch (error) {
-      console.error("Error discovering relationship path:", error);
-      res.status(500).json({ message: "Failed to discover relationship path" });
-    }
-  });
-
-  // Content calendar routes
-  app.get('/api/content-calendar', requireTenantAccess, async (req: any, res) => {
-    try {
-      const content = await storage.getContentCalendar(req.tenantId);
-      res.json({ content });
-    } catch (error) {
-      console.error("Error fetching content calendar:", error);
-      res.status(500).json({ message: "Failed to fetch content calendar" });
-    }
-  });
-
-  app.post('/api/content-calendar', requireTenantAccess, async (req: any, res) => {
-    try {
-      const contentData = insertContentCalendarSchema.parse({
-        ...req.body,
-        tenantId: req.tenantId
-      });
-      const content = await storage.createContentCalendarItem(contentData);
-      res.json(content);
-    } catch (error) {
-      console.error("Error creating content calendar item:", error);
-      res.status(500).json({ message: "Failed to create content calendar item" });
-    }
-  });
-
-  // Dashboard KPI route
-  app.get('/api/dashboard/kpis', requireTenantAccess, async (req: any, res) => {
-    try {
-      const kpis = {
-        totalSponsors: 24,
-        activeGrants: 8,
-        strongRelationships: 15,
-        weeklyActivity: 42,
-        totalFunding: 1250000,
-        successRate: 85,
-        avgGrantSize: 156250,
-        networkStrength: 78
-      };
-      res.json(kpis);
-    } catch (error) {
-      console.error("Error fetching KPIs:", error);
-      res.status(500).json({ message: "Failed to fetch KPI data" });
-    }
-  });
-
-  // Dashboard relationships route
-  app.get('/api/dashboard/relationships', requireTenantAccess, async (req: any, res) => {
-    try {
-      const relationships = [
-        { id: "1", name: "Microsoft Foundation", strength: 92, type: "Corporate", connections: 18 },
-        { id: "2", name: "Gates Foundation", strength: 88, type: "Philanthropic", connections: 24 },
-        { id: "3", name: "Ford Foundation", strength: 85, type: "Philanthropic", connections: 16 },
-        { id: "4", name: "Google.org", strength: 82, type: "Corporate", connections: 22 },
-        { id: "5", name: "Chan Zuckerberg Initiative", strength: 79, type: "Philanthropic", connections: 14 },
-        { id: "6", name: "Robert Wood Johnson Foundation", strength: 76, type: "Health", connections: 12 }
-      ];
-      res.json(relationships);
-    } catch (error) {
-      console.error("Error fetching relationships:", error);
-      res.status(500).json({ message: "Failed to fetch relationship data" });
-    }
-  });
-
-  // Dashboard grants route
-  app.get('/api/dashboard/grants', requireTenantAccess, async (req: any, res) => {
-    try {
-      const grants = [
+  app.get('/api/dashboard/grants', isAuthenticated, async (req, res) => {
+    res.json({
+      milestones: [
         {
           id: "1",
-          title: "Digital Equity Initiative",
-          status: "under_review",
-          deadline: "2025-03-15T00:00:00Z",
-          amount: 250000,
-          sponsor: "Microsoft Foundation",
-          milestones: [
-            { id: "1", title: "90-day preparation", date: "2024-12-15T00:00:00Z", completed: true, type: "90_day" },
-            { id: "2", title: "60-day review", date: "2025-01-15T00:00:00Z", completed: true, type: "60_day" },
-            { id: "3", title: "30-day final prep", date: "2025-02-15T00:00:00Z", completed: false, type: "30_day" },
-            { id: "4", title: "Submission", date: "2025-03-15T00:00:00Z", completed: false, type: "submission" }
-          ]
+          title: "Tech Innovation Grant",
+          deadline: "2025-08-15",
+          status: "on_track",
+          amount: 500000,
+          days_remaining: 57,
+          milestones: {
+            "90_day": { completed: true, due_date: "2025-05-17" },
+            "60_day": { completed: true, due_date: "2025-06-16" },
+            "30_day": { completed: false, due_date: "2025-07-16" }
+          }
         },
         {
           id: "2",
-          title: "Youth Education Program",
-          status: "submitted",
-          deadline: "2025-02-28T00:00:00Z",
-          amount: 180000,
-          sponsor: "Ford Foundation",
-          milestones: [
-            { id: "5", title: "90-day preparation", date: "2024-11-28T00:00:00Z", completed: true, type: "90_day" },
-            { id: "6", title: "60-day review", date: "2024-12-28T00:00:00Z", completed: true, type: "60_day" },
-            { id: "7", title: "30-day final prep", date: "2025-01-28T00:00:00Z", completed: true, type: "30_day" },
-            { id: "8", title: "Submission", date: "2025-02-28T00:00:00Z", completed: true, type: "submission" }
-          ]
+          title: "Community Development Fund",
+          deadline: "2025-09-30",
+          status: "at_risk",
+          amount: 750000,
+          days_remaining: 103,
+          milestones: {
+            "90_day": { completed: true, due_date: "2025-07-02" },
+            "60_day": { completed: false, due_date: "2025-08-01" },
+            "30_day": { completed: false, due_date: "2025-08-31" }
+          }
+        }
+      ]
+    });
+  });
+
+  app.get('/api/dashboard/activities', isAuthenticated, async (req, res) => {
+    res.json({
+      activities: [
+        {
+          id: "1",
+          type: "sponsor_contact",
+          title: "Met with Microsoft Foundation",
+          description: "Discussed Q3 funding opportunities",
+          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          priority: "high"
+        },
+        {
+          id: "2",
+          type: "grant_submission",
+          title: "Submitted Tech Innovation Grant",
+          description: "Complete application package delivered",
+          timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+          priority: "medium"
         },
         {
           id: "3",
-          title: "Healthcare Access Study",
-          status: "approved",
-          deadline: "2025-01-30T00:00:00Z",
-          amount: 320000,
-          sponsor: "Robert Wood Johnson Foundation",
-          milestones: [
-            { id: "9", title: "90-day preparation", date: "2024-10-30T00:00:00Z", completed: true, type: "90_day" },
-            { id: "10", title: "60-day review", date: "2024-11-30T00:00:00Z", completed: true, type: "60_day" },
-            { id: "11", title: "30-day final prep", date: "2024-12-30T00:00:00Z", completed: true, type: "30_day" },
-            { id: "12", title: "Submission", date: "2025-01-30T00:00:00Z", completed: true, type: "submission" }
-          ]
-        }
-      ];
-      res.json(grants);
-    } catch (error) {
-      console.error("Error fetching grants:", error);
-      res.status(500).json({ message: "Failed to fetch grant data" });
-    }
-  });
-
-  // Dashboard activities route
-  app.get('/api/dashboard/activities', requireTenantAccess, async (req: any, res) => {
-    try {
-      const activities = [
-        {
-          id: "1",
-          type: "grant_submitted",
-          title: "Youth Education Program submitted",
-          description: "Successfully submitted $180,000 grant application to Ford Foundation",
-          timestamp: "2025-06-18T14:30:00Z",
-          user: "Sarah Johnson",
-          metadata: { entityId: "2", entityName: "Youth Education Program", amount: 180000, status: "submitted" }
-        },
-        {
-          id: "2",
-          type: "relationship_mapped",
+          type: "relationship_update",
           title: "New connection established",
-          description: "Connected with program director at Chan Zuckerberg Initiative",
-          timestamp: "2025-06-18T13:15:00Z",
-          user: "Michael Chen",
-          metadata: { entityId: "5", entityName: "Chan Zuckerberg Initiative" }
-        },
-        {
-          id: "3",
-          type: "sponsor_added",
-          title: "Microsoft Foundation added",
-          description: "Added new corporate sponsor with focus on digital equity",
-          timestamp: "2025-06-18T11:45:00Z",
-          user: "Emily Rodriguez",
-          metadata: { entityId: "1", entityName: "Microsoft Foundation" }
-        },
-        {
-          id: "4",
-          type: "meeting_scheduled",
-          title: "Gates Foundation meeting",
-          description: "Scheduled quarterly review meeting for Q1 2025",
-          timestamp: "2025-06-18T10:20:00Z",
-          user: "David Kim",
-          metadata: { entityId: "2", entityName: "Gates Foundation" }
-        },
-        {
-          id: "5",
-          type: "content_created",
-          title: "Grant proposal draft completed",
-          description: "Finished first draft of Digital Equity Initiative proposal",
-          timestamp: "2025-06-18T09:30:00Z",
-          user: "Sarah Johnson",
-          metadata: { entityId: "1", entityName: "Digital Equity Initiative" }
+          description: "Connected Gates Foundation with Local Community Center",
+          timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+          priority: "low"
         }
-      ];
-      res.json(activities);
-    } catch (error) {
-      console.error("Error fetching activities:", error);
-      res.status(500).json({ message: "Failed to fetch activity data" });
-    }
+      ]
+    });
   });
 
-  // System management routes for debugging
-  app.post('/api/system/gc', devAuth, async (req: any, res) => {
-    try {
-      // Force garbage collection if available
-      if (global.gc) {
-        global.gc();
-        res.json({ 
-          success: true, 
-          message: "Garbage collection triggered successfully",
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        res.json({ 
-          success: false, 
-          message: "Garbage collection not available - run with --expose-gc flag",
-          timestamp: new Date().toISOString()
-        });
+  // Relationship network endpoint
+  app.get('/api/relationships/network', isAuthenticated, async (req, res) => {
+    res.json({
+      nodes: [
+        { id: '1', name: 'Microsoft Foundation', type: 'sponsor', tier: 1, centrality_score: 0.8, influence_score: 9.2, connections: 45 },
+        { id: '2', name: 'Gates Foundation', type: 'sponsor', tier: 1, centrality_score: 0.9, influence_score: 9.8, connections: 52 },
+        { id: '3', name: 'Local Community Center', type: 'organization', tier: 3, centrality_score: 0.4, influence_score: 6.1, connections: 18 },
+        { id: '4', name: 'Tech Innovation Hub', type: 'organization', tier: 2, centrality_score: 0.6, influence_score: 7.5, connections: 32 },
+        { id: '5', name: 'Sarah Johnson', type: 'person', tier: 2, centrality_score: 0.5, influence_score: 6.8, connections: 28 }
+      ],
+      edges: [
+        { source: '1', target: '2', strength: 85, type: 'partnership', verified: true, distance: 1 },
+        { source: '2', target: '3', strength: 62, type: 'funding', verified: true, distance: 2 },
+        { source: '1', target: '4', strength: 78, type: 'collaboration', verified: true, distance: 1 },
+        { source: '4', target: '5', strength: 71, type: 'advisory', verified: true, distance: 1 },
+        { source: '3', target: '5', strength: 56, type: 'partnership', verified: false, distance: 2 }
+      ],
+      stats: {
+        total_nodes: 45,
+        total_edges: 78,
+        max_degree: 12,
+        avg_clustering: 0.65,
+        network_density: 0.12
       }
-    } catch (error) {
-      console.error("Error triggering garbage collection:", error);
-      res.status(500).json({ message: "Failed to trigger garbage collection" });
-    }
+    });
   });
 
-  app.get('/api/system/diagnostics', devAuth, async (req: any, res) => {
-    try {
-      const diagnostics = {
-        timestamp: new Date().toISOString(),
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        cpuUsage: process.cpuUsage(),
-        resourceUsage: process.resourceUsage ? process.resourceUsage() : null,
-        environment: {
-          nodeEnv: process.env.NODE_ENV,
-          databaseUrl: process.env.DATABASE_URL ? 'configured' : 'not configured',
-          sessionSecret: process.env.SESSION_SECRET ? 'configured' : 'not configured'
+  // Path discovery endpoint
+  app.post('/api/relationships/discover-path', isAuthenticated, async (req, res) => {
+    const { source_id, target_id, max_degrees = 3 } = req.body;
+    
+    res.json({
+      paths: [
+        {
+          id: "path_1",
+          nodes: [
+            { id: source_id, name: "Microsoft Foundation", type: "sponsor", tier: 1, centrality_score: 0.8, influence_score: 9.2, is_landmark: true, connection_strength: 100 },
+            { id: "intermediate_1", name: "Tech Innovation Hub", type: "organization", tier: 2, centrality_score: 0.6, influence_score: 7.5, is_landmark: false, connection_strength: 78 },
+            { id: target_id, name: "Local Community Center", type: "organization", tier: 3, centrality_score: 0.4, influence_score: 6.1, is_landmark: false, connection_strength: 65 }
+          ],
+          total_strength: 81,
+          path_length: 2,
+          confidence_score: 85.3,
+          estimated_time: 14,
+          path_type: "direct",
+          bottlenecks: [],
+          alternative_routes: 2,
+          risk_factors: [
+            {
+              type: "weak_link",
+              node_id: target_id,
+              severity: "medium",
+              description: "Connection strength below optimal threshold"
+            }
+          ]
         }
-      };
-
-      res.json(diagnostics);
-    } catch (error) {
-      console.error("Error fetching diagnostics:", error);
-      res.status(500).json({ message: "Failed to fetch system diagnostics" });
-    }
+      ],
+      analysis: {
+        total_paths_found: 3,
+        shortest_path_length: 2,
+        strongest_path_strength: 81,
+        average_confidence: 82.1,
+        recommended_path_id: "path_1",
+        landmark_nodes: [
+          { id: source_id, name: "Microsoft Foundation", type: "sponsor", tier: 1, centrality_score: 0.8, influence_score: 9.2, is_landmark: true, connection_strength: 100 }
+        ],
+        bridge_nodes: [
+          { id: "intermediate_1", name: "Tech Innovation Hub", type: "organization", tier: 2, centrality_score: 0.6, influence_score: 7.5, is_landmark: false, connection_strength: 78 }
+        ],
+        network_analysis: {
+          clustering_coefficient: 0.65,
+          betweenness_centrality: 0.42,
+          path_redundancy: 2.1,
+          vulnerability_score: 0.18
+        }
+      }
+    });
   });
 
-  // Register workflow management routes
-  app.use('/api', workflowRoutes);
-  
-  // ProcessingAgent routes for NetworkX integration
-  app.use('/api/processing', processingRoutes);
-
-  // Microsoft Graph Service routes
-  registerMicrosoftRoutes(app);
+  // Health endpoint
+  app.get('/health', (req, res) => {
+    const memUsage = process.memoryUsage();
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: {
+        percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+        external: Math.round(memUsage.external / 1024 / 1024),
+        rss: Math.round(memUsage.rss / 1024 / 1024)
+      },
+      version: "1.0.0",
+      environment: process.env.NODE_ENV || "development"
+    });
+  });
 
   const httpServer = createServer(app);
   return httpServer;

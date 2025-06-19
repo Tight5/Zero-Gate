@@ -95,7 +95,7 @@ export default function HybridRelationshipMapping() {
   } = useRelationshipData('/api/relationships/network', {
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 60 * 1000 // 1 minute
-  }) as { data: NetworkData | undefined; isLoading: boolean; error: any };
+  });
 
   // Path discovery mutation
   const pathDiscoveryMutation = useMutation({
@@ -727,7 +727,7 @@ export default function HybridRelationshipMapping() {
 
                     <div className="space-y-2">
                       <h5 className="font-medium">Connection Paths</h5>
-                      {pathDiscoveryMutation.data.paths.map((path, index) => (
+                      {pathDiscoveryMutation.data.paths.map((path: any, index: number) => (
                         <div key={index} className="p-3 border rounded-lg">
                           <div className="flex justify-between items-center mb-2">
                             <span className="font-medium">Path {index + 1}</span>
@@ -741,7 +741,7 @@ export default function HybridRelationshipMapping() {
                             </div>
                           </div>
                           <div className="text-sm text-gray-600">
-                            {path.nodes.map(node => node.name).join(' → ')}
+                            {path.nodes.map((node: any) => node.name).join(' → ')}
                           </div>
                         </div>
                       ))}
