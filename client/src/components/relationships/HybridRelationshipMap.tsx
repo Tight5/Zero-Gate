@@ -51,7 +51,7 @@ const HybridRelationshipMap: React.FC<HybridRelationshipMapProps> = ({
   const { data: graphData, isLoading, error } = useQuery({
     queryKey: ['/api/relationships/graph', currentTenant?.id, filters],
     enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 180000, // Emergency optimization: 30s → 180s to reduce memory pressure
   });
 
   useEffect(() => {

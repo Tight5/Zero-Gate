@@ -121,8 +121,8 @@ const PieTooltip = ({ active, payload }: any) => {
 export default function RelationshipChart() {
   const { data: relationshipData, isLoading, error, refetch } = useQuery<RelationshipStats>({
     queryKey: ['/api/dashboard/relationships'],
-    refetchInterval: 60000, // Refresh every minute
-    staleTime: 30000, // Consider fresh for 30 seconds
+    refetchInterval: 240000, // Emergency optimization: 60s → 240s to reduce memory pressure
+    staleTime: 120000, // Emergency optimization: 30s → 120s
   });
 
   if (isLoading) {

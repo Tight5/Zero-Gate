@@ -195,8 +195,8 @@ const ActivityItem: React.FC<{ activity: ActivityItem; isLast: boolean }> = ({ a
 export default function RecentActivity() {
   const { data: activityData, isLoading, error, refetch } = useQuery<RecentActivityData>({
     queryKey: ['/api/dashboard/activity'],
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 15000, // Consider fresh for 15 seconds
+    refetchInterval: 180000, // Emergency optimization: 30s → 180s to reduce memory pressure
+    staleTime: 90000, // Emergency optimization: 15s → 90s
   });
 
   if (isLoading) {

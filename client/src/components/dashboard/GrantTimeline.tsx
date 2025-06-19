@@ -181,8 +181,8 @@ const GrantCard: React.FC<{ grant: Grant }> = ({ grant }) => {
 export default function GrantTimeline() {
   const { data: timelineData, isLoading, error, refetch } = useQuery<GrantTimelineData>({
     queryKey: ['/api/dashboard/grants'],
-    refetchInterval: 60000, // Refresh every minute
-    staleTime: 30000, // Consider fresh for 30 seconds
+    refetchInterval: 240000, // Emergency optimization: 60s → 240s to reduce memory pressure
+    staleTime: 120000, // Emergency optimization: 30s → 120s
   });
 
   if (isLoading) {

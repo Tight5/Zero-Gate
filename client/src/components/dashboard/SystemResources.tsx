@@ -14,7 +14,7 @@ export default function SystemResources() {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return res.json();
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 30000, // Emergency optimization: 5s → 30s to reduce memory pressure
   });
 
   const getProgressColor = (value: number) => {
