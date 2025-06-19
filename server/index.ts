@@ -31,14 +31,20 @@ setInterval(() => {
     // Emergency mode: Continuous GC at 85%+
     console.log(`🚨 DEBUG MODE: ${memPercent}% memory usage, forcing ultra-aggressive cleanup`);
     for (let i = 0; i < 5; i++) {
-      global.gc();
-      setTimeout(() => global.gc(), i * 20);
+      if (global.gc) global.gc();
+      setTimeout(() => {
+        if (global.gc) global.gc();
+      }, i * 20);
     }
   } else if (memPercent >= 75 && global.gc) {
     // Preventive mode: Triple GC at 75%+
     global.gc();
-    setTimeout(() => global.gc(), 25);
-    setTimeout(() => global.gc(), 75);
+    setTimeout(() => {
+      if (global.gc) global.gc();
+    }, 25);
+    setTimeout(() => {
+      if (global.gc) global.gc();
+    }, 75);
   } else if (memPercent > 65 && global.gc) {
     global.gc();
   }
