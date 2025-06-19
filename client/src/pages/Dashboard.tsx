@@ -131,7 +131,7 @@ const Dashboard = memo(function Dashboard() {
                 FallbackComponent={(props) => <ComponentErrorFallback {...props} title="KPI Cards" />}
                 onError={(error) => console.error('KPI Cards error:', error)}
               >
-                <KPICards />
+                <RealTimeKPICards />
               </ErrorBoundary>
             </section>
 
