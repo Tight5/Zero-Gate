@@ -1,54 +1,11 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import express, { type Request, Response } from "express";
 import { setupVite, serveStatic, log } from "./vite";
-import { memoryOptimizer } from "./middleware/memoryOptimizer";
-import { memoryLeakDetector } from "./middleware/memoryLeakDetector";
 
-// Memory optimization: limit request size and enable compression
+// Simple debug server for troubleshooting
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: false, limit: '1mb' }));
-
-// Apply memory optimization middleware
-app.use(memoryOptimizer.middleware);
-app.use(memoryLeakDetector.middleware);
-
-// Aggressive memory management
-process.on('warning', (warning) => {
-  if (warning.name === 'MaxListenersExceededWarning') {
-    console.warn('Memory warning detected, forcing garbage collection');
-    if (global.gc) global.gc();
-  }
-});
-
-// Ultra-aggressive memory management for debug mode
-setInterval(() => {
-  const memUsage = process.memoryUsage();
-  const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-  
-  if (memPercent >= 80 && global.gc) {
-    // Emergency mode: Continuous GC at 85%+
-    console.log(`🚨 DEBUG MODE: ${memPercent}% memory usage, forcing ultra-aggressive cleanup`);
-    for (let i = 0; i < 5; i++) {
-      if (global.gc) global.gc();
-      setTimeout(() => {
-        if (global.gc) global.gc();
-      }, i * 20);
-    }
-  } else if (memPercent >= 70 && global.gc) {
-    // Preventive mode: Triple GC at 75%+
-    global.gc();
-    setTimeout(() => {
-      if (global.gc) global.gc();
-    }, 25);
-    setTimeout(() => {
-      if (global.gc) global.gc();
-    }, 75);
-  } else if (memPercent > 60 && global.gc) {
-    global.gc();
-  }
-}, 1000); // Every 1 second for emergency debug mode
+app.use(express.urlencoded({ extended: false, limit: '1mb' })); // Every 1 second for emergency debug mode
 
 // Lightweight logging middleware - minimal memory usage
 app.use((req, res, next) => {

@@ -13,7 +13,7 @@ import {
   relationships, 
   users,
   contentCalendar
-} from '@shared/schema';
+} from '../../shared/schema';
 import { eq, and, gte, lte, desc, count, sql } from 'drizzle-orm';
 
 const router = Router();
