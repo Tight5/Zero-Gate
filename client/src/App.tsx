@@ -1,29 +1,18 @@
 
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Switch, Route } from 'wouter';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-// Global Contexts
-import { AuthProvider } from './contexts/AuthContext';
-import { AuthModeProvider } from './contexts/AuthModeContext';
-import { TenantProvider } from './contexts/TenantContext';
-import { ThemeProvider } from './contexts/ThemeContext';
-import { ResourceProvider } from './contexts/ResourceContext';
-
 // Query Client
 import { queryClient } from './lib/queryClient';
-
-// Environment Configuration
-import env from './config/env';
 
 // Hooks
 import { useAuth } from '@/hooks/useAuth';
 
 // Pages
-import NotFound from '@/pages/not-found';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import TenantSelection from '@/pages/TenantSelection';
@@ -35,43 +24,34 @@ import ContentCalendar from '@/pages/ContentCalendar';
 import Settings from '@/pages/Settings';
 import Debug from '@/pages/Debug';
 import Reports from '@/pages/Reports';
+import NotFound from '@/pages/not-found';
 
-// Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function Router() {
   const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-  
-  return <>{children}</>;
-}
 
-// Public Route Component
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-  
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  return <>{children}</>;
+  return (
+    <Switch>
+      {isLoading || !isAuthenticated ? (
+        <>
+          <Route path="/" component={Landing} />
+          <Route path="/login" component={Login} />
+        </>
+      ) : (
+        <>
+          <Route path="/" component={Dashboard} />
+          <Route path="/tenant-selection" component={TenantSelection} />
+          <Route path="/sponsors" component={Sponsors} />
+          <Route path="/grants" component={Grants} />
+          <Route path="/relationships" component={Relationships} />
+          <Route path="/content-calendar" component={ContentCalendar} />
+          <Route path="/reports" component={Reports} />
+          <Route path="/settings" component={Settings} />
+          <Route path="/debug" component={Debug} />
+        </>
+      )}
+      <Route component={NotFound} />
+    </Switch>
+  );
 }
 
 // App Router Component

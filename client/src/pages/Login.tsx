@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Eye, EyeOff, Mail, Lock, Building2, AlertCircle, Monitor, Loader2, LogIn, Shield, Users, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { Navigate } from 'wouter';
+import { useLocation } from 'wouter';
 
 const loginSchema = z.object({
   email: z.string()
@@ -28,6 +28,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const { user, isLoading, isAuthenticated } = useAuth();
+  const [location, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -50,8 +51,9 @@ export default function Login() {
   const rememberMe = watch('rememberMe');
 
   // Redirect if already authenticated
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+  if (isAuthenticated && location !== '/') {
+    setLocation('/');
+    return null;
   }
 
   if (isLoading) {
@@ -357,4 +359,5 @@ export default function Login() {
       </div>
     </div>
   );
+}
 }
