@@ -7,6 +7,7 @@ interface User {
   firstName?: string;
   lastName?: string;
   profileImageUrl?: string;
+  currentTenantId?: string;
   createdAt: string;
   updatedAt: string;
   tenants?: any[];

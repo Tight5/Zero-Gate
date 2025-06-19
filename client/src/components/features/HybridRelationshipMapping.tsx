@@ -95,7 +95,7 @@ export default function HybridRelationshipMapping() {
   } = useRelationshipData('/api/relationships/network', {
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 60 * 1000 // 1 minute
-  });
+  }) as { data: NetworkData | undefined; isLoading: boolean; error: any };
 
   // Path discovery mutation
   const pathDiscoveryMutation = useMutation({
