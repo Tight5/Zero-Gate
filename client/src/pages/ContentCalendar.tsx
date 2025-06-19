@@ -12,18 +12,9 @@ import moment from 'moment';
 import { 
   CalendarIcon, 
   Plus, 
-  Edit3, 
-  Trash2, 
-  Clock, 
-  Tag, 
-  Users,
-  Filter,
   Download,
   Target,
-  Share,
-  Bell,
-  CheckCircle,
-  Settings
+  CheckCircle
 } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
@@ -31,9 +22,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
