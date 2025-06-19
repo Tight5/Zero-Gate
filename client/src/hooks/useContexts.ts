@@ -5,7 +5,7 @@
 
 // Re-export all context hooks for convenient access
 export { useAuth } from '../contexts/AuthContext';
-export { useTenant, useTenantRequest } from '../contexts/TenantContext';
+export { useTenant } from '../contexts/TenantContext';
 export { useTheme } from '../contexts/ThemeContext';
 export { useResource, useFeatureCheck } from '../contexts/ResourceContext';
 

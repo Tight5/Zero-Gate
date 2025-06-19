@@ -21,6 +21,11 @@ export const useResource = () => {
   return context;
 };
 
+export const useFeatureCheck = (feature: string) => {
+  const { isFeatureEnabled } = useResource();
+  return isFeatureEnabled(feature);
+};
+
 interface ResourceProviderProps {
   children: ReactNode;
 }
