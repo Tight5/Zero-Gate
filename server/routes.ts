@@ -541,6 +541,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ProcessingAgent routes for NetworkX integration
   app.use('/api/processing', processingRoutes);
 
+  // Microsoft Graph Service routes
+  registerMicrosoftRoutes(app);
+
   const httpServer = createServer(app);
   return httpServer;
 }
