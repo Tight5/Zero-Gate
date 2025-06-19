@@ -1,111 +1,177 @@
-/**
- * Sidebar Layout Component
- * Based on attached asset File 21 specification with @replit/ui components
- */
-
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { 
-  BarChart3 as DashboardIcon,
-  Network as RelationshipsIcon,
-  Building2 as SponsorsIcon,
-  FileText as GrantsIcon,
-  Calendar as CalendarIcon,
-  Settings as SettingsIcon
+  BarChart3, 
+  Users, 
+  Gift, 
+  Network, 
+  Calendar,
+  Settings,
+  FileText,
+  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
+  Activity,
+  Database,
+  Zap
 } from 'lucide-react';
+import { Badge } from '../ui/badge';
 import { useTenant } from '../../contexts/TenantContext';
+import { useResource } from '../../contexts/ResourceContext';
 import './Sidebar.css';
 
-interface NavigationItem {
-  path: string;
-  label: string;
-  icon: React.ComponentType<any>;
-  description: string;
-}
-
-const navigationItems: NavigationItem[] = [
-  {
-    path: '/dashboard',
-    label: 'Dashboard',
-    icon: DashboardIcon,
-    description: 'Executive overview and KPIs'
-  },
-  {
-    path: '/relationships',
-    label: 'Relationship Mapping',
-    icon: RelationshipsIcon,
-    description: 'Visualize stakeholder connections'
-  },
-  {
-    path: '/sponsors',
-    label: 'Sponsor Management',
-    icon: SponsorsIcon,
-    description: 'Manage sponsor relationships'
-  },
-  {
-    path: '/grants',
-    label: 'Grant Management',
-    icon: GrantsIcon,
-    description: 'Track grants and timelines'
-  },
-  {
-    path: '/calendar',
-    label: 'Content Calendar',
-    icon: CalendarIcon,
-    description: 'Plan and schedule content'
-  },
-  {
-    path: '/settings',
-    label: 'Settings',
-    icon: SettingsIcon,
-    description: 'Platform configuration'
-  }
-];
-
-interface SidebarProps {
-  isCollapsed: boolean;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
-  const location = useLocation();
+const Sidebar: React.FC = () => {
+  const [collapsed, setCollapsed] = useState(false);
   const { currentTenant } = useTenant();
+  const { isFeatureEnabled } = useResource();
 
-  if (!currentTenant) {
-    return null;
-  }
+  const navigationSections = [
+    {
+      title: 'Overview',
+      items: [
+        {
+          to: '/dashboard',
+          icon: BarChart3,
+          label: 'Executive Dashboard',
+          description: 'Real-time KPIs and system overview',
+          badge: null
+        }
+      ]
+    },
+    {
+      title: 'Core Features',
+      items: [
+        {
+          to: '/sponsors',
+          icon: Users,
+          label: 'Sponsor Management',
+          description: 'Track and manage sponsor relationships',
+          badge: null
+        },
+        {
+          to: '/grants',
+          icon: Gift,
+          label: 'Grant Tracking',
+          description: 'Monitor grant applications and timelines',
+          badge: 3
+        },
+        {
+          to: '/relationships',
+          icon: Network,
+          label: 'Relationship Mapping',
+          description: 'Visualize stakeholder connections',
+          badge: null,
+          disabled: !isFeatureEnabled('relationship_mapping')
+        },
+        {
+          to: '/calendar',
+          icon: Calendar,
+          label: 'Content Calendar',
+          description: 'Schedule and track content delivery',
+          badge: null
+        }
+      ]
+    },
+    {
+      title: 'Analytics & Reports',
+      items: [
+        {
+          to: '/analytics',
+          icon: TrendingUp,
+          label: 'Advanced Analytics',
+          description: 'Deep insights and trend analysis',
+          badge: null,
+          disabled: !isFeatureEnabled('advanced_analytics')
+        },
+        {
+          to: '/reports',
+          icon: FileText,
+          label: 'Reports',
+          description: 'Generate comprehensive reports',
+          badge: null
+        }
+      ]
+    },
+    {
+      title: 'System',
+      items: [
+        {
+          to: '/settings',
+          icon: Settings,
+          label: 'Settings',
+          description: 'Configure system preferences',
+          badge: null
+        }
+      ]
+    }
+  ];
 
   return (
-    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+      <div className="sidebar-header">
+        <div className="sidebar-logo">
+          {collapsed ? 'ZG' : 'Zero Gate ESO'}
+        </div>
+        <button 
+          className="collapse-toggle"
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      </div>
+
       <nav className="sidebar-nav">
-        <ul className="nav-list">
-          {navigationItems.map((item) => {
-            const IconComponent = item.icon;
-            const isActive = location.pathname.startsWith(item.path);
-            
-            return (
-              <li key={item.path} className="nav-item">
+        {navigationSections.map((section) => (
+          <div key={section.title} className="nav-section">
+            {!collapsed && (
+              <div className="nav-section-title">{section.title}</div>
+            )}
+
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              return (
                 <NavLink
-                  to={item.path}
+                  key={item.to}
+                  to={item.to}
                   className={({ isActive }) => 
-                    `nav-link ${isActive ? 'active' : ''}`
+                    `nav-item ${isActive ? 'active' : ''} ${item.disabled ? 'disabled' : ''}`
                   }
-                  title={item.description}
                 >
-                  <IconComponent className="nav-icon" size={20} />
-                  {!isCollapsed && (
-                    <span className="nav-label">{item.label}</span>
-                  )}
-                  {!isCollapsed && isActive && (
-                    <div className="active-indicator" />
+                  <Icon className="nav-icon" size={20} />
+                  {!collapsed && (
+                    <>
+                      <div className="nav-content">
+                        <span className="nav-text">{item.label}</span>
+                        <span className="nav-description">{item.description}</span>
+                      </div>
+                      {item.badge && (
+                        <Badge className="nav-badge" variant="destructive">
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </>
                   )}
                 </NavLink>
-              </li>
-            );
-          })}
-        </ul>
+              );
+            })}
+          </div>
+        ))}
       </nav>
+
+      <div className="sidebar-footer">
+        <div className="sidebar-footer-content">
+          <div className="status-indicator">
+            <div className="status-dot"></div>
+            <span>System Healthy</span>
+          </div>
+          {!collapsed && (
+            <>
+              <div>Tenant: {currentTenant?.name}</div>
+              <div>Memory: 84%</div>
+            </>
+          )}
+        </div>
+      </div>
     </aside>
   );
 };
-
-export default Sidebar;

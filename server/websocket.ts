@@ -1,6 +1,8 @@
 import { Server as HTTPServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { isAuthenticated } from './replitAuth';
+import { WebSocketServer, WebSocket } from 'ws';
+import { Server } from 'http';
 
 interface WebSocketMessage {
   type: 'kpi_update' | 'relationship_change' | 'grant_milestone' | 'activity_update';
@@ -45,11 +47,11 @@ export class WebSocketManager {
               tenantId: data.tenantId || 'dev-tenant-1',
               email: data.email || 'admin@tight5digital.com'
             });
-            
+
             // Join tenant-specific room
             const tenantRoom = `tenant:${data.tenantId || 'dev-tenant-1'}`;
             socket.join(tenantRoom);
-            
+
             socket.emit('authenticated', { status: 'success', room: tenantRoom });
             console.log(`Socket ${socket.id} authenticated for tenant: ${data.tenantId || 'dev-tenant-1'}`);
           } else {
@@ -188,4 +190,85 @@ export function initializeWebSocket(httpServer: HTTPServer): WebSocketManager {
 
 export function getWebSocketManager(): WebSocketManager | null {
   return webSocketManager;
+}
+
+export function setupWebSocket(server: Server) {
+  const wss = new WebSocketServer({ 
+    server,
+    clientTracking: true,
+    perMessageDeflate: false
+  });
+
+  wss.on('connection', (ws, request) => {
+    console.log('WebSocket client connected from:', request.socket.remoteAddress);
+
+    // Set up heartbeat to keep connection alive
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
+
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('Received WebSocket message:', data.type);
+
+        // Handle different message types
+        switch (data.type) {
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+            break;
+          case 'subscribe':
+            // Handle subscription logic
+            console.log('Client subscribed to:', data.channel);
+            break;
+          default:
+            console.log('Unknown message type:', data.type);
+        }
+      } catch (error) {
+        console.error('WebSocket message parsing error:', error);
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
+      }
+    });
+
+    ws.on('close', (code, reason) => {
+      console.log('WebSocket client disconnected:', code, reason.toString());
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+
+    // Send initial connection confirmation
+    ws.send(JSON.stringify({ 
+      type: 'connected', 
+      timestamp: Date.now(),
+      clientId: Math.random().toString(36).substring(7)
+    }));
+  });
+
+  // Heartbeat interval to detect broken connections
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        console.log('Terminating dead WebSocket connection');
+        return ws.terminate();
+      }
+
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on('close', () => {
+    clearInterval(interval);
+  });
+
+  // Error handling for the WebSocket server
+  wss.on('error', (error) => {
+    console.error('WebSocket Server Error:', error);
+  });
+
+  console.log('WebSocket server initialized with heartbeat monitoring');
+  return wss;
 }
