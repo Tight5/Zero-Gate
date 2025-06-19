@@ -1,5 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+interface SystemMetrics {
+  memoryUsage: number;
+  cpuUsage: number;
+  activeConnections: number;
+  responseTime: number;
+}
+
+interface ResourceStatus {
+  level: 'optimal' | 'warning' | 'critical' | 'emergency';
+  memory: number;
+  cpu: number;
+  features: Record<string, boolean>;
+}
+
+interface FeatureAvailability {
+  [key: string]: boolean;
+}
+
 interface ResourceContextType {
   memoryUsage: number;
   cpuUsage: number;
@@ -10,6 +28,9 @@ interface ResourceContextType {
     cpu: number;
   };
 }
+
+// Export types for external use
+export type { SystemMetrics, ResourceStatus, FeatureAvailability, ResourceContextType };
 
 const ResourceContext = createContext<ResourceContextType | undefined>(undefined);
 

@@ -26,7 +26,7 @@ export function useAuthTenant() {
   return {
     ...auth,
     ...tenant,
-    isFullyLoaded: !auth.isLoading && !tenant.isLoading,
+    isFullyLoaded: !auth.isLoading && !tenant.loading,
     canAccess: auth.isAuthenticated && !!tenant.currentTenant,
   };
 }
@@ -37,10 +37,18 @@ export function useAuthTenant() {
  */
 export function useSystemStatus() {
   const resource = useResource();
-  const { isFeatureEnabled, getResourceLevel } = resource;
+  const { isFeatureEnabled } = resource;
+  
+  // Determine resource level based on memory/CPU usage
+  const getResourceLevel = () => {
+    if (resource.memoryUsage > 90 || resource.cpuUsage > 90) return 'critical';
+    if (resource.memoryUsage > 80 || resource.cpuUsage > 80) return 'warning';
+    return 'optimal';
+  };
   
   return {
     ...resource,
+    resourceLevel: getResourceLevel(),
     isSystemHealthy: ['optimal', 'warning'].includes(getResourceLevel()),
     isSystemCritical: ['critical', 'emergency'].includes(getResourceLevel()),
     canPerformHeavyOperations: isFeatureEnabled('processing') && isFeatureEnabled('bulkOperations'),

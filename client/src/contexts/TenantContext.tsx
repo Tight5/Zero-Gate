@@ -37,6 +37,9 @@ interface TenantProviderProps {
   children: ReactNode;
 }
 
+// Export types for external use
+export type { Tenant, TenantContextType };
+
 export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
