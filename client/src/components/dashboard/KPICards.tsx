@@ -10,7 +10,7 @@ import { TrendingUp, TrendingDown, Users, Calendar, Award, DollarSign } from 'lu
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import './KPICards.css';
+import '../layout/KPICards.css';
 
 interface KPIData {
   active_sponsors: number;

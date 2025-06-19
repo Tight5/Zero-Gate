@@ -90,10 +90,10 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="user-menu-trigger">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.profileImageUrl || ''} />
-                <AvatarFallback>{user?.firstName?.[0] || user?.email?.[0] || 'U'}</AvatarFallback>
+                <AvatarImage src={(user as any)?.profileImageUrl || ''} />
+                <AvatarFallback>{(user as any)?.firstName?.[0] || user?.email?.[0] || 'U'}</AvatarFallback>
               </Avatar>
-              <span className="user-name">{user?.firstName || user?.email || 'User'}</span>
+              <span className="user-name">{(user as any)?.firstName || user?.email || 'User'}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
