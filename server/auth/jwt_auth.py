@@ -188,7 +188,7 @@ class AuthService:
                 detail="Token expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.JWTError:
+        except jwt.InvalidTokenError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
@@ -339,8 +339,9 @@ class AuthService:
     
     def has_permission(self, user_role: str, required_role: str) -> bool:
         """Check if user role has required permission level"""
-        user_level = ROLE_HIERARCHY.get(user_role, 0)
-        required_level = ROLE_HIERARCHY.get(required_role, 0)
+        # Convert string roles to enum values for hierarchy lookup
+        user_level = ROLE_HIERARCHY.get(UserRole(user_role) if user_role in [r.value for r in UserRole] else UserRole.VIEWER, 1)
+        required_level = ROLE_HIERARCHY.get(UserRole(required_role) if required_role in [r.value for r in UserRole] else UserRole.VIEWER, 1)
         return user_level >= required_level
 
 # Initialize auth service

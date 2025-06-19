@@ -11,9 +11,7 @@ import asyncpg
 import os
 from datetime import timedelta, datetime
 import secrets
-import smtplib
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+# Email functionality (placeholder for production implementation)
 
 from .jwt_auth import (
     AuthService, 
