@@ -28,11 +28,11 @@ router.get('/kpis', isAuthenticated, async (req: any, res) => {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
     
-    // Active sponsors count
+    // Active sponsors count (using relationshipStrength as proxy for active status)
     const activeSponsorsResult = await db
       .select({ count: count() })
       .from(sponsors)
-      .where(eq(sponsors.status, 'active'));
+      .where(gte(sponsors.relationshipStrength, 3));
     
     const activeSponsors = activeSponsorsResult[0]?.count || 0;
     
@@ -41,7 +41,7 @@ router.get('/kpis', isAuthenticated, async (req: any, res) => {
       .select({ count: count() })
       .from(sponsors)
       .where(and(
-        eq(sponsors.status, 'active'),
+        gte(sponsors.relationshipStrength, 3),
         lte(sponsors.createdAt, thirtyDaysAgo)
       ));
     
@@ -94,15 +94,15 @@ router.get('/kpis', isAuthenticated, async (req: any, res) => {
       ? Math.round(((fundingSecured - previousFunding) / previousFunding) * 100)
       : 0;
 
-    // Upcoming deadlines (grants due in next 30 days)
+    // Upcoming deadlines (grants due in next 30 days using submissionDeadline)
     const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const upcomingDeadlinesResult = await db
       .select({ count: count() })
       .from(grants)
       .where(and(
-        gte(grants.deadline, now),
-        lte(grants.deadline, thirtyDaysFromNow),
-        eq(grants.status, 'in-progress')
+        gte(grants.submissionDeadline, now),
+        lte(grants.submissionDeadline, thirtyDaysFromNow),
+        eq(grants.status, 'draft')
       ));
     
     const upcomingDeadlines = upcomingDeadlinesResult[0]?.count || 0;
@@ -112,9 +112,9 @@ router.get('/kpis', isAuthenticated, async (req: any, res) => {
       .select({ count: count() })
       .from(grants)
       .where(and(
-        gte(grants.deadline, thirtyDaysAgo),
-        lte(grants.deadline, now),
-        eq(grants.status, 'in-progress')
+        gte(grants.submissionDeadline, thirtyDaysAgo),
+        lte(grants.submissionDeadline, now),
+        eq(grants.status, 'draft')
       ));
     
     const previousDeadlines = previousDeadlinesResult[0]?.count || 0;

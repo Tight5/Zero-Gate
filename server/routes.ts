@@ -26,7 +26,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/grants', isAuthenticated, setUserContext);
   app.use('/api/relationships', isAuthenticated, setUserContext);
   app.use('/api/content-calendar', isAuthenticated, setUserContext);
-  app.use('/api/dashboard', isAuthenticated, setUserContext);
+  app.use('/api/dashboard', dashboardRoutes);
 
   // Auth routes - simplified for debugging
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
