@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { initializeWebSocket, getWebSocketManager } from "./websocket";
+import { registerAnalyticsRoutes } from "./routes/analytics";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -214,5 +216,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket server
+  const wsManager = initializeWebSocket(httpServer);
+  
+  // Register analytics routes
+  registerAnalyticsRoutes(app);
+  
+  // WebSocket status endpoint
+  app.get('/api/websocket/status', isAuthenticated, (req, res) => {
+    const stats = wsManager.getStats();
+    res.json({
+      status: 'active',
+      ...stats,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Trigger real-time updates (for testing)
+  app.post('/api/websocket/trigger', isAuthenticated, async (req: any, res) => {
+    const { type, data } = req.body;
+    const tenantId = req.user?.currentTenantId || 'dev-tenant-1';
+
+    try {
+      switch (type) {
+        case 'kpi':
+          wsManager.sendKPIUpdate(tenantId, data);
+          break;
+        case 'relationship':
+          wsManager.sendRelationshipUpdate(tenantId, data);
+          break;
+        case 'grant':
+          wsManager.sendGrantUpdate(tenantId, data);
+          break;
+        case 'activity':
+          wsManager.sendActivityUpdate(tenantId, data);
+          break;
+        default:
+          return res.status(400).json({ error: 'Invalid update type' });
+      }
+
+      res.json({ success: true, type, tenantId });
+    } catch (error) {
+      console.error('WebSocket trigger error:', error);
+      res.status(500).json({ error: 'Failed to trigger update' });
+    }
+  });
+
   return httpServer;
 }
