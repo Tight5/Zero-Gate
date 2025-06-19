@@ -1,74 +1,44 @@
-/**
- * Tenant Data Hook
- * Based on attached asset File 18 specification with TypeScript support
- */
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-// Note: TenantContext and apiRequest will be implemented later
-// import { useTenant } from '../contexts/TenantContext';
-// import { apiRequest } from '../lib/queryClient';
+import { useTenant } from '../contexts/TenantContext';
+import { apiRequest } from '../lib/queryClient';
 
-interface UseTenantDataOptions {
-  disabled?: boolean;
-  staleTime?: number;
-  cacheTime?: number;
-  refetchOnWindowFocus?: boolean;
-  refetchInterval?: number;
-}
-
-export const useTenantData = <T = any>(endpoint: string, options: UseTenantDataOptions = {}) => {
-  // For now, return a basic query without tenant context
-  // This will be enhanced when TenantContext is properly implemented
+export const useTenantData = (endpoint: string, options: any = {}) => {
+  const { currentTenant } = useTenant();
   
-  return useQuery<T>({
-    queryKey: [endpoint],
-    queryFn: async () => {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Failed to fetch data');
-      }
-      return response.json();
-    },
-    enabled: !options.disabled,
+  return useQuery({
+    queryKey: [endpoint, currentTenant?.id],
+    queryFn: () => apiRequest(endpoint),
+    enabled: !!currentTenant && !options.disabled,
     staleTime: options.staleTime || 5 * 60 * 1000,
     gcTime: options.cacheTime || 10 * 60 * 1000,
-    refetchOnWindowFocus: options.refetchOnWindowFocus ?? false,
-    refetchInterval: options.refetchInterval,
+    refetchOnWindowFocus: false,
     ...options
   });
 };
 
-interface UseTenantMutationOptions {
-  method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  onSuccess?: (data: any, variables: any, context: any) => void;
-  onError?: (error: any, variables: any, context: any) => void;
-}
-
-export const useTenantMutation = (endpoint: string, options: UseTenantMutationOptions = {}) => {
+export const useTenantMutation = (endpoint: string, options: any = {}) => {
   const queryClient = useQueryClient();
+  const { currentTenant } = useTenant();
   
   return useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: (data: any) => {
       const method = options.method || 'POST';
-      const response = await fetch(endpoint, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: method !== 'DELETE' ? JSON.stringify(data) : undefined,
-      });
-      
-      if (!response.ok) {
-        throw new Error('Mutation failed');
+      switch (method.toLowerCase()) {
+        case 'post':
+          return apiRequest(endpoint, { method: 'POST', body: data });
+        case 'put':
+          return apiRequest(endpoint, { method: 'PUT', body: data });
+        case 'patch':
+          return apiRequest(endpoint, { method: 'PATCH', body: data });
+        case 'delete':
+          return apiRequest(endpoint, { method: 'DELETE' });
+        default:
+          return apiRequest(endpoint, { method: 'POST', body: data });
       }
-      
-      return response.json();
     },
     onSuccess: (data, variables, context) => {
-      // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: [endpoint] });
+      queryClient.invalidateQueries({ queryKey: [endpoint, currentTenant?.id] });
       
-      // Custom success handler
       if (options.onSuccess) {
         options.onSuccess(data, variables, context);
       }
@@ -76,52 +46,48 @@ export const useTenantMutation = (endpoint: string, options: UseTenantMutationOp
     onError: (error, variables, context) => {
       console.error(`Mutation failed for ${endpoint}:`, error);
       
-      // Custom error handler
       if (options.onError) {
         options.onError(error, variables, context);
       }
-    }
+    },
+    ...options
   });
 };
 
 export const useTenantStats = () => {
+  const { currentTenant } = useTenant();
+  
   return useQuery({
-    queryKey: ['tenant-stats'],
-    queryFn: async () => {
-      const response = await fetch('/api/dashboard/stats');
-      if (!response.ok) throw new Error('Failed to fetch stats');
-      return response.json();
-    },
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    queryKey: ['tenant-stats', currentTenant?.id],
+    queryFn: () => apiRequest('/api/dashboard/stats'),
+    enabled: !!currentTenant,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
   });
 };
 
 export const useTenantSettings = () => {
   const queryClient = useQueryClient();
+  const { currentTenant, updateTenantSettings } = useTenant();
   
   const query = useQuery({
-    queryKey: ['tenant-settings'],
-    queryFn: async () => {
-      const response = await fetch('/api/settings');
-      if (!response.ok) throw new Error('Failed to fetch settings');
-      return response.json();
-    },
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    queryKey: ['tenant-settings', currentTenant?.id],
+    queryFn: () => apiRequest(`/api/tenants/${currentTenant?.id}/settings`),
+    enabled: !!currentTenant,
+    staleTime: 10 * 60 * 1000,
   });
   
   const mutation = useMutation({
-    mutationFn: async (settings: any) => {
-      const response = await fetch('/api/settings', {
+    mutationFn: (settings: any) => 
+      apiRequest(`/api/tenants/${currentTenant?.id}/settings`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      if (!response.ok) throw new Error('Failed to update settings');
-      return response.json();
-    },
+        body: settings
+      }),
     onSuccess: (data) => {
-      queryClient.setQueryData(['tenant-settings'], data);
+      queryClient.setQueryData(['tenant-settings', currentTenant?.id], data);
+      if (updateTenantSettings) {
+        updateTenantSettings(data.settings);
+      }
     },
   });
   
