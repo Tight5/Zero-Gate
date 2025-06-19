@@ -27,7 +27,7 @@ setInterval(() => {
   const memUsage = process.memoryUsage();
   const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
   
-  if (memPercent >= 85 && global.gc) {
+  if (memPercent >= 80 && global.gc) {
     // Emergency mode: Continuous GC at 85%+
     console.log(`🚨 DEBUG MODE: ${memPercent}% memory usage, forcing ultra-aggressive cleanup`);
     for (let i = 0; i < 5; i++) {
@@ -36,7 +36,7 @@ setInterval(() => {
         if (global.gc) global.gc();
       }, i * 20);
     }
-  } else if (memPercent >= 75 && global.gc) {
+  } else if (memPercent >= 70 && global.gc) {
     // Preventive mode: Triple GC at 75%+
     global.gc();
     setTimeout(() => {
@@ -45,10 +45,10 @@ setInterval(() => {
     setTimeout(() => {
       if (global.gc) global.gc();
     }, 75);
-  } else if (memPercent > 65 && global.gc) {
+  } else if (memPercent > 60 && global.gc) {
     global.gc();
   }
-}, 5000); // Every 5 seconds for debug mode
+}, 1000); // Every 1 second for emergency debug mode
 
 // Lightweight logging middleware - minimal memory usage
 app.use((req, res, next) => {

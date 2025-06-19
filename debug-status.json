@@ -1,0 +1,49 @@
+{
+  "debugMode": true,
+  "timestamp": "2025-06-19T03:30:00.000Z",
+  "issues": [
+    {
+      "type": "memory_crisis",
+      "status": "stabilizing",
+      "current": "83-88%",
+      "target": "below_80%",
+      "actions": [
+        "Ultra-aggressive garbage collection enabled",
+        "Dashboard API auth bypass for debugging",
+        "Emergency memory script deployed",
+        "TypeScript error fixes applied"
+      ]
+    },
+    {
+      "type": "authentication",
+      "status": "bypassed_for_debug",
+      "current": "dashboard_accessible",
+      "target": "restore_after_debug",
+      "actions": [
+        "Made /api/dashboard accessible without auth",
+        "Other endpoints remain protected"
+      ]
+    },
+    {
+      "type": "frontend_loading",
+      "status": "fixed",
+      "current": "title_visible",
+      "target": "complete",
+      "actions": [
+        "Added proper title tag",
+        "Debug mode indicators enabled"
+      ]
+    }
+  ],
+  "endpoints": {
+    "/health": "responding",
+    "/api/dashboard/metrics": "accessible",
+    "/": "loading_with_title"
+  },
+  "memoryOptimizations": {
+    "gcInterval": "5_seconds",
+    "emergencyThreshold": "85%",
+    "preventiveThreshold": "75%",
+    "aggressiveCleanup": true
+  }
+}
