@@ -1,13 +1,16 @@
 /**
  * Content Calendar Page
  * Strategic communication planning with grant milestone integration
+ * Using react-big-calendar with month/week/day/agenda views
  * Based on attached asset 41 specifications
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Calendar, momentLocalizer } from 'react-big-calendar';
+import moment from 'moment';
 import { 
-  Calendar as CalendarIcon, 
+  CalendarIcon, 
   Plus, 
   Edit3, 
   Trash2, 
@@ -16,66 +19,50 @@ import {
   Users,
   Filter,
   Download,
-  Grid,
-  List,
   Target,
   Share,
   Bell,
-  CheckCircle
+  CheckCircle,
+  Settings
 } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  eachDayOfInterval, 
-  isSameDay, 
-  isSameMonth,
-  addDays,
-  subDays,
-  isToday,
-  isFuture,
-  isPast
-} from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import '@/styles/calendar.css';
 
-// Content calendar schemas
-const contentItemSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  content: z.string().min(1, 'Content is required'),
-  contentType: z.enum(['post', 'email', 'newsletter', 'announcement', 'milestone-update', 'thank-you']),
-  channel: z.enum(['social-media', 'email', 'website', 'newsletter', 'press-release']),
-  scheduledDate: z.date({ required_error: 'Scheduled date is required' }),
-  status: z.enum(['draft', 'scheduled', 'published', 'cancelled']),
-  grantId: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  assignee: z.string().optional(),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium')
-});
+// Import our custom components
+import ContentForm from '@/components/calendar/ContentForm';
+import CalendarFilters from '@/components/calendar/CalendarFilters';
 
-type ContentItem = z.infer<typeof contentItemSchema> & {
+// Initialize react-big-calendar localizer
+const localizer = momentLocalizer(moment);
+
+// Content calendar interfaces
+interface ContentItem {
   id: string;
+  title: string;
+  content: string;
+  contentType: 'post' | 'email' | 'newsletter' | 'announcement' | 'milestone-update' | 'thank-you';
+  channel: 'social-media' | 'email' | 'website' | 'newsletter' | 'press-release';
+  scheduledDate: Date;
+  status: 'draft' | 'scheduled' | 'published' | 'cancelled';
+  grantId?: string;
+  tags?: string[];
+  assignee?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   createdAt: Date;
   updatedAt: Date;
-};
+}
 
 interface Grant {
   id: string;
@@ -93,11 +80,28 @@ interface Grant {
   }>;
 }
 
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  resource: {
+    type: 'content' | 'milestone';
+    data: ContentItem | any;
+    contentType?: string;
+    status?: string;
+    grantId?: string;
+    channel?: string;
+    priority?: string;
+  };
+}
+
 export default function ContentCalendar() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [view, setView] = useState<'month' | 'week' | 'day' | 'agenda'>('month');
+  const [date, setDate] = useState(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
-  const [viewMode, setViewMode] = useState<'calendar' | 'timeline' | 'list'>('calendar');
+  const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [filters, setFilters] = useState({
     contentType: 'all',
     status: 'all',
@@ -144,19 +148,55 @@ export default function ContentCalendar() {
     enabled: !!selectedTenant && isAuthenticated,
   });
 
-  const form = useForm<z.infer<typeof contentItemSchema>>({
-    resolver: zodResolver(contentItemSchema),
-    defaultValues: {
-      title: '',
-      content: '',
-      contentType: 'post',
-      channel: 'social-media',
-      scheduledDate: selectedDate,
-      status: 'draft',
-      priority: 'medium',
-      tags: [],
-    },
-  });
+  // Transform content data for calendar events
+  const events = useMemo(() => {
+    if (!contentItems?.length) return [];
+    
+    const contentEvents: CalendarEvent[] = contentItems
+      .filter(item => {
+        if (filters.contentType !== 'all' && item.contentType !== filters.contentType) return false;
+        if (filters.status !== 'all' && item.status !== filters.status) return false;
+        if (filters.grantId !== 'all' && item.grantId !== filters.grantId) return false;
+        if (filters.channel !== 'all' && item.channel !== filters.channel) return false;
+        if (filters.assignee !== 'all' && item.assignee !== filters.assignee) return false;
+        return true;
+      })
+      .map(item => ({
+        id: item.id,
+        title: item.title,
+        start: new Date(item.scheduledDate),
+        end: new Date(item.scheduledDate),
+        resource: {
+          type: 'content' as const,
+          data: item,
+          contentType: item.contentType,
+          status: item.status,
+          grantId: item.grantId,
+          channel: item.channel,
+          priority: item.priority
+        }
+      }));
+
+    // Add grant milestones as events if enabled
+    const milestoneEvents: CalendarEvent[] = showMilestones && grants?.length
+      ? grants.flatMap(grant => 
+          grant.milestones.map(milestone => ({
+            id: `milestone-${milestone.id}`,
+            title: `📍 ${milestone.title}`,
+            start: new Date(milestone.dueDate),
+            end: new Date(milestone.dueDate),
+            resource: {
+              type: 'milestone' as const,
+              data: { ...milestone, grantTitle: grant.title, grantId: grant.id },
+              contentType: 'milestone',
+              status: milestone.status
+            }
+          }))
+        )
+      : [];
+
+    return [...contentEvents, ...milestoneEvents];
+  }, [contentItems, grants, filters, showMilestones]);
 
   // Mutations for CRUD operations
   const createItemMutation = useMutation({
