@@ -1,261 +1,283 @@
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { useTenant } from "@/hooks/useTenant";
-import { memo, useMemo } from "react";
-import { Calendar, Clock, Target, AlertTriangle, CheckCircle, Circle } from "lucide-react";
-import { format, parseISO, differenceInDays, isBefore } from "date-fns";
+/**
+ * Grant Timeline Component
+ * Displays grant status timeline with milestone tracking and backwards planning
+ * Based on attached asset specifications with 90/60/30-day milestone visualization
+ */
+
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { format, differenceInDays, parseISO } from 'date-fns';
+import { 
+  Calendar, 
+  Clock, 
+  CheckCircle, 
+  AlertTriangle, 
+  XCircle,
+  Target,
+  TrendingUp
+} from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+
+interface GrantMilestone {
+  id: string;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+  type: '90-day' | '60-day' | '30-day' | 'submission';
+  description: string;
+}
 
 interface Grant {
   id: string;
   title: string;
-  status: 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected';
-  deadline: string;
+  organization: string;
   amount: number;
-  sponsor: string;
-  milestones: {
-    id: string;
-    title: string;
-    date: string;
-    completed: boolean;
-    type: '90_day' | '60_day' | '30_day' | 'submission';
-  }[];
+  deadline: string;
+  status: 'planning' | 'in-progress' | 'review' | 'submitted' | 'awarded' | 'rejected';
+  progress: number;
+  milestones: GrantMilestone[];
+  daysRemaining: number;
+  riskLevel: 'low' | 'medium' | 'high';
 }
 
-const GrantTimeline = memo(function GrantTimeline() {
-  const { selectedTenant } = useTenant();
+interface GrantTimelineData {
+  grants: Grant[];
+  totalGrants: number;
+  activeGrants: number;
+  overdueGrants: number;
+  upcomingDeadlines: number;
+}
 
-  const { data: grants, isLoading, error } = useQuery({
-    queryKey: ["/api/dashboard/grants"],
-    queryFn: async () => {
-      const res = await fetch("/api/dashboard/grants", {
-        credentials: "include",
-        headers: {
-          "X-Tenant-ID": selectedTenant,
-        },
-      });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return res.json();
-    },
-    staleTime: 30 * 1000,
-    gcTime: 60 * 1000,
+const statusColors = {
+  planning: 'bg-blue-100 text-blue-800',
+  'in-progress': 'bg-yellow-100 text-yellow-800',
+  review: 'bg-purple-100 text-purple-800',
+  submitted: 'bg-indigo-100 text-indigo-800',
+  awarded: 'bg-green-100 text-green-800',
+  rejected: 'bg-red-100 text-red-800'
+};
+
+const riskColors = {
+  low: 'text-green-600',
+  medium: 'text-yellow-600',
+  high: 'text-red-600'
+};
+
+const milestoneTypeColors = {
+  '90-day': 'bg-blue-500',
+  '60-day': 'bg-yellow-500',
+  '30-day': 'bg-orange-500',
+  'submission': 'bg-red-500'
+};
+
+const GrantTimelineSkeleton = () => (
+  <div className="space-y-4">
+    {[1, 2, 3].map(i => (
+      <Card key={i} className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-6 w-20" />
+        </div>
+        <Skeleton className="h-2 w-full mb-3" />
+        <div className="grid grid-cols-4 gap-2">
+          {[1, 2, 3, 4].map(j => (
+            <Skeleton key={j} className="h-8 w-full" />
+          ))}
+        </div>
+      </Card>
+    ))}
+  </div>
+);
+
+const MilestoneIndicator: React.FC<{ milestone: GrantMilestone }> = ({ milestone }) => {
+  const daysUntil = differenceInDays(parseISO(milestone.dueDate), new Date());
+  const isOverdue = daysUntil < 0;
+  const isUpcoming = daysUntil <= 7 && daysUntil > 0;
+
+  return (
+    <div className={cn(
+      "flex items-center space-x-2 p-2 rounded-lg border",
+      milestone.completed ? "bg-green-50 border-green-200" :
+      isOverdue ? "bg-red-50 border-red-200" :
+      isUpcoming ? "bg-yellow-50 border-yellow-200" :
+      "bg-gray-50 border-gray-200"
+    )}>
+      <div className={cn(
+        "w-3 h-3 rounded-full",
+        milestoneTypeColors[milestone.type]
+      )} />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium truncate">{milestone.title}</div>
+        <div className="text-xs text-gray-500">
+          {isOverdue ? `${Math.abs(daysUntil)} days overdue` :
+           daysUntil === 0 ? 'Due today' :
+           `${daysUntil} days`}
+        </div>
+      </div>
+      {milestone.completed && (
+        <CheckCircle className="w-4 h-4 text-green-600" />
+      )}
+    </div>
+  );
+};
+
+const GrantCard: React.FC<{ grant: Grant }> = ({ grant }) => {
+  const completedMilestones = grant.milestones.filter(m => m.completed).length;
+  const totalMilestones = grant.milestones.length;
+  const isOverdue = grant.daysRemaining < 0;
+
+  return (
+    <Card className="p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-sm truncate">{grant.title}</h4>
+          <p className="text-xs text-gray-600 truncate">{grant.organization}</p>
+          <p className="text-sm font-medium text-green-600">
+            ${grant.amount.toLocaleString()}
+          </p>
+        </div>
+        <div className="flex flex-col items-end space-y-1">
+          <Badge className={cn("text-xs", statusColors[grant.status])}>
+            {grant.status.replace('-', ' ')}
+          </Badge>
+          <div className={cn(
+            "text-xs font-medium",
+            riskColors[grant.riskLevel]
+          )}>
+            {isOverdue ? `${Math.abs(grant.daysRemaining)} overdue` :
+             grant.daysRemaining === 0 ? 'Due today' :
+             `${grant.daysRemaining} days`}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <div className="flex items-center justify-between text-xs mb-1">
+          <span>Progress</span>
+          <span>{completedMilestones}/{totalMilestones} milestones</span>
+        </div>
+        <Progress value={grant.progress} className="h-2" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {grant.milestones.slice(0, 4).map(milestone => (
+          <MilestoneIndicator key={milestone.id} milestone={milestone} />
+        ))}
+      </div>
+
+      {grant.milestones.length > 4 && (
+        <div className="text-xs text-gray-500 text-center mt-2">
+          +{grant.milestones.length - 4} more milestones
+        </div>
+      )}
+    </Card>
+  );
+};
+
+export default function GrantTimeline() {
+  const { data: timelineData, isLoading, error, refetch } = useQuery<GrantTimelineData>({
+    queryKey: ['/api/dashboard/grants'],
+    refetchInterval: 60000, // Refresh every minute
+    staleTime: 30000, // Consider fresh for 30 seconds
   });
 
-  const timelineData = useMemo(() => {
-    if (!grants?.length) return [];
-    
-    return grants
-      .filter((grant: Grant) => grant.status !== 'rejected')
-      .sort((a: Grant, b: Grant) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-      .slice(0, 8);
-  }, [grants]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'submitted': return 'bg-blue-100 text-blue-800';
-      case 'under_review': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved': return <CheckCircle className="h-4 w-4" />;
-      case 'under_review': return <Clock className="h-4 w-4" />;
-      case 'submitted': return <Target className="h-4 w-4" />;
-      default: return <Circle className="h-4 w-4" />;
-    }
-  };
-
-  const getDaysUntilDeadline = (deadline: string) => {
-    const days = differenceInDays(parseISO(deadline), new Date());
-    return days;
-  };
-
-  const isOverdue = (deadline: string) => {
-    return isBefore(parseISO(deadline), new Date());
-  };
-
   if (isLoading) {
-    return (
-      <Card className="col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Grant Status Timeline
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 border rounded-lg animate-pulse">
-                <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-                  <div className="h-3 bg-gray-300 rounded w-1/2"></div>
-                </div>
-                <div className="w-16 h-6 bg-gray-300 rounded"></div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <GrantTimelineSkeleton />;
   }
 
   if (error) {
     return (
-      <Card className="col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Grant Status Timeline
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center text-gray-500">
-            <div className="text-center">
-              <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Unable to load grant timeline</p>
-            </div>
-          </div>
-        </CardContent>
+      <Card className="p-6">
+        <div className="text-center text-gray-500">
+          <div className="text-lg font-medium text-red-600 mb-2">Failed to Load Grant Data</div>
+          <p className="text-sm mb-4">Unable to retrieve grant timeline information</p>
+          <button 
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+          >
+            Retry
+          </button>
+        </div>
       </Card>
     );
   }
 
-  if (!timelineData.length) {
+  if (!timelineData || timelineData.grants.length === 0) {
     return (
-      <Card className="col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Grant Status Timeline
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center text-gray-500">
-            <div className="text-center">
-              <Target className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No active grants</p>
-              <p className="text-sm mt-1">Create your first grant to see timeline</p>
-            </div>
-          </div>
-        </CardContent>
+      <Card className="p-6">
+        <div className="text-center text-gray-500">
+          <Target className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+          <div className="text-lg font-medium mb-2">No Grants Found</div>
+          <p className="text-sm">Start tracking grant applications to see timeline data</p>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="col-span-2">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Grant Status Timeline
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4 max-h-96 overflow-y-auto">
-          {timelineData.map((grant: Grant, index: number) => {
-            const daysUntil = getDaysUntilDeadline(grant.deadline);
-            const overdue = isOverdue(grant.deadline);
-            
-            return (
-              <div
-                key={grant.id}
-                className={`relative flex items-start gap-3 p-3 border rounded-lg transition-colors hover:bg-gray-50 ${
-                  overdue ? 'border-red-200 bg-red-50' : ''
-                }`}
-              >
-                {/* Timeline connector */}
-                {index < timelineData.length - 1 && (
-                  <div className="absolute left-4 top-12 w-0.5 h-8 bg-gray-200"></div>
-                )}
-                
-                {/* Status indicator */}
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  grant.status === 'approved' ? 'bg-green-100 text-green-600' :
-                  grant.status === 'under_review' ? 'bg-yellow-100 text-yellow-600' :
-                  grant.status === 'submitted' ? 'bg-blue-100 text-blue-600' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {getStatusIcon(grant.status)}
-                </div>
-                
-                {/* Grant details */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm truncate">{grant.title}</h4>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {grant.sponsor} • ${grant.amount.toLocaleString()}
-                      </p>
-                    </div>
-                    
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs ${getStatusColor(grant.status)}`}
-                      >
-                        {grant.status.replace('_', ' ')}
-                      </Badge>
-                      
-                      <div className={`text-xs flex items-center gap-1 ${
-                        overdue ? 'text-red-600' :
-                        daysUntil <= 7 ? 'text-orange-600' :
-                        'text-gray-600'
-                      }`}>
-                        <Clock className="h-3 w-3" />
-                        {overdue ? (
-                          <span className="font-medium">Overdue</span>
-                        ) : (
-                          <span>{daysUntil} days</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Milestones */}
-                  {grant.milestones && grant.milestones.length > 0 && (
-                    <div className="mt-2 flex gap-1">
-                      {grant.milestones.slice(0, 4).map((milestone) => (
-                        <div
-                          key={milestone.id}
-                          className={`w-2 h-2 rounded-full ${
-                            milestone.completed 
-                              ? 'bg-green-500' 
-                              : isBefore(parseISO(milestone.date), new Date())
-                              ? 'bg-red-500'
-                              : 'bg-gray-300'
-                          }`}
-                          title={`${milestone.title} - ${format(parseISO(milestone.date), 'MMM d')}`}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  
-                  <div className="text-xs text-gray-500 mt-1">
-                    Due: {format(parseISO(grant.deadline), 'MMM d, yyyy')}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+    <div className="space-y-6">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-blue-600">
+            {timelineData.totalGrants}
+          </div>
+          <div className="text-sm text-gray-600">Total Grants</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-green-600">
+            {timelineData.activeGrants}
+          </div>
+          <div className="text-sm text-gray-600">Active</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-red-600">
+            {timelineData.overdueGrants}
+          </div>
+          <div className="text-sm text-gray-600">Overdue</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-orange-600">
+            {timelineData.upcomingDeadlines}
+          </div>
+          <div className="text-sm text-gray-600">Due Soon</div>
+        </Card>
+      </div>
+
+      {/* Grant Cards */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Grant Timeline</h3>
+          <div className="flex items-center space-x-4 text-xs">
+            <div className="flex items-center space-x-1">
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
+              <span>90-day</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <div className="w-3 h-3 rounded-full bg-yellow-500" />
+              <span>60-day</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <div className="w-3 h-3 rounded-full bg-orange-500" />
+              <span>30-day</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <div className="w-3 h-3 rounded-full bg-red-500" />
+              <span>Submission</span>
+            </div>
+          </div>
         </div>
         
-        {grants && grants.length > timelineData.length && (
-          <div className="mt-4 pt-4 border-t text-center">
-            <p className="text-xs text-gray-500">
-              Showing {timelineData.length} of {grants.length} grants
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {timelineData.grants.map(grant => (
+            <GrantCard key={grant.id} grant={grant} />
+          ))}
+        </div>
+      </div>
+    </div>
   );
-});
-
-export default GrantTimeline;
+}

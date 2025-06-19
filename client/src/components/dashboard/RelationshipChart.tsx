@@ -1,191 +1,273 @@
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ResponsiveContainer, RadialBarChart, RadialBar, Legend, PieChart, Pie, Cell } from "recharts";
-import { useTenant } from "@/hooks/useTenant";
-import { memo, useMemo } from "react";
-import { Network, Users, TrendingUp } from "lucide-react";
+/**
+ * Relationship Strength Chart Component
+ * Visualizes relationship strength data with radial bar chart and pie chart
+ * Based on attached asset specifications with responsive design
+ */
+
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { 
+  RadialBarChart, 
+  RadialBar, 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  Tooltip, 
+  Legend 
+} from 'recharts';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface RelationshipData {
   id: string;
   name: string;
   strength: number;
-  type: string;
-  connections: number;
+  type: 'direct' | 'indirect' | 'professional' | 'personal' | 'organizational';
+  value: number;
+  fill: string;
 }
 
-const RelationshipChart = memo(function RelationshipChart() {
-  const { selectedTenant } = useTenant();
+interface RelationshipStats {
+  totalRelationships: number;
+  strongConnections: number;
+  averageStrength: number;
+  topConnectors: Array<{
+    name: string;
+    connections: number;
+    strength: number;
+  }>;
+  strengthDistribution: RelationshipData[];
+  typeDistribution: Array<{
+    type: string;
+    count: number;
+    percentage: number;
+    color: string;
+  }>;
+}
 
-  const { data: relationships, isLoading, error } = useQuery({
-    queryKey: ["/api/dashboard/relationships"],
-    queryFn: async () => {
-      const res = await fetch("/api/dashboard/relationships", {
-        credentials: "include",
-        headers: {
-          "X-Tenant-ID": selectedTenant,
-        },
-      });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return res.json();
-    },
-    staleTime: 30 * 1000,
-    gcTime: 60 * 1000,
+const COLORS = {
+  direct: '#3366FF',
+  indirect: '#10B981',
+  professional: '#8B5CF6',
+  personal: '#F59E0B',
+  organizational: '#EF4444'
+};
+
+const RelationshipChartSkeleton = () => (
+  <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Card className="p-6">
+        <Skeleton className="h-6 w-32 mb-4" />
+        <Skeleton className="h-48 w-full" />
+      </Card>
+      <Card className="p-6">
+        <Skeleton className="h-6 w-28 mb-4" />
+        <Skeleton className="h-48 w-full" />
+      </Card>
+    </div>
+    <Card className="p-6">
+      <Skeleton className="h-6 w-36 mb-4" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-8 w-16" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  </div>
+);
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white p-3 border rounded-lg shadow-lg">
+        <p className="font-medium">{data.name}</p>
+        <p className="text-sm text-gray-600">
+          Strength: <span className="font-medium">{data.strength}%</span>
+        </p>
+        <p className="text-sm text-gray-600">
+          Type: <span className="font-medium capitalize">{data.type}</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const PieTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white p-3 border rounded-lg shadow-lg">
+        <p className="font-medium capitalize">{data.type}</p>
+        <p className="text-sm text-gray-600">
+          Count: <span className="font-medium">{data.count}</span>
+        </p>
+        <p className="text-sm text-gray-600">
+          Percentage: <span className="font-medium">{data.percentage}%</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+export default function RelationshipChart() {
+  const { data: relationshipData, isLoading, error, refetch } = useQuery<RelationshipStats>({
+    queryKey: ['/api/dashboard/relationships'],
+    refetchInterval: 60000, // Refresh every minute
+    staleTime: 30000, // Consider fresh for 30 seconds
   });
 
-  const chartData = useMemo(() => {
-    if (!relationships?.length) return [];
-    
-    return relationships.slice(0, 6).map((rel: RelationshipData, index: number) => ({
-      name: rel.name,
-      strength: rel.strength,
-      fill: [
-        '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', 
-        '#8dd1e1', '#d084d0'
-      ][index % 6]
-    }));
-  }, [relationships]);
-
-  const strengthData = useMemo(() => {
-    if (!relationships?.length) return [];
-    
-    const strengthCategories = {
-      strong: relationships.filter((r: RelationshipData) => r.strength >= 80).length,
-      medium: relationships.filter((r: RelationshipData) => r.strength >= 50 && r.strength < 80).length,
-      weak: relationships.filter((r: RelationshipData) => r.strength < 50).length,
-    };
-
-    return [
-      { name: 'Strong (80%+)', value: strengthCategories.strong, fill: '#22c55e' },
-      { name: 'Medium (50-79%)', value: strengthCategories.medium, fill: '#f59e0b' },
-      { name: 'Weak (<50%)', value: strengthCategories.weak, fill: '#ef4444' },
-    ].filter(item => item.value > 0);
-  }, [relationships]);
-
   if (isLoading) {
-    return (
-      <Card className="col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Network className="h-5 w-5" />
-            Relationship Strength
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <RelationshipChartSkeleton />;
   }
 
   if (error) {
     return (
-      <Card className="col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Network className="h-5 w-5" />
-            Relationship Strength
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center text-gray-500">
-            <div className="text-center">
-              <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Unable to load relationship data</p>
-            </div>
-          </div>
-        </CardContent>
+      <Card className="p-6">
+        <div className="text-center text-gray-500">
+          <div className="text-lg font-medium text-red-600 mb-2">Failed to Load Relationship Data</div>
+          <p className="text-sm mb-4">Unable to retrieve relationship analytics</p>
+          <button 
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+          >
+            Retry
+          </button>
+        </div>
       </Card>
     );
   }
 
-  if (!relationships?.length) {
+  if (!relationshipData || relationshipData.strengthDistribution.length === 0) {
     return (
-      <Card className="col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Network className="h-5 w-5" />
-            Relationship Strength
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center text-gray-500">
-            <div className="text-center">
-              <Network className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No relationship data available</p>
-              <p className="text-sm mt-1">Start mapping relationships to see insights</p>
-            </div>
-          </div>
-        </CardContent>
+      <Card className="p-6">
+        <div className="text-center text-gray-500">
+          <div className="text-lg font-medium mb-2">No Relationship Data</div>
+          <p className="text-sm">Start mapping relationships to see analytics</p>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="col-span-2">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Network className="h-5 w-5" />
-          Relationship Strength
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-64">
-          <div className="flex flex-col">
-            <h4 className="text-sm font-medium mb-2">Strength Distribution</h4>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={strengthData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={80}
-                  dataKey="value"
-                >
-                  {strengthData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+    <div className="space-y-6">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-blue-600">
+            {relationshipData.totalRelationships}
           </div>
-          
-          <div className="flex flex-col">
-            <h4 className="text-sm font-medium mb-2">Top Relationships</h4>
-            <ResponsiveContainer width="100%" height="100%">
-              <RadialBarChart 
-                cx="50%" 
-                cy="50%" 
-                innerRadius="20%" 
-                outerRadius="80%" 
-                data={chartData}
-              >
-                <RadialBar dataKey="strength" cornerRadius={10} fill="#8884d8" />
-                <Legend />
-              </RadialBarChart>
-            </ResponsiveContainer>
+          <div className="text-sm text-gray-600">Total Connections</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-green-600">
+            {relationshipData.strongConnections}
           </div>
-        </div>
-        
-        {relationships && relationships.length > 0 && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <span className="flex items-center gap-1">
-                <TrendingUp className="h-4 w-4" />
-                Total Relationships: {relationships.length}
-              </span>
-              <span>
-                Avg Strength: {Math.round(relationships.reduce((sum: number, r: RelationshipData) => sum + r.strength, 0) / relationships.length)}%
-              </span>
-            </div>
+          <div className="text-sm text-gray-600">Strong Bonds</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-purple-600">
+            {relationshipData.averageStrength}%
           </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
+          <div className="text-sm text-gray-600">Avg Strength</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold text-orange-600">
+            {relationshipData.topConnectors.length}
+          </div>
+          <div className="text-sm text-gray-600">Key Connectors</div>
+        </Card>
+      </div>
 
-export default RelationshipChart;
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Strength Distribution */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Relationship Strength</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <RadialBarChart
+              cx="50%"
+              cy="50%"
+              innerRadius="20%"
+              outerRadius="90%"
+              data={relationshipData.strengthDistribution}
+            >
+              <RadialBar
+                dataKey="strength"
+                cornerRadius={4}
+                fill="#3366FF"
+              />
+              <Tooltip content={<CustomTooltip />} />
+            </RadialBarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        {/* Type Distribution */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Connection Types</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={relationshipData.typeDistribution}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                dataKey="count"
+                label={({ type, percentage }) => `${percentage}%`}
+              >
+                {relationshipData.typeDistribution.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip content={<PieTooltip />} />
+              <Legend 
+                formatter={(value, entry) => (
+                  <span className="capitalize text-sm">{value}</span>
+                )}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      {/* Top Connectors */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Key Connectors</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {relationshipData.topConnectors.map((connector, index) => (
+            <div 
+              key={connector.name}
+              className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
+                  {index + 1}
+                </div>
+                <div>
+                  <div className="font-medium text-sm">{connector.name}</div>
+                  <div className="text-xs text-gray-500">
+                    {connector.connections} connections
+                  </div>
+                </div>
+              </div>
+              <Badge 
+                variant={connector.strength >= 80 ? "default" : "secondary"}
+                className="text-xs"
+              >
+                {connector.strength}%
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}

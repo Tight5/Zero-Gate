@@ -1,8 +1,23 @@
+/**
+ * Executive Dashboard Page
+ * Comprehensive dashboard with KPI cards, relationship chart, grant timeline, and recent activity
+ * Based on attached asset 35 specifications with responsive grid layouts and error boundaries
+ */
+
 import { Suspense, lazy, useEffect, useCallback, memo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+import { 
+  BarChart3, 
+  Plus, 
+  Filter, 
+  Download, 
+  RefreshCw,
+  Settings,
+  TrendingUp
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import KPICards from "@/components/dashboard/KPICards";
 import { ErrorBoundary } from "react-error-boundary";
 
