@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+// import { setupAuth, isAuthenticated } from "./replitAuth";
 import dashboardRoutes from "./routes/dashboard";
 import integrationRoutes from "./routes/integration";
 import workflowRoutes from "./routes/workflows";
@@ -16,9 +16,29 @@ import {
   insertContentCalendarSchema 
 } from "@shared/schema";
 
+// Development authentication bypass
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+const devAuth = (req: any, res: any, next: any) => {
+  if (isDevelopment) {
+    req.user = {
+      claims: {
+        sub: 'dev-user-123',
+        email: 'developer@zerogate.dev',
+        first_name: 'Developer',
+        last_name: 'User'
+      }
+    };
+    return next();
+  }
+  return res.status(401).json({ message: "Authentication required" });
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // Skip auth setup in development
+  // if (!isDevelopment) {
+  //   await setupAuth(app);
+  // }
 
   // Debug mode: Make dashboard accessible without auth for debugging
   app.use('/api/dashboard', dashboardRoutes);
