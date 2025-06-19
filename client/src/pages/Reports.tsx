@@ -116,10 +116,9 @@ export default function Reports() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        {/* Layout components temporarily disabled for memory optimization */}
         <div className="flex">
-          <Sidebar />
-          <main className="flex-1 ml-64 pt-16">
+          <main className="flex-1 p-4">
             <div className="p-8">
               <div className="flex items-center justify-center min-h-96">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -133,10 +132,9 @@ export default function Reports() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      {/* Layout components temporarily disabled for memory optimization */}
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
+        <main className="flex-1 p-4">
           <div className="p-8 space-y-8">
         {/* Header */}
         <div className="flex justify-between items-center">

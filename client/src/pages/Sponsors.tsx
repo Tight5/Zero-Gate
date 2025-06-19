@@ -120,10 +120,9 @@ export default function Sponsors() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      {/* Layout components temporarily disabled for memory optimization */}
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
+        <main className="flex-1 p-4">
           <div className="p-8">
             {/* Page Header */}
             <div className="flex items-center justify-between mb-8">
