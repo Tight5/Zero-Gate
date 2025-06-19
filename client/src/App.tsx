@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Switch, Route } from 'wouter';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -54,141 +53,16 @@ function Router() {
   );
 }
 
-// App Router Component
-function AppRouter() {
+export default function App() {
   return (
-    <Router>
-      <Routes>
-        {/* Public Routes */}
-        <Route 
-          path="/" 
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } 
-        />
-        <Route 
-          path="/login" 
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } 
-        />
-        <Route 
-          path="/landing" 
-          element={
-            <PublicRoute>
-              <Landing />
-            </PublicRoute>
-          } 
-        />
-        
-        {/* Protected Routes */}
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/sponsors" 
-          element={
-            <ProtectedRoute>
-              <Sponsors />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/grants" 
-          element={
-            <ProtectedRoute>
-              <Grants />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/relationships" 
-          element={
-            <ProtectedRoute>
-              <Relationships />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/content-calendar" 
-          element={
-            <ProtectedRoute>
-              <ContentCalendar />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/settings" 
-          element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/tenant-selection" 
-          element={
-            <ProtectedRoute>
-              <TenantSelection />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/debug" 
-          element={
-            <ProtectedRoute>
-              <Debug />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/reports" 
-          element={
-            <ProtectedRoute>
-              <Reports />
-            </ProtectedRoute>
-          } 
-        />
-        
-        {/* 404 Route */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Router>
-  );
-}
-
-// Main App Component
-function App() {
-  return (
-    <ThemeProvider defaultTheme="system">
+    <div className="min-h-screen bg-background">
       <QueryClientProvider client={queryClient}>
-        <AuthModeProvider>
-          <AuthProvider>
-            <TenantProvider>
-              <ResourceProvider>
-                <TooltipProvider>
-                  <div className="min-h-screen bg-background text-foreground">
-                    <AppRouter />
-                    <Toaster />
-                    {env.isDevelopment && <ReactQueryDevtools initialIsOpen={false} />}
-                  </div>
-                </TooltipProvider>
-              </ResourceProvider>
-            </TenantProvider>
-          </AuthProvider>
-        </AuthModeProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+          <ReactQueryDevtools initialIsOpen={false} />
+        </TooltipProvider>
       </QueryClientProvider>
-    </ThemeProvider>
+    </div>
   );
 }
-
-export default App;

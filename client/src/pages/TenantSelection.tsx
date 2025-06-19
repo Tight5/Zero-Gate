@@ -229,7 +229,7 @@ export default function TenantSelection() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.profileImageUrl} />
+                <AvatarImage src={user?.profileImageUrl || undefined} />
                 <AvatarFallback>
                   {user?.firstName?.[0]}{user?.lastName?.[0]}
                 </AvatarFallback>
