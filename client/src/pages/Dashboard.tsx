@@ -102,10 +102,9 @@ const Dashboard = memo(function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
+      {/* Layout components temporarily disabled for memory optimization */}
+      <div className="flex">{/* Sidebar temporarily disabled */}
+        <main className="flex-1 p-4">
           <div className="p-8">
             {/* Page Header */}
             <div className="mb-8">

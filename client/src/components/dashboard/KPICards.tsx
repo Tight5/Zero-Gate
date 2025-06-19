@@ -29,7 +29,7 @@ interface KPICardProps {
   title: string;
   value: number;
   change: number;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<any>;
   color: 'blue' | 'green' | 'purple' | 'orange' | 'red';
   format?: 'currency' | 'percentage' | 'number';
 }
