@@ -41,12 +41,11 @@ export function AnalyticsDashboard() {
     setError(null);
     
     try {
-      const response = await apiRequest('/api/analytics/network/dev-tenant-1', {
-        method: 'GET'
-      });
+      const response = await fetch('/api/analytics/network/dev-tenant-1');
+      const result = await response.json();
       setAnalyticsData(prev => ({
         ...prev,
-        networkMetrics: response
+        networkMetrics: result.metrics || result
       }));
     } catch (err) {
       setError('Failed to run network analysis');
@@ -75,15 +74,16 @@ export function AnalyticsDashboard() {
         ]
       };
 
-      const response = await apiRequest('/api/analytics/grant-prediction', {
+      const response = await fetch('/api/analytics/grant-prediction', {
         method: 'POST',
         body: JSON.stringify({ grantData: mockGrant }),
         headers: { 'Content-Type': 'application/json' }
       });
+      const result = await response.json();
 
       setAnalyticsData(prev => ({
         ...prev,
-        grantPredictions: [response]
+        grantPredictions: [result]
       }));
     } catch (err) {
       setError('Failed to run grant prediction');
@@ -109,15 +109,16 @@ export function AnalyticsDashboard() {
         lastContact: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
       };
 
-      const response = await apiRequest('/api/analytics/relationship-strength', {
+      const response = await fetch('/api/analytics/relationship-strength', {
         method: 'POST',
         body: JSON.stringify({ relationshipData: mockRelationship }),
         headers: { 'Content-Type': 'application/json' }
       });
+      const result = await response.json();
 
       setAnalyticsData(prev => ({
         ...prev,
-        relationshipStrengths: [response]
+        relationshipStrengths: [result]
       }));
     } catch (err) {
       setError('Failed to run relationship analysis');
@@ -132,12 +133,11 @@ export function AnalyticsDashboard() {
     setError(null);
     
     try {
-      const response = await apiRequest('/api/analytics/performance', {
-        method: 'GET'
-      });
+      const response = await fetch('/api/analytics/performance');
+      const result = await response.json();
       setAnalyticsData(prev => ({
         ...prev,
-        performance: response
+        performance: result.performance || result
       }));
     } catch (err) {
       setError('Failed to get performance metrics');

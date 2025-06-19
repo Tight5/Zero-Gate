@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import KPICards from "@/components/dashboard/KPICards";
+import { RealTimeKPICards } from "@/components/dashboard/RealTimeKPICards";
 import { ErrorBoundary } from "react-error-boundary";
 
 // Lazy load heavy dashboard components to improve performance
