@@ -1,5 +1,6 @@
 -- Zero Gate ESO Platform - Multi-Tenant Row-Level Security Schema
--- This schema implements complete tenant isolation using PostgreSQL RLS policies
+-- Complete tenant isolation using PostgreSQL RLS policies
+-- Based on attached assets specifications for enterprise-scale multi-tenancy
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -26,19 +27,66 @@ CREATE TABLE sessions (
 );
 CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON sessions (expire);
 
--- Users table - global user accounts
+-- Users table - global user accounts with RLS isolation
 CREATE TABLE users (
     id VARCHAR PRIMARY KEY NOT NULL,
-    email VARCHAR UNIQUE,
+    email VARCHAR UNIQUE NOT NULL,
     first_name VARCHAR,
     last_name VARCHAR,
     profile_image_url VARCHAR,
+    password_hash VARCHAR, -- For JWT authentication
+    role VARCHAR DEFAULT 'user', -- Global role: admin, user
+    is_active BOOLEAN DEFAULT true,
+    last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Enable RLS on users table
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- Tenants table - organizational units with complete isolation
+CREATE TABLE tenants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    domain VARCHAR(255), -- Custom domain for tenant
+    settings JSONB DEFAULT '{}', -- Tenant-specific configuration
+    subscription_tier VARCHAR(50) DEFAULT 'basic', -- basic, premium, enterprise
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    -- Tenant metadata
+    max_users INTEGER DEFAULT 10,
+    max_sponsors INTEGER DEFAULT 100,
+    max_grants INTEGER DEFAULT 50,
+    features JSONB DEFAULT '{}' -- Feature flags per tenant
+);
+
+-- Enable RLS on tenants table
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+
+-- User-tenant relationships with role-based access
+CREATE TABLE user_tenants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL DEFAULT 'member', -- owner, admin, manager, member, viewer
+    permissions JSONB DEFAULT '{}', -- Granular permissions
+    is_active BOOLEAN DEFAULT true,
+    invited_by VARCHAR REFERENCES users(id),
+    invited_at TIMESTAMP,
+    joined_at TIMESTAMP DEFAULT NOW(),
+    last_accessed TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    UNIQUE(user_id, tenant_id)
+);
+
+-- Enable RLS on user_tenants table
+ALTER TABLE user_tenants ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own record
 CREATE POLICY user_isolation_policy ON users
