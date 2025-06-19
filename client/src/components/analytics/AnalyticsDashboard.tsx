@@ -41,10 +41,12 @@ export function AnalyticsDashboard() {
     setError(null);
     
     try {
-      const response = await apiRequest('/api/analytics/network/dev-tenant-1');
+      const response = await apiRequest('/api/analytics/network/dev-tenant-1', {
+        method: 'GET'
+      });
       setAnalyticsData(prev => ({
         ...prev,
-        networkMetrics: response.metrics
+        networkMetrics: response
       }));
     } catch (err) {
       setError('Failed to run network analysis');
@@ -130,10 +132,12 @@ export function AnalyticsDashboard() {
     setError(null);
     
     try {
-      const response = await apiRequest('/api/analytics/performance');
+      const response = await apiRequest('/api/analytics/performance', {
+        method: 'GET'
+      });
       setAnalyticsData(prev => ({
         ...prev,
-        performance: response.performance
+        performance: response
       }));
     } catch (err) {
       setError('Failed to get performance metrics');
