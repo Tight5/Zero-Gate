@@ -3,8 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+// Layout components temporarily disabled for memory optimization
 import RelationshipGraph from "@/components/relationships/RelationshipGraph";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

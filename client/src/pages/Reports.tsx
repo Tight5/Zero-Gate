@@ -5,8 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuthMode } from '@/contexts/AuthModeContext';
-import Header from '@/components/layout/Header';
-import Sidebar from '@/components/layout/Sidebar';
+// Layout components temporarily disabled for memory optimization
 import { 
   BarChart3, 
   TrendingUp, 
