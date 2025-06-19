@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-// import { setupAuth, isAuthenticated } from "./replitAuth";
+// import { setupAuth, devAuth } from "./replitAuth";
 import dashboardRoutes from "./routes/dashboard";
 import integrationRoutes from "./routes/integration";
 import workflowRoutes from "./routes/workflows";
@@ -14,7 +14,7 @@ import {
   insertGrantSchema,
   insertRelationshipSchema,
   insertContentCalendarSchema 
-} from "@shared/schema";
+} from "../shared/schema";
 
 // Development authentication bypass
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -44,15 +44,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/dashboard', dashboardRoutes);
   
   // Apply tenant context middleware only to tenant-specific routes
-  app.use('/api/tenants', isAuthenticated, setUserContext);
-  app.use('/api/sponsors', isAuthenticated, setUserContext);  
-  app.use('/api/grants', isAuthenticated, setUserContext);
-  app.use('/api/relationships', isAuthenticated, setUserContext);
-  app.use('/api/content-calendar', isAuthenticated, setUserContext);
+  app.use('/api/tenants', devAuth, setUserContext);
+  app.use('/api/sponsors', devAuth, setUserContext);  
+  app.use('/api/grants', devAuth, setUserContext);
+  app.use('/api/relationships', devAuth, setUserContext);
+  app.use('/api/content-calendar', devAuth, setUserContext);
 
-  // Auth routes - simplified for debugging
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  // Auth routes with development bypass
+  app.get('/api/auth/user', devAuth, async (req: any, res) => {
     try {
+      if (isDevelopment) {
+        // Return mock user for development
+        const user = {
+          id: 'dev-user-123',
+          email: 'developer@zerogate.dev',
+          firstName: 'Developer',
+          lastName: 'User',
+          profileImageUrl: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          tenants: []
+        };
+        return res.json(user);
+      }
+      
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       if (!user) {
@@ -74,8 +89,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Development login routes
+  if (isDevelopment) {
+    app.get('/api/login', (req, res) => {
+      res.redirect('/dashboard');
+    });
+    
+    app.get('/api/logout', (req, res) => {
+      res.redirect('/');
+    });
+  }
+
   // Tenant routes
-  app.post('/api/tenants', isAuthenticated, async (req: any, res) => {
+  app.post('/api/tenants', devAuth, async (req: any, res) => {
     try {
       const tenantData = insertTenantSchema.parse(req.body);
       const tenant = await storage.createTenant(tenantData);
@@ -90,7 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/tenants/:id', isAuthenticated, async (req: any, res) => {
+  app.get('/api/tenants/:id', devAuth, async (req: any, res) => {
     try {
       const tenant = await storage.getTenant(req.params.id);
       if (!tenant) {
@@ -114,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/dashboard/metrics', isAuthenticated, async (req: any, res) => {
+  app.get('/api/dashboard/metrics', devAuth, async (req: any, res) => {
     try {
       const metrics = await storage.getSystemMetrics();
       res.json(metrics);
@@ -510,7 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // System management routes for debugging
-  app.post('/api/system/gc', isAuthenticated, async (req: any, res) => {
+  app.post('/api/system/gc', devAuth, async (req: any, res) => {
     try {
       // Force garbage collection if available
       if (global.gc) {
@@ -533,7 +559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/system/diagnostics', isAuthenticated, async (req: any, res) => {
+  app.get('/api/system/diagnostics', devAuth, async (req: any, res) => {
     try {
       const diagnostics = {
         timestamp: new Date().toISOString(),
