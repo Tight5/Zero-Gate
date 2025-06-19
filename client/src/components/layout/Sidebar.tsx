@@ -1,125 +1,100 @@
-import { Link, useLocation } from "wouter";
-import { cn } from "@/lib/utils";
+import React from 'react';
+import { Link, useLocation } from 'wouter';
 import { 
-  LayoutDashboard, 
-  Users, 
-  Target, 
-  Network, 
-  Calendar,
-  FileText,
-  Settings,
-  HelpCircle,
-  Bug
-} from "lucide-react";
+  BarChart3 as DashboardIcon,
+  Network as RelationshipsIcon,
+  Building2 as SponsorsIcon,
+  FileText as GrantsIcon,
+  Calendar as CalendarIcon,
+  Settings as SettingsIcon
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import './Sidebar.css';
 
-const navigationItems = [
+interface NavigationItem {
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  description: string;
+}
+
+const navigationItems: NavigationItem[] = [
   {
-    title: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
+    path: '/dashboard',
+    label: 'Dashboard',
+    icon: DashboardIcon,
+    description: 'Executive overview and KPIs'
   },
   {
-    title: "Sponsors",
-    href: "/sponsors",
-    icon: Users,
+    path: '/relationships',
+    label: 'Relationship Mapping',
+    icon: RelationshipsIcon,
+    description: 'Visualize stakeholder connections'
   },
   {
-    title: "Grants",
-    href: "/grants",
-    icon: Target,
+    path: '/sponsors',
+    label: 'Sponsor Management',
+    icon: SponsorsIcon,
+    description: 'Manage sponsor relationships'
   },
   {
-    title: "Relationships",
-    href: "/relationships",
-    icon: Network,
+    path: '/grants',
+    label: 'Grant Management',
+    icon: GrantsIcon,
+    description: 'Track grants and timelines'
   },
   {
-    title: "Content Calendar",
-    href: "/content",
-    icon: Calendar,
+    path: '/calendar',
+    label: 'Content Calendar',
+    icon: CalendarIcon,
+    description: 'Plan and schedule content'
   },
   {
-    title: "Reports",
-    href: "/reports",
-    icon: FileText,
-  },
+    path: '/settings',
+    label: 'Settings',
+    icon: SettingsIcon,
+    description: 'Platform configuration'
+  }
 ];
 
-const bottomItems = [
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
-  {
-    title: "Debug",
-    href: "/debug",
-    icon: Bug,
-  },
-  {
-    title: "Help",
-    href: "/help",
-    icon: HelpCircle,
-  },
-];
+interface SidebarProps {
+  isCollapsed: boolean;
+}
 
-export default function Sidebar() {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   const [location] = useLocation();
 
   return (
-    <div className="fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 z-40">
-      <div className="flex flex-col h-full">
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
+    <aside className={cn('sidebar', isCollapsed && 'collapsed')}>
+      <nav className="sidebar-nav">
+        <ul className="nav-list">
           {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location === item.href || 
-              (item.href !== "/" && location.startsWith(item.href));
+            const IconComponent = item.icon;
+            const isActive = location.startsWith(item.path);
             
             return (
-              <Link key={item.href} href={item.href}>
-                <div
-                  className={cn(
-                    "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
-                    isActive
-                      ? "bg-primary text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.title}</span>
-                </div>
-              </Link>
+              <li key={item.path} className="nav-item">
+                <Link href={item.path}>
+                  <a
+                    className={cn(
+                      'nav-link',
+                      isActive && 'active'
+                    )}
+                    title={item.description}
+                  >
+                    <IconComponent className="nav-icon" size={20} />
+                    {!isCollapsed && (
+                      <span className="nav-label">{item.label}</span>
+                    )}
+                  </a>
+                </Link>
+              </li>
             );
           })}
-        </nav>
-
-        {/* Bottom Navigation */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="space-y-2">
-            {bottomItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              
-              return (
-                <Link key={item.href} href={item.href}>
-                  <div
-                    className={cn(
-                      "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
-                      isActive
-                        ? "bg-primary text-white"
-                        : "text-gray-700 hover:bg-gray-100"
-                    )}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.title}</span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
+        </ul>
+      </nav>
+    </aside>
   );
-}
+};
+
+export default Sidebar;
