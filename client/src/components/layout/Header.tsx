@@ -1,120 +1,93 @@
 import React, { useState } from 'react';
-import { 
-  Menu as MenuIcon,
-  Settings as SettingsIcon,
-  LogOut as LogoutIcon,
-  Moon as MoonIcon,
-  Sun as SunIcon,
-  Bell as BellIcon
-} from 'lucide-react';
+import { Bell, Menu, Search, Settings, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { 
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger 
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/hooks/useAuth';
-import { useTheme } from 'next-themes';
-import TenantSelector from '../common/TenantSelector';
-import NotificationCenter from '../common/NotificationCenter';
-import './Header.css';
+import NotificationCenter from '@/components/common/NotificationCenter';
+import TenantSelector from '@/components/common/TenantSelector';
 
 interface HeaderProps {
   onMenuToggle: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
-  const { user } = useAuth();
-  const { theme, setTheme } = useTheme();
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const handleLogout = () => {
-    window.location.href = '/api/logout';
-  };
-
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
-
   return (
-    <header className="app-header">
-      <div className="header-left">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onMenuToggle}
-          className="menu-toggle"
-          aria-label="Toggle sidebar"
-        >
-          <MenuIcon size={20} />
+    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 fixed w-full top-0 z-50">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" onClick={onMenuToggle}>
+          <Menu size={20} />
         </Button>
-        <div className="logo-section">
-          <h1 className="app-title text-xl font-bold">
-            Zero Gate
-          </h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Zero Gate ESO
+        </h1>
+      </div>
+
+      <div className="flex-1 max-w-md mx-8">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+          <Input
+            placeholder="Search..."
+            className="pl-10 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+          />
         </div>
       </div>
 
-      <div className="header-center">
+      <div className="flex items-center gap-4">
         <TenantSelector />
-      </div>
-
-      <div className="header-right">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setNotificationsOpen(true)}
-          aria-label="Notifications"
-          className="notification-button"
-        >
-          <BellIcon size={20} />
-        </Button>
         
         <Button
           variant="ghost"
           size="sm"
-          onClick={toggleTheme}
-          aria-label="Toggle theme"
+          onClick={() => setNotificationsOpen(true)}
         >
-          {theme === 'dark' ? <SunIcon size={20} /> : <MoonIcon size={20} />}
+          <Bell size={20} />
         </Button>
 
-        <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="user-menu-trigger flex items-center gap-2">
-              <Avatar className="w-8 h-8">
-                <AvatarImage 
-                  src={user?.profileImageUrl} 
-                  alt={user?.firstName || 'User'} 
-                />
+            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src="/placeholder-avatar.jpg" alt="User" />
                 <AvatarFallback>
-                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                  <User size={16} />
                 </AvatarFallback>
               </Avatar>
-              <span className="user-name hidden md:inline">
-                {user?.firstName} {user?.lastName}
-              </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => window.location.href = '/settings'}>
-              <SettingsIcon size={16} className="mr-2" />
-              Settings
+          <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">Current User</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  user@example.com
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout} className="logout-item">
-              <LogoutIcon size={16} className="mr-2" />
-              Logout
+            <DropdownMenuItem>
+              <span>Log out</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <NotificationCenter
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
+      <NotificationCenter 
+        open={notificationsOpen} 
+        onClose={() => setNotificationsOpen(false)} 
       />
     </header>
   );

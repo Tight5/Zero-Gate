@@ -144,8 +144,8 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, change, icon: Icon, col
 export default function KPICards() {
   const { data: kpiData, isLoading, error, refetch } = useQuery<KPIData>({
     queryKey: ['/api/dashboard/kpis'],
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 15000, // Consider fresh for 15 seconds
+    refetchInterval: 180000, // Emergency optimization: 30s → 180s to reduce memory pressure
+    staleTime: 90000, // Emergency optimization: 15s → 90s
   });
 
   if (isLoading) {
