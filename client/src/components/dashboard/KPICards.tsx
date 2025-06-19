@@ -10,6 +10,7 @@ import { TrendingUp, TrendingDown, Users, Calendar, Award, DollarSign } from 'lu
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import './KPICards.css';
 
 interface KPIData {
   active_sponsors: number;
@@ -206,7 +207,7 @@ export default function KPICards() {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="kpi-cards">
       {kpis.map((kpi) => (
         <KPICard key={kpi.id} {...kpi} />
       ))}

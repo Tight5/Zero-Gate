@@ -101,65 +101,100 @@ const Dashboard = memo(function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="dashboard-page">
       {/* Layout components temporarily disabled for memory optimization */}
       <div className="flex">{/* Sidebar temporarily disabled */}
-        <main className="flex-1 p-4">
-          <div className="p-8">
+        <main className="flex-1">
+          <div className="dashboard-content">
             {/* Page Header */}
-            <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Executive Dashboard</h1>
-              <p className="text-gray-600">Monitor your ESO platform performance and key metrics</p>
+            <div className="dashboard-header">
+              <div className="header-content">
+                <div className="title-section">
+                  <h1>
+                    <BarChart3 size={28} />
+                    Executive Dashboard
+                  </h1>
+                  <p className="dashboard-subtitle">
+                    Monitor your ESO platform performance and key metrics
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* KPI Cards */}
-            <ErrorBoundary
-              FallbackComponent={(props) => <ComponentErrorFallback {...props} title="KPI Cards" />}
-              onError={(error) => console.error('KPI Cards error:', error)}
-            >
-              <div className="mb-8">
-                <KPICards />
+            <section className="dashboard-section">
+              <div className="section-header">
+                <h3>Key Performance Indicators</h3>
+                <span className="section-subtitle">Real-time organizational metrics</span>
               </div>
-            </ErrorBoundary>
+              <ErrorBoundary
+                FallbackComponent={(props) => <ComponentErrorFallback {...props} title="KPI Cards" />}
+                onError={(error) => console.error('KPI Cards error:', error)}
+              >
+                <KPICards />
+              </ErrorBoundary>
+            </section>
 
             {/* Main Dashboard Grid */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-              {/* Relationship Chart - spans 2 columns on extra large screens */}
-              <div className="xl:col-span-2">
-                <ErrorBoundary
-                  FallbackComponent={(props) => <ComponentErrorFallback {...props} title="Relationship Chart" />}
-                  onError={(error) => console.error('Relationship Chart error:', error)}
-                >
-                  <Suspense fallback={<ComponentSkeleton />}>
-                    <RelationshipChart />
-                  </Suspense>
-                </ErrorBoundary>
+            <div className="dashboard-grid">
+              {/* Relationship Chart */}
+              <div className="grid-item">
+                <div className="dashboard-widget">
+                  <div className="widget-header">
+                    <h4>Relationship Strength Overview</h4>
+                  </div>
+                  <div className="widget-content">
+                    <ErrorBoundary
+                      FallbackComponent={(props) => <ComponentErrorFallback {...props} title="Relationship Chart" />}
+                      onError={(error) => console.error('Relationship Chart error:', error)}
+                    >
+                      <Suspense fallback={<ComponentSkeleton />}>
+                        <RelationshipChart />
+                      </Suspense>
+                    </ErrorBoundary>
+                  </div>
+                </div>
               </div>
 
-              {/* Recent Activity - spans 1 column */}
-              <div className="xl:col-span-1">
-                <ErrorBoundary
-                  FallbackComponent={(props) => <ComponentErrorFallback {...props} title="Recent Activity" />}
-                  onError={(error) => console.error('Recent Activity error:', error)}
-                >
-                  <Suspense fallback={<ComponentSkeleton />}>
-                    <RecentActivity />
-                  </Suspense>
-                </ErrorBoundary>
+              {/* Recent Activity */}
+              <div className="grid-item">
+                <div className="dashboard-widget">
+                  <div className="widget-header">
+                    <h4>Recent Activity</h4>
+                  </div>
+                  <div className="widget-content">
+                    <ErrorBoundary
+                      FallbackComponent={(props) => <ComponentErrorFallback {...props} title="Recent Activity" />}
+                      onError={(error) => console.error('Recent Activity error:', error)}
+                    >
+                      <Suspense fallback={<ComponentSkeleton />}>
+                        <RecentActivity />
+                      </Suspense>
+                    </ErrorBoundary>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Grant Timeline - spans full width */}
-            <div className="mb-8">
-              <ErrorBoundary
-                FallbackComponent={(props) => <ComponentErrorFallback {...props} title="Grant Timeline" />}
-                onError={(error) => console.error('Grant Timeline error:', error)}
-              >
-                <Suspense fallback={<ComponentSkeleton />}>
-                  <GrantTimeline />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
+            <section className="dashboard-section">
+              <div className="section-header">
+                <h3>Grant Status Timeline</h3>
+                <span className="section-subtitle">Track grant applications and deadlines</span>
+              </div>
+              <div className="dashboard-widget">
+                <div className="widget-content">
+                  <ErrorBoundary
+                    FallbackComponent={(props) => <ComponentErrorFallback {...props} title="Grant Timeline" />}
+                    onError={(error) => console.error('Grant Timeline error:', error)}
+                  >
+                    <Suspense fallback={<ComponentSkeleton />}>
+                      <GrantTimeline />
+                    </Suspense>
+                  </ErrorBoundary>
+                </div>
+              </div>
+            </section>
 
             {/* Footer info */}
             <div className="text-xs text-gray-400 text-center py-4 border-t">
