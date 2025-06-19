@@ -58,33 +58,27 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
         
         // Set current tenant from localStorage or first available
         const savedTenantId = localStorage.getItem('currentTenantId');
-        if (savedTenantId) {
-          const tenant = data.tenants?.find((t: Tenant) => t.id === savedTenantId);
+        const tenants = data.tenants || [];
+        
+        if (savedTenantId && tenants.length > 0) {
+          const tenant = tenants.find((t: Tenant) => t.id === savedTenantId);
           if (tenant && tenant.status === 'active') {
             setCurrentTenant(tenant);
+          } else if (tenants.length > 0) {
+            setCurrentTenant(tenants[0]);
+            localStorage.setItem('currentTenantId', tenants[0].id);
           }
+        } else if (tenants.length > 0) {
+          setCurrentTenant(tenants[0]);
+          localStorage.setItem('currentTenantId', tenants[0].id);
         }
       } else {
-        // Development fallback with mock data
-        const mockTenants: Tenant[] = [
-          {
-            id: '1',
-            name: 'NASDAQ Entrepreneur Center',
-            description: 'Leading technology entrepreneurship hub',
-            role: 'admin',
-            userCount: 245,
-            status: 'active',
-            domain: 'nasdaq-ec.org',
-            lastActivity: '2 hours ago',
-            features: ['Analytics', 'Microsoft 365', 'Advanced Reporting']
-          }
-        ];
-        setAvailableTenants(mockTenants);
-        setCurrentTenant(mockTenants[0]);
+        console.error('Failed to load tenants:', response.status, response.statusText);
+        setError('Failed to load tenants');
       }
     } catch (err) {
-      setError('Failed to load tenants');
       console.error('Error loading tenants:', err);
+      setError('Failed to load tenants');
     } finally {
       setLoading(false);
     }

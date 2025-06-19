@@ -47,20 +47,22 @@ function Router() {
         </>
       ) : (
         <Route path="/:rest*">
-          <AppLayout>
-            <Switch>
-              <Route path="/" component={Dashboard} />
-              <Route path="/dashboard" component={Dashboard} />
-              <Route path="/sponsors" component={Sponsors} />
-              <Route path="/grants" component={Grants} />
-              <Route path="/relationships" component={Relationships} />
-              <Route path="/content-calendar" component={ContentCalendar} />
-              <Route path="/reports" component={Reports} />
-              <Route path="/settings" component={Settings} />
-              <Route path="/debug" component={Debug} />
-              <Route component={NotFound} />
-            </Switch>
-          </AppLayout>
+          {(params) => (
+            <AppLayout>
+              <Switch>
+                <Route path="/" component={Dashboard} />
+                <Route path="/dashboard" component={Dashboard} />
+                <Route path="/sponsors" component={Sponsors} />
+                <Route path="/grants" component={Grants} />
+                <Route path="/relationships" component={Relationships} />
+                <Route path="/content-calendar" component={ContentCalendar} />
+                <Route path="/reports" component={Reports} />
+                <Route path="/settings" component={Settings} />
+                <Route path="/debug" component={Debug} />
+                <Route component={NotFound} />
+              </Switch>
+            </AppLayout>
+          )}
         </Route>
       )}
     </Switch>

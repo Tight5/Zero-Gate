@@ -52,6 +52,10 @@
   margin-top: 0.125rem;
 }
 
+.menu-toggle {
+  display: block;
+}
+
 @media (min-width: 1024px) {
   .menu-toggle {
     display: none;

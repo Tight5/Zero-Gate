@@ -28,6 +28,124 @@ app.get('/health', (req: Request, res: Response) => {
 app.get('/api/auth/user', (req: Request, res: Response) => {
   const user = {
     id: 'dev-user-123',
+    email: 'admin@nasdaq-ec.org',
+    firstName: 'Admin',
+    lastName: 'User',
+    profileImageUrl: null
+  };
+  res.json(user);
+});
+
+// Tenant endpoints for development
+app.get('/api/auth/user/tenants', (req: Request, res: Response) => {
+  const mockTenants = [
+    {
+      id: '1',
+      name: 'NASDAQ Entrepreneur Center',
+      description: 'Leading technology entrepreneurship hub',
+      role: 'admin',
+      userCount: 245,
+      status: 'active',
+      domain: 'nasdaq-ec.org',
+      lastActivity: '2 hours ago',
+      features: ['Analytics', 'Microsoft 365', 'Advanced Reporting']
+    }
+  ];
+  res.json({ tenants: mockTenants });
+});
+
+app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
+  const { tenantId } = req.body;
+  res.json({ success: true, tenantId });
+});
+
+// Dashboard endpoints
+app.get('/api/dashboard/stats', (req: Request, res: Response) => {
+  const mockStats = {
+    totalFunding: 2150000,
+    activeGrants: 12,
+    totalSponsors: 45,
+    relationshipStrength: 87
+  };
+  res.json(mockStats);
+});
+
+// System resource endpoints
+app.get('/api/system/resources', (req: Request, res: Response) => {
+  const mockResources = {
+    memory: Math.floor(Math.random() * 20) + 70,
+    cpu: Math.floor(Math.random() * 30) + 40,
+  };
+  res.json(mockResources);
+});
+
+// Relationship endpoints
+app.get('/api/relationships', (req: Request, res: Response) => {
+  res.json([]);
+});
+
+app.get('/api/relationships/network-stats', (req: Request, res: Response) => {
+  const mockStats = {
+    totalNodes: 156,
+    totalEdges: 243,
+    avgConnections: 3.2,
+    strongConnections: 89
+  };
+  res.json(mockStats);
+});
+
+app.get('/api/relationships/graph-data', (req: Request, res: Response) => {
+  const mockGraphData = {
+    nodes: [],
+    links: []
+  };
+  res.json(mockGraphData);
+});
+
+app.post('/api/relationships/discover-path', (req: Request, res: Response) => {
+  const { source_id, target_id } = req.body;
+  res.json({
+    paths: [],
+    analysis: {
+      total_paths_found: 0,
+      shortest_path_length: -1,
+      strongest_path_strength: 0,
+      average_confidence: 0
+    }
+  });
+});
+
+app.get('/api/relationships/search', (req: Request, res: Response) => {
+  res.json([]);
+});
+
+// Tenant settings endpoints
+app.get('/api/tenants/:tenantId/settings', (req: Request, res: Response) => {
+  res.json({
+    theme: 'light',
+    notifications: true,
+    autoRefresh: true
+  });
+});
+
+app.put('/api/tenants/:tenantId/settings', (req: Request, res: Response) => {
+  const settings = req.body;
+  res.json(settings);
+});
+
+// Setup Vite development server or static files
+if (process.env.NODE_ENV === "development") {
+  log("Development mode - setting up Vite");
+  setupVite(app);
+} else {
+  log("Production mode - serving static files");
+  serveStatic(app);
+}
+
+const port = process.env.PORT || 5000;
+app.listen(port, "0.0.0.0", () => {
+  log(`Express server running on port ${port}`);
+});
     email: 'developer@zerogate.dev',
     firstName: 'Developer',
     lastName: 'User',
