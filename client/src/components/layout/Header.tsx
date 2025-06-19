@@ -4,14 +4,14 @@
  */
 
 import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { 
-  Heading, 
-  Button, 
-  Dropdown, 
-  DropdownItem,
-  Avatar,
-  IconButton 
-} from '@replit/ui';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Menu as MenuIcon,
   Settings as SettingsIcon,
@@ -21,10 +21,6 @@ import {
   Bell as BellIcon
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useTenant } from '../../contexts/TenantContext';
-import TenantSelector from '../common/TenantSelector';
-import NotificationCenter from '../common/NotificationCenter';
 import './Header.css';
 
 interface HeaderProps {
@@ -32,85 +28,86 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
-  const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const { currentTenant } = useTenant();
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { user } = useAuth();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const handleLogout = () => {
+    window.location.href = "/api/logout";
+  };
+
+  const toggleTheme = () => {
+    // Theme toggle implementation
+    document.documentElement.classList.toggle('dark');
+  };
 
   return (
     <header className="app-header">
       <div className="header-left">
-        <IconButton
-          icon={MenuIcon}
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onMenuToggle}
           className="menu-toggle"
           aria-label="Toggle sidebar"
-        />
+        >
+          <MenuIcon size={20} />
+        </Button>
         <div className="logo-section">
-          <Heading size="large" className="app-title">
+          <h1 className="app-title">
             Zero Gate
-          </Heading>
-          {currentTenant && (
-            <span className="tenant-indicator">
-              {currentTenant.name}
-            </span>
-          )}
+          </h1>
+          <span className="tenant-indicator">
+            ESO Platform
+          </span>
         </div>
       </div>
 
       <div className="header-center">
-        <TenantSelector />
+        {/* Tenant selector placeholder - will be implemented later */}
       </div>
 
       <div className="header-right">
-        <IconButton
-          icon={BellIcon}
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setNotificationsOpen(true)}
           aria-label="Notifications"
           className="notification-button"
-        />
+        >
+          <BellIcon size={20} />
+        </Button>
         
-        <IconButton
-          icon={theme === 'dark' ? SunIcon : MoonIcon}
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={toggleTheme}
           aria-label="Toggle theme"
-        />
-
-        <Dropdown
-          open={userMenuOpen}
-          onOpenChange={setUserMenuOpen}
-          trigger={
-            <Button variant="ghost" className="user-menu-trigger">
-              <Avatar
-                src={user?.profileImageUrl}
-                alt={user?.firstName || 'User'}
-                size="small"
-              />
-              <span className="user-name">{user?.firstName}</span>
-            </Button>
-          }
         >
-          <DropdownItem
-            icon={SettingsIcon}
-            onClick={() => {/* Navigate to settings */}}
-          >
-            Settings
-          </DropdownItem>
-          <DropdownItem
-            icon={LogoutIcon}
-            onClick={logout}
-            className="logout-item"
-          >
-            Logout
-          </DropdownItem>
-        </Dropdown>
-      </div>
+          <MoonIcon size={20} />
+        </Button>
 
-      <NotificationCenter
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="user-menu-trigger">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.profileImageUrl} />
+                <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
+              </Avatar>
+              <span className="user-name">{user?.firstName || 'User'}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => {/* Navigate to settings */}}>
+              <SettingsIcon className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="logout-item">
+              <LogoutIcon className="mr-2 h-4 w-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 };
