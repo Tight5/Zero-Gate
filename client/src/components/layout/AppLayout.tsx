@@ -1,38 +1,48 @@
-import React, { useState, ReactNode } from 'react';
+import React, { useState } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useTenant } from '../../contexts/TenantContext';
 import Header from './Header';
 import Sidebar from './Sidebar';
-import { useTenant } from '@/contexts/TenantContext';
-import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
 
 interface AppLayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { theme } = useTheme();
   const { currentTenant } = useTenant();
-  const { isAuthenticated } = useAuth();
-
-  const toggleSidebar = () => {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  const handleMenuToggle = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
-
-  // Development mode: always render layout
-  if (process.env.NODE_ENV === "development") {
-    // Skip authentication check in development
-  } else if (!isAuthenticated || !currentTenant) {
-    return null;
-  }
-
+  
   return (
-    <div className="min-h-screen bg-background">
-      <Header onMenuToggle={toggleSidebar} />
-      <div className="flex">
+    <div className={cn(
+      "min-h-screen bg-slate-50 dark:bg-slate-900",
+      theme === 'dark' && 'dark'
+    )}>
+      <Header onMenuToggle={handleMenuToggle} />
+      <div className="flex h-[calc(100vh-4rem)]">
         <Sidebar isCollapsed={sidebarCollapsed} />
-        <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <div className="container mx-auto p-6">
-            {children}
-          </div>
+        <main className="flex-1 overflow-auto">
+          {currentTenant ? (
+            <div className="p-6">
+              {children}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                  Select a Tenant
+                </h2>
+                <p className="text-slate-600 dark:text-slate-400">
+                  Please select a tenant to access the platform features.
+                </p>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

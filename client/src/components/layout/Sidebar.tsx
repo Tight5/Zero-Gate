@@ -1,20 +1,20 @@
 import React from 'react';
-import { useLocation } from 'wouter';
-import { Button } from '@/components/ui/button';
+import { Link, useLocation } from 'wouter';
+import { cn } from '@/lib/utils';
 import { 
   BarChart3 as DashboardIcon,
   Network as RelationshipsIcon,
   Building2 as SponsorsIcon,
   FileText as GrantsIcon,
   Calendar as CalendarIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  PieChart as AnalyticsIcon
 } from 'lucide-react';
-import { useTenant } from '@/contexts/TenantContext';
-import './Sidebar.css';
+import { useTenant } from '../../contexts/TenantContext';
 
 const navigationItems = [
   {
-    path: '/dashboard',
+    path: '/',
     label: 'Dashboard',
     icon: DashboardIcon,
     description: 'Executive overview and KPIs'
@@ -44,6 +44,12 @@ const navigationItems = [
     description: 'Plan and schedule content'
   },
   {
+    path: '/analytics',
+    label: 'Analytics',
+    icon: AnalyticsIcon,
+    description: 'Performance insights'
+  },
+  {
     path: '/settings',
     label: 'Settings',
     icon: SettingsIcon,
@@ -56,38 +62,43 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const { currentTenant } = useTenant();
 
   if (!currentTenant) {
     return null;
   }
 
-  const handleNavigation = (path: string) => {
-    setLocation(path);
-  };
-
   return (
-    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      <nav className="sidebar-nav">
-        <ul className="nav-list">
+    <aside className={cn(
+      "flex flex-col h-full bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transition-all duration-300",
+      isCollapsed ? "w-16" : "w-64"
+    )}>
+      <nav className="flex-1 p-4">
+        <ul className="space-y-2">
           {navigationItems.map((item) => {
             const IconComponent = item.icon;
-            const isActive = location === item.path || location.startsWith(item.path + '/');
+            const isActive = location === item.path || (item.path !== '/' && location.startsWith(item.path));
             
             return (
-              <li key={item.path} className="nav-item">
-                <Button
-                  variant={isActive ? "secondary" : "ghost"}
-                  className={`nav-link ${isActive ? 'active' : ''}`}
-                  onClick={() => handleNavigation(item.path)}
-                  title={item.description}
-                >
-                  <IconComponent className="nav-icon" size={20} />
-                  {!isCollapsed && (
-                    <span className="nav-label">{item.label}</span>
-                  )}
-                </Button>
+              <li key={item.path}>
+                <Link href={item.path}>
+                  <a
+                    className={cn(
+                      "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                      "hover:bg-slate-100 dark:hover:bg-slate-700",
+                      isActive 
+                        ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100" 
+                        : "text-slate-700 dark:text-slate-300"
+                    )}
+                    title={item.description}
+                  >
+                    <IconComponent className={cn("h-5 w-5", isCollapsed ? "" : "mr-3")} />
+                    {!isCollapsed && (
+                      <span>{item.label}</span>
+                    )}
+                  </a>
+                </Link>
               </li>
             );
           })}

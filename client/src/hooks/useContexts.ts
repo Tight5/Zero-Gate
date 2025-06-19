@@ -89,7 +89,7 @@ export function useAppState() {
   const resource = useResource();
   const theme = useTheme();
   
-  const isLoading = auth.isLoading || tenant.isLoading || resource.isLoading;
+  const isLoading = auth.isLoading || tenant.loading;
   const isReady = auth.isAuthenticated && !!tenant.currentTenant && !isLoading;
   
   return {
@@ -99,7 +99,6 @@ export function useAppState() {
     theme,
     isLoading,
     isReady,
-    systemStatus: resource.status.level,
     currentUser: auth.user,
     currentTenant: tenant.currentTenant,
   };
@@ -171,18 +170,6 @@ export type {
 } from '../contexts/AuthContext';
 
 export type {
-  Tenant,
-  TenantContextType,
-} from '../contexts/TenantContext';
-
-export type {
   Theme,
   ThemeContextType,
 } from '../contexts/ThemeContext';
-
-export type {
-  SystemMetrics,
-  ResourceStatus,
-  FeatureAvailability,
-  ResourceContextType,
-} from '../contexts/ResourceContext';

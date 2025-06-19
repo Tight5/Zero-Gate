@@ -99,8 +99,16 @@ function Router() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
-      <Toaster />
+      <ThemeProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <ResourceProvider>
+              <Router />
+              <Toaster />
+            </ResourceProvider>
+          </TenantProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
