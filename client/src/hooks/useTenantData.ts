@@ -7,7 +7,7 @@ export const useTenantData = (endpoint: string, options: any = {}) => {
   
   return useQuery({
     queryKey: [endpoint, currentTenant?.id],
-    queryFn: () => apiRequest(endpoint),
+    queryFn: () => fetch(endpoint).then(res => res.json()),
     enabled: !!currentTenant && !options.disabled,
     staleTime: options.staleTime || 5 * 60 * 1000,
     gcTime: options.cacheTime || 10 * 60 * 1000,
@@ -23,18 +23,11 @@ export const useTenantMutation = (endpoint: string, options: any = {}) => {
   return useMutation({
     mutationFn: (data: any) => {
       const method = options.method || 'POST';
-      switch (method.toLowerCase()) {
-        case 'post':
-          return apiRequest(endpoint, { method: 'POST', body: data });
-        case 'put':
-          return apiRequest(endpoint, { method: 'PUT', body: data });
-        case 'patch':
-          return apiRequest(endpoint, { method: 'PATCH', body: data });
-        case 'delete':
-          return apiRequest(endpoint, { method: 'DELETE' });
-        default:
-          return apiRequest(endpoint, { method: 'POST', body: data });
-      }
+      return fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: method !== 'DELETE' ? JSON.stringify(data) : undefined,
+      }).then(res => res.json());
     },
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: [endpoint, currentTenant?.id] });
@@ -59,7 +52,7 @@ export const useTenantStats = () => {
   
   return useQuery({
     queryKey: ['tenant-stats', currentTenant?.id],
-    queryFn: () => apiRequest('/api/dashboard/stats'),
+    queryFn: () => fetch('/api/dashboard/stats').then(res => res.json()),
     enabled: !!currentTenant,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
@@ -72,21 +65,22 @@ export const useTenantSettings = () => {
   
   const query = useQuery({
     queryKey: ['tenant-settings', currentTenant?.id],
-    queryFn: () => apiRequest(`/api/tenants/${currentTenant?.id}/settings`),
+    queryFn: () => fetch(`/api/tenants/${currentTenant?.id}/settings`).then(res => res.json()),
     enabled: !!currentTenant,
     staleTime: 10 * 60 * 1000,
   });
   
   const mutation = useMutation({
     mutationFn: (settings: any) => 
-      apiRequest(`/api/tenants/${currentTenant?.id}/settings`, {
+      fetch(`/api/tenants/${currentTenant?.id}/settings`, {
         method: 'PUT',
-        body: settings
-      }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      }).then(res => res.json()),
     onSuccess: (data) => {
       queryClient.setQueryData(['tenant-settings', currentTenant?.id], data);
       if (updateTenantSettings) {
-        updateTenantSettings(data.settings);
+        updateTenantSettings(data);
       }
     },
   });

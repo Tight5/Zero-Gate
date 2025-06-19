@@ -1,7 +1,11 @@
 import React from 'react';
-import { X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 
 interface NotificationCenterProps {
   open: boolean;
@@ -11,17 +15,17 @@ interface NotificationCenterProps {
 const NotificationCenter: React.FC<NotificationCenterProps> = ({ open, onClose }) => {
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-80">
+      <SheetContent>
         <SheetHeader>
-          <SheetTitle className="flex items-center justify-between">
-            Notifications
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X size={16} />
-            </Button>
-          </SheetTitle>
+          <SheetTitle>Notifications</SheetTitle>
+          <SheetDescription>
+            Stay updated with your latest activities
+          </SheetDescription>
         </SheetHeader>
-        <div className="mt-4">
-          <p className="text-sm text-muted-foreground">No new notifications</p>
+        <div className="mt-6">
+          <p className="text-sm text-muted-foreground">
+            No new notifications
+          </p>
         </div>
       </SheetContent>
     </Sheet>

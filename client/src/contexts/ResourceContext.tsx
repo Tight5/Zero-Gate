@@ -70,7 +70,7 @@ export const ResourceProvider: React.FC<ResourceProviderProps> = ({ children }) 
   }, [memoryUsage, cpuUsage]);
 
   const isFeatureEnabled = (feature: string): boolean => {
-    return features[feature] ?? true;
+    return (features as any)[feature] ?? true;
   };
 
   const value: ResourceContextType = {

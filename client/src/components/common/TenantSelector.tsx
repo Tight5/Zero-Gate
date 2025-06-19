@@ -1,14 +1,45 @@
 import React from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useTenant } from '@/contexts/TenantContext';
 
 const TenantSelector: React.FC = () => {
-  // For now, show current tenant - will be enhanced with real tenant switching
+  const { currentTenant, availableTenants, switchTenant } = useTenant();
+
+  const handleTenantChange = async (tenantId: string) => {
+    try {
+      await switchTenant(tenantId);
+    } catch (error) {
+      console.error('Failed to switch tenant:', error);
+    }
+  };
+
+  if (availableTenants.length <= 1) {
+    return null;
+  }
+
   return (
-    <div className="flex items-center gap-2 px-3 py-1 bg-muted rounded-md">
-      <Building2 size={16} className="text-muted-foreground" />
-      <span className="text-sm font-medium">Current Tenant</span>
-    </div>
+    <Select
+      value={currentTenant?.id || ''}
+      onValueChange={handleTenantChange}
+    >
+      <SelectTrigger className="w-[200px]">
+        <SelectValue placeholder="Select tenant..." />
+      </SelectTrigger>
+      <SelectContent>
+        {availableTenants.map((tenant) => (
+          <SelectItem key={tenant.id} value={tenant.id}>
+            {tenant.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 };
 

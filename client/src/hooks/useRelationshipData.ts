@@ -16,7 +16,7 @@ export const useRelationshipData = (options: any = {}) => {
         offset: options.offset || '0'
       });
       
-      return apiRequest(`/api/relationships?${queryParams}`);
+      return fetch(`/api/relationships?${queryParams}`).then(res => res.json());
     },
     enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
     staleTime: 5 * 60 * 1000,
@@ -30,14 +30,15 @@ export const useRelationshipPath = (sourceId: string, targetId: string, options:
   
   return useQuery({
     queryKey: ['relationship-path', currentTenant?.id, sourceId, targetId],
-    queryFn: () => apiRequest('/api/relationships/discover-path', {
+    queryFn: () => fetch('/api/relationships/discover-path', {
       method: 'POST',
-      body: {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         source_id: sourceId,
         target_id: targetId,
         max_depth: options.maxDepth || 7
-      }
-    }),
+      })
+    }).then(res => res.json()),
     enabled: !!currentTenant && !!sourceId && !!targetId && isFeatureEnabled('relationship_mapping'),
     staleTime: 10 * 60 * 1000,
     retry: 1,
@@ -51,7 +52,7 @@ export const useNetworkStats = () => {
   
   return useQuery({
     queryKey: ['network-stats', currentTenant?.id],
-    queryFn: () => apiRequest('/api/relationships/network-stats'),
+    queryFn: () => fetch('/api/relationships/network-stats').then(res => res.json()),
     enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
@@ -64,7 +65,7 @@ export const useGraphData = (includeWeak = false) => {
   
   return useQuery({
     queryKey: ['graph-data', currentTenant?.id, includeWeak],
-    queryFn: () => apiRequest(`/api/relationships/graph-data?include_weak=${includeWeak}`),
+    queryFn: () => fetch(`/api/relationships/graph-data?include_weak=${includeWeak}`).then(res => res.json()),
     enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
     staleTime: 3 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -77,7 +78,11 @@ export const useCreateRelationship = () => {
   
   return useMutation({
     mutationFn: (relationshipData: any) => 
-      apiRequest('/api/relationships', { method: 'POST', body: relationshipData }),
+      fetch('/api/relationships', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(relationshipData) 
+      }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['relationships', currentTenant?.id] });
       queryClient.invalidateQueries({ queryKey: ['network-stats', currentTenant?.id] });
@@ -92,7 +97,11 @@ export const useUpdateRelationship = () => {
   
   return useMutation({
     mutationFn: ({ relationshipId, data }: { relationshipId: string; data: any }) => 
-      apiRequest(`/api/relationships/${relationshipId}`, { method: 'PUT', body: data }),
+      fetch(`/api/relationships/${relationshipId}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data) 
+      }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['relationships', currentTenant?.id] });
       queryClient.invalidateQueries({ queryKey: ['network-stats', currentTenant?.id] });
@@ -107,7 +116,7 @@ export const useDeleteRelationship = () => {
   
   return useMutation({
     mutationFn: (relationshipId: string) => 
-      apiRequest(`/api/relationships/${relationshipId}`, { method: 'DELETE' }),
+      fetch(`/api/relationships/${relationshipId}`, { method: 'DELETE' }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['relationships', currentTenant?.id] });
       queryClient.invalidateQueries({ queryKey: ['network-stats', currentTenant?.id] });
@@ -121,7 +130,7 @@ export const useRelationshipSearch = (searchTerm: string, options: any = {}) => 
   
   return useQuery({
     queryKey: ['relationship-search', currentTenant?.id, searchTerm],
-    queryFn: () => apiRequest(`/api/relationships/search?q=${encodeURIComponent(searchTerm)}`),
+    queryFn: () => fetch(`/api/relationships/search?q=${encodeURIComponent(searchTerm)}`).then(res => res.json()),
     enabled: !!currentTenant && !!searchTerm && searchTerm.length > 2,
     staleTime: 30 * 1000,
     ...options
