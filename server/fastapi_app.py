@@ -1,6 +1,7 @@
 """
-FastAPI application with JWT authentication and comprehensive RESTful API
-Provides modern authentication endpoints and full CRUD operations for sponsors, grants, and relationships
+Zero Gate ESO Platform - FastAPI Application with JWT Authentication
+Complete implementation with tenant context and role-based permissions
+Based on attached assets specifications
 """
 
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -10,6 +11,7 @@ from fastapi.security import HTTPBearer
 import uvicorn
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 # Import authentication modules
 from auth.routes import auth_router
@@ -20,49 +22,43 @@ from auth.jwt_auth import (
     require_manager,
     require_user,
     require_viewer,
-    TokenData
+    TokenData,
+    auth_service
 )
-
-# Import API route modules
-from api.sponsors import router as sponsors_router
-from api.grants import router as grants_router
-from api.relationships import router as relationships_router
 
 # Database setup
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan management"""
     # Startup
-    print("Starting FastAPI JWT Authentication Service")
-    print("JWT authentication endpoints available at /auth/*")
+    print("🚀 Starting Zero Gate ESO Platform - FastAPI JWT Authentication Service")
+    print("📡 JWT authentication endpoints available at /auth/*")
+    print("🔒 Role-based access control: viewer < user < manager < admin < owner")
+    print("🏢 Multi-tenant support with complete data isolation")
     yield
     # Shutdown
-    print("Shutting down FastAPI JWT Authentication Service")
+    print("🛑 Shutting down Zero Gate ESO Platform FastAPI Service")
 
 # Create FastAPI app
 app = FastAPI(
-    title="Zero Gate ESO Platform - Complete API",
-    description="Comprehensive RESTful API with JWT authentication, tenant context, and full CRUD operations for sponsors, grants, and relationships including seven-degree path discovery",
-    version="2.0.0",
-    docs_url="/api-docs",
-    redoc_url="/api-redoc",
+    title="Zero Gate ESO Platform - JWT Authentication API",
+    description="Complete JWT authentication system with multi-tenant support, role-based permissions (admin, manager, user, viewer), and secure tenant context management for the Zero Gate ESO Platform",
+    version="3.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=lifespan,
     openapi_tags=[
         {
             "name": "authentication",
-            "description": "JWT-based authentication with role-based permissions"
+            "description": "JWT-based authentication with tenant context and role-based permissions"
         },
         {
-            "name": "sponsors",
-            "description": "Sponsor management with tier classification and metrics"
+            "name": "user-management", 
+            "description": "User profile and tenant management operations"
         },
         {
-            "name": "grants",
-            "description": "Grant tracking with timeline analysis and milestone management"
-        },
-        {
-            "name": "relationships",
-            "description": "Relationship mapping with seven-degree path discovery and network analytics"
+            "name": "protected-endpoints",
+            "description": "Role-based protected endpoints for testing access control"
         }
     ]
 )
@@ -82,11 +78,8 @@ app.add_middleware(
     allowed_hosts=["*"]  # Configure appropriately for production
 )
 
-# Include all routers
+# Include authentication router
 app.include_router(auth_router)
-app.include_router(sponsors_router)
-app.include_router(grants_router)
-app.include_router(relationships_router)
 
 # Health check endpoint
 @app.get("/health")
