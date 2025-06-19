@@ -17,7 +17,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  if (!isAuthenticated || !currentTenant) {
+  // Development mode: always render layout
+  if (process.env.NODE_ENV === "development") {
+    // Skip authentication check in development
+  } else if (!isAuthenticated || !currentTenant) {
     return null;
   }
 

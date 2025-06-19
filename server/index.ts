@@ -133,30 +133,6 @@ app.put('/api/tenants/:tenantId/settings', (req: Request, res: Response) => {
   res.json(settings);
 });
 
-// Setup Vite development server or static files
-if (process.env.NODE_ENV === "development") {
-  log("Development mode - setting up Vite");
-  setupVite(app);
-} else {
-  log("Production mode - serving static files");
-  serveStatic(app);
-}
-
-const port = process.env.PORT || 5000;
-app.listen(port, "0.0.0.0", () => {
-  log(`Express server running on port ${port}`);
-});
-    email: 'developer@zerogate.dev',
-    firstName: 'Developer',
-    lastName: 'User',
-    profileImageUrl: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    tenants: []
-  };
-  res.json(user);
-});
-
 // Simple login/logout for development
 app.get('/api/login', (req: Request, res: Response) => {
   res.redirect('/dashboard');
@@ -208,15 +184,22 @@ app.get('/api/relationships/network', (req: Request, res: Response) => {
   });
 });
 
-// Setup Vite for development
-if (process.env.NODE_ENV === "development") {
-  setupVite(app);
-} else {
-  serveStatic(app);
-}
+// Setup server and Vite
+const setupServer = async () => {
+  const port = Number(process.env.PORT) || 5000;
+  const server = app.listen(port, "0.0.0.0", () => {
+    log(`Express server running on port ${port}`);
+    log("Debug mode active - simplified authentication");
+  });
+  
+  // Setup Vite with the server instance
+  if (process.env.NODE_ENV === "development") {
+    log("Development mode - setting up Vite");
+    await setupVite(app, server);
+  } else {
+    log("Production mode - serving static files");
+    serveStatic(app);
+  }
+};
 
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  log(`serving on port ${port}`);
-  log("Debug mode active - simplified authentication");
-});
+setupServer().catch(console.error);
