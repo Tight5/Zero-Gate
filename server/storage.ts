@@ -73,11 +73,34 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
+    if (!db) {
+      // Development fallback
+      return {
+        id,
+        email: 'admin@tight5digital.com',
+        firstName: 'Admin',
+        lastName: 'User',
+        profileImageUrl: '',
+        currentTenantId: 'dev-tenant-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+    
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    if (!db) {
+      // Development fallback
+      return {
+        ...userData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as User;
+    }
+    
     const [user] = await db
       .insert(users)
       .values(userData)

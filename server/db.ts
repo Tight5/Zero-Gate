@@ -5,18 +5,26 @@ import * as schema from "../shared/schema";
 
 neonConfig.webSocketConstructor = ws;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+// Development fallback handling
+let db: ReturnType<typeof drizzle> | null = null;
+let pool: Pool | null = null;
+
+try {
+  if (process.env.DATABASE_URL) {
+    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    db = drizzle({ client: pool, schema });
+    console.log("Database connected successfully");
+  } else if (process.env.NODE_ENV === "development") {
+    console.log("Development mode: DATABASE_URL not configured, using fallbacks");
+  } else {
+    throw new Error("DATABASE_URL must be set in production");
+  }
+} catch (error) {
+  if (process.env.NODE_ENV === "development") {
+    console.log("Development mode: Database connection failed, using fallbacks");
+  } else {
+    throw error;
+  }
 }
 
-// Configure connection pool with memory optimization
-export const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  max: 5, // Limit max connections to prevent memory bloat
-  idleTimeoutMillis: 30000, // Close idle connections after 30s
-  connectionTimeoutMillis: 5000, // Timeout connection attempts after 5s
-});
-
-export const db = drizzle({ client: pool, schema });
+export { pool, db };
