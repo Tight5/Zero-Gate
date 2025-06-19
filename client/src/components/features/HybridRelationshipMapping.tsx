@@ -92,10 +92,10 @@ export default function HybridRelationshipMapping() {
     data: networkData, 
     isLoading: networkLoading,
     error: networkError
-  } = useRelationshipData<NetworkData>('/api/relationships/network', {
+  } = useRelationshipData('/api/relationships/network', {
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 60 * 1000 // 1 minute
-  });
+  }) as { data: NetworkData | undefined; isLoading: boolean; error: any };
 
   // Path discovery mutation
   const pathDiscoveryMutation = useMutation({
@@ -162,7 +162,7 @@ export default function HybridRelationshipMapping() {
     const { width, height } = ctx.canvas;
 
     // Filter nodes and edges based on criteria
-    const filteredNodes = nodes.filter(node => {
+    const filteredNodes = nodes.filter((node: RelationshipNode) => {
       if (options.filterType !== 'all' && node.type !== options.filterType) return false;
       if (searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       return true;
@@ -317,7 +317,7 @@ export default function HybridRelationshipMapping() {
       });
 
       // Apply forces
-      nodes.forEach(node => {
+      nodes.forEach((node: RelationshipNode) => {
         const pos = positions.get(node.id)!;
         const force = forces.get(node.id)!;
         
@@ -389,7 +389,7 @@ export default function HybridRelationshipMapping() {
     pathData: PathDiscoveryResult,
     positions: Map<string, { x: number; y: number }>
   ) => {
-    pathData.paths.forEach((path, pathIndex) => {
+    pathData.paths.forEach((path: any, pathIndex: number) => {
       const hue = (pathIndex * 60) % 360;
       ctx.strokeStyle = `hsl(${hue}, 70%, 50%)`;
       ctx.lineWidth = 4;
@@ -607,9 +607,9 @@ export default function HybridRelationshipMapping() {
                 </CardHeader>
                 <CardContent>
                   {networkData?.nodes
-                    .sort((a, b) => b.centrality_score - a.centrality_score)
+                    .sort((a: RelationshipNode, b: RelationshipNode) => b.centrality_score - a.centrality_score)
                     .slice(0, 5)
-                    .map(node => (
+                    .map((node: RelationshipNode) => (
                       <div key={node.id} className="flex justify-between items-center py-2">
                         <span className="font-medium">{node.name}</span>
                         <Badge variant="secondary">
@@ -626,9 +626,9 @@ export default function HybridRelationshipMapping() {
                 </CardHeader>
                 <CardContent>
                   {networkData?.nodes
-                    .sort((a, b) => b.influence_score - a.influence_score)
+                    .sort((a: RelationshipNode, b: RelationshipNode) => b.influence_score - a.influence_score)
                     .slice(0, 5)
-                    .map(node => (
+                    .map((node: RelationshipNode) => (
                       <div key={node.id} className="flex justify-between items-center py-2">
                         <span className="font-medium">{node.name}</span>
                         <Badge variant="secondary">

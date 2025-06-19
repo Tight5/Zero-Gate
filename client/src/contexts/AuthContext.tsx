@@ -9,6 +9,7 @@ interface User {
   profileImageUrl?: string;
   createdAt: string;
   updatedAt: string;
+  tenants?: any[];
 }
 
 interface AuthContextType {

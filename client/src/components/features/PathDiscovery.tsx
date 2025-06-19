@@ -215,7 +215,7 @@ export default function PathDiscovery() {
                     {node.type}
                   </span>
                   {node.is_landmark && (
-                    <Badge size="sm" className="mt-1 text-xs">
+                    <Badge className="mt-1 text-xs">
                       Landmark
                     </Badge>
                   )}

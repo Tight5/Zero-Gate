@@ -133,7 +133,7 @@ export default function ExcelFileProcessor() {
     enabled: !!uploadMutation.data?.file_id,
     refetchInterval: (data) => {
       // Stop polling when processing is complete
-      return data?.status === 'processing' ? 2000 : false;
+      return (data as any)?.status === 'processing' ? 2000 : false;
     }
   });
 
