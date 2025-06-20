@@ -169,7 +169,7 @@ class ProcessingAgent:
                     "to": path[i + 1],
                     "type": rel_type,
                     "strength": strength,
-                    "created_at": edge_data.get('created_at', '').isoformat() if edge_data.get('created_at') else ''
+                    "created_at": edge_data.get('created_at').isoformat() if edge_data.get('created_at') and hasattr(edge_data.get('created_at'), 'isoformat') else str(edge_data.get('created_at', ''))
                 })
         
         avg_strength = sum(strengths) / len(strengths) if strengths else 0
@@ -520,8 +520,8 @@ class ProcessingAgent:
             tenant_subgraph = self.relationship_graph.subgraph(tenant_nodes)
             
             stats = {
-                "nodes": len(tenant_subgraph.nodes()),
-                "edges": len(tenant_subgraph.edges()),
+                "nodes": tenant_subgraph.number_of_nodes(),
+                "edges": tenant_subgraph.number_of_edges(),
                 "density": nx.density(tenant_subgraph),
                 "components": nx.number_connected_components(tenant_subgraph),
                 "average_clustering": nx.average_clustering(tenant_subgraph),

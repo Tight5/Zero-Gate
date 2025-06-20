@@ -23,12 +23,16 @@ def handle_operation(operation: str, data: dict):
             tenant_id = data.get('tenant_id')
             metadata = data.get('metadata', {})
             
+            # Type validation for critical parameters
+            if not all([source, target, relationship_type, tenant_id]):
+                return {'success': False, 'error': 'Missing required parameters'}
+            
             agent.add_relationship(
-                source=source,
-                target=target,
-                relationship_type=relationship_type,
-                strength=strength,
-                tenant_id=tenant_id,
+                source=str(source),
+                target=str(target),
+                relationship_type=str(relationship_type),
+                strength=float(strength),
+                tenant_id=str(tenant_id),
                 metadata=metadata
             )
             
