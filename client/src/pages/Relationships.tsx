@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import HybridRelationshipMap from '@/components/relationships/HybridRelationshipMap';
+import PathDiscoveryInterface from '@/components/features/PathDiscoveryInterface';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Network, Users, TrendingUp, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Network, Users, TrendingUp, MapPin, Route, Map } from 'lucide-react';
 
 const Relationships: React.FC = () => {
   return (
@@ -70,51 +73,43 @@ const Relationships: React.FC = () => {
         </Card>
       </div>
 
-      {/* Features Overview */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Available Analysis Tools</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Badge variant="outline" className="w-full justify-center py-2">
-                Geographic Visualization
-              </Badge>
+      {/* Analysis Tools - File 26 & 27 Implementation */}
+      <Tabs defaultValue="visualization" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="visualization" className="flex items-center gap-2">
+            <Map className="w-4 h-4" />
+            Hybrid Visualization
+          </TabsTrigger>
+          <TabsTrigger value="pathfinding" className="flex items-center gap-2">
+            <Route className="w-4 h-4" />
+            Path Discovery
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="visualization" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Hybrid Relationship Mapping</CardTitle>
               <p className="text-sm text-gray-600">
-                Interactive map showing stakeholder locations with connection overlays
+                Geographic and network visualization with interactive filtering and analysis tools.
               </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Badge variant="outline" className="w-full justify-center py-2">
-                Network Analysis
-              </Badge>
-              <p className="text-sm text-gray-600">
-                Force-directed graph with node clustering and influence scoring
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Badge variant="outline" className="w-full justify-center py-2">
-                Path Discovery
-              </Badge>
-              <p className="text-sm text-gray-600">
-                Seven-degree connection analysis with introduction templates
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Main Visualization Component - File 26 Implementation */}
-      <div className="h-[800px]">
-        <HybridRelationshipMap 
-          viewMode="hybrid"
-          onNodeClick={(node: any) => console.log('Node selected:', node.label)}
-          onLinkClick={(link: any) => console.log('Relationship selected:', link.type)}
-        />
-      </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[800px]">
+                <HybridRelationshipMap 
+                  viewMode="hybrid"
+                  onNodeClick={(node: any) => console.log('Node selected:', node.label)}
+                  onLinkClick={(link: any) => console.log('Relationship selected:', link.type)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="pathfinding" className="mt-6">
+          <PathDiscoveryInterface />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
