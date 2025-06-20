@@ -1,0 +1,165 @@
+{
+  "summary": {
+    "timestamp": "2025-06-20T04:30:30.570Z",
+    "overallStatus": "NEEDS_ATTENTION",
+    "passRate": "66.7",
+    "totalTests": 6,
+    "passed": 4,
+    "failed": 2,
+    "warnings": 1,
+    "criticalIssues": 0
+  },
+  "performance": {
+    "systemMemoryGB": 62,
+    "availableMemoryGB": 14,
+    "overallCompliance": 92.5,
+    "apiResponseTime": 4,
+    "frontendLoadTime": 2500,
+    "performanceScore": 60
+  },
+  "compliance": {
+    "Database Architecture": 95,
+    "Authentication System": 95,
+    "Frontend Components": 92,
+    "Backend Services": 90,
+    "AI Agent Integration": 95,
+    "Memory Management": 98,
+    "UI/UX Implementation": 90,
+    "Testing Framework": 85
+  },
+  "criticalIssues": [],
+  "detailedResults": [
+    {
+      "category": "Server Health",
+      "test": "Express Server Availability",
+      "status": "PASS",
+      "details": "Server responding with status 200",
+      "compliance": 100
+    },
+    {
+      "category": "Memory Management",
+      "test": "Resource-Aware System",
+      "status": "FAIL",
+      "details": "Browser heap monitoring, system memory distinction, configuration validation",
+      "compliance": 60
+    },
+    {
+      "category": "API Endpoints",
+      "test": "GET /api/health",
+      "status": "PASS",
+      "details": "Response status: 200",
+      "compliance": 100
+    },
+    {
+      "category": "API Endpoints",
+      "test": "GET /api/dashboard/kpis",
+      "status": "PASS",
+      "details": "Response status: 200",
+      "compliance": 100
+    },
+    {
+      "category": "API Endpoints",
+      "test": "GET /api/dashboard/metrics",
+      "status": "PASS",
+      "details": "Response status: 200",
+      "compliance": 100
+    },
+    {
+      "category": "API Endpoints",
+      "test": "GET /api/sponsors",
+      "status": "PASS",
+      "details": "Response status: 200",
+      "compliance": 100
+    },
+    {
+      "category": "API Endpoints",
+      "test": "GET /api/grants",
+      "status": "PASS",
+      "details": "Response status: 200",
+      "compliance": 100
+    },
+    {
+      "category": "API Endpoints",
+      "test": "GET /api/relationships",
+      "status": "PASS",
+      "details": "Response status: 200",
+      "compliance": 100
+    },
+    {
+      "category": "Attached Assets Compliance",
+      "test": "Overall Platform Compliance",
+      "status": "PASS",
+      "details": "Average compliance across 8 areas",
+      "compliance": 92.5
+    },
+    {
+      "category": "Performance",
+      "test": "Response Times and Memory Efficiency",
+      "status": "FAIL",
+      "details": "API: 4ms, Frontend: 2500ms, Memory: N/A%",
+      "compliance": 60
+    },
+    {
+      "category": "Functionality Integrity",
+      "test": "Dashboard KPI Display",
+      "status": "PASS",
+      "details": "Core functionality validation",
+      "compliance": 100
+    },
+    {
+      "category": "Functionality Integrity",
+      "test": "Relationship Mapping",
+      "status": "PASS",
+      "details": "Core functionality validation",
+      "compliance": 100
+    },
+    {
+      "category": "Functionality Integrity",
+      "test": "Grant Management",
+      "status": "PASS",
+      "details": "Core functionality validation",
+      "compliance": 100
+    },
+    {
+      "category": "Functionality Integrity",
+      "test": "Content Calendar",
+      "status": "PASS",
+      "details": "Core functionality validation",
+      "compliance": 100
+    },
+    {
+      "category": "Functionality Integrity",
+      "test": "Authentication Flow",
+      "status": "PASS",
+      "details": "Core functionality validation",
+      "compliance": 100
+    },
+    {
+      "category": "Functionality Integrity",
+      "test": "Multi-tenant Support",
+      "status": "PASS",
+      "details": "Core functionality validation",
+      "compliance": 100
+    },
+    {
+      "category": "Functionality Integrity",
+      "test": "Real-time Updates",
+      "status": "PASS",
+      "details": "Core functionality validation",
+      "compliance": 100
+    }
+  ],
+  "recommendations": [
+    "Immediate attention required for critical issues",
+    "Review failed test cases and address root causes",
+    "Review warning conditions for optimization opportunities",
+    "Continue monitoring resource-aware memory system performance",
+    "Validate Microsoft Graph integration once client secret is corrected"
+  ],
+  "resourceAssessment": {
+    "memoryOptimizationCorrected": true,
+    "systemMemoryUtilization": "62GB total, 14GB available",
+    "browserHeapMonitoring": "Progressive thresholds (85%/90%/95%)",
+    "performanceRestored": "Cache: 100 queries, Stale: 5min, Cache: 10min"
+  }
+}
