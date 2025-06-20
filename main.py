@@ -22,42 +22,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("zero-gate")
 
-# Import core modules - with fallback for development
-try:
-    from agents.orchestration import OrchestrationAgent
-    from agents.processing import ProcessingAgent
-    from agents.integration import IntegrationAgent
-    from utils.resource_monitor import ResourceMonitor
-    from utils.tenant_context import TenantMiddleware
-    from utils.database import DatabaseManager
-    from routers import sponsors, grants, relationships
-    logger.info("All core modules imported successfully")
-except ImportError as e:
-    logger.warning(f"Some modules not yet available: {e}")
-    # Create minimal fallback classes for development
-    class ResourceMonitor:
-        def __init__(self, cpu_threshold=65, memory_threshold=70):
-            self.cpu_threshold = cpu_threshold
-            self.memory_threshold = memory_threshold
-        
-        def start(self):
-            logger.info("Resource monitor started (development mode)")
-        
-        def stop(self):
-            logger.info("Resource monitor stopped (development mode)")
-        
-        def get_current_usage(self):
-            return {"cpu": 45, "memory": 60, "status": "development"}
-        
-        def get_enabled_features(self):
-            return ["core", "development"]
-    
-    class DatabaseManager:
-        async def initialize(self):
-            logger.info("Database manager initialized (development mode)")
-        
-        async def close(self):
-            logger.info("Database manager closed (development mode)")
+# Import core modules
+from utils.resource_monitor import ResourceMonitor
+from utils.database import DatabaseManager
+from agents.orchestration import OrchestrationAgent
+from agents.processing import ProcessingAgent
+from agents.integration import IntegrationAgent
+from utils.tenant_context import TenantMiddleware
+from routers import sponsors, grants, relationships
+
+logger.info("All core modules imported successfully")
 
 # Initialize resource monitor with Replit-optimized thresholds
 resource_monitor = ResourceMonitor(
