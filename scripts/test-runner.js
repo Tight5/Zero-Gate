@@ -6,9 +6,9 @@
  * Cross-references implementation against attached asset specifications
  */
 
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 class ComprehensiveTestRunner {
   constructor() {
@@ -458,4 +458,4 @@ if (args.length === 0) {
   }
 }
 
-module.exports = ComprehensiveTestRunner;
+export default ComprehensiveTestRunner;

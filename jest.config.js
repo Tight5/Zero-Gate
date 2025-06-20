@@ -6,7 +6,7 @@ export default {
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   
   // Module name mapping for path aliases
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/client/src/$1',
     '^@components/(.*)$': '<rootDir>/client/src/components/$1',
     '^@pages/(.*)$': '<rootDir>/client/src/pages/$1',
@@ -147,23 +147,6 @@ export default {
     url: 'http://localhost:3000'
   },
 
-  // Project-specific Jest configuration
-  projects: [
-    {
-      displayName: 'Client Tests',
-      testMatch: ['<rootDir>/tests/**/*.test.{js,jsx}'],
-      setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-      testEnvironment: 'jsdom'
-    },
-    {
-      displayName: 'Integration Tests',
-      testMatch: ['<rootDir>/tests/integration/**/*.test.{js,jsx}'],
-      setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-      testEnvironment: 'jsdom',
-      testTimeout: 60000
-    }
-  ],
-
   // Performance testing configuration
   maxWorkers: '50%',
   cache: true,
@@ -171,13 +154,6 @@ export default {
 
   // Snapshot configuration
   updateSnapshot: false,
-  snapshotSerializers: ['enzyme-to-json/serializer'],
-
-  // Custom matchers
-  setupFilesAfterEnv: [
-    '<rootDir>/tests/setup.js',
-    '@testing-library/jest-dom'
-  ],
 
   // Module resolution
   resolver: undefined,
