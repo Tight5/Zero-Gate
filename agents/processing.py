@@ -200,7 +200,7 @@ class ProcessingAgent:
         if not self.resource_monitor.is_feature_enabled("advanced_analytics"):
             return {"status": "disabled", "message": "Analytics disabled due to resource constraints"}
         
-        if not sponsor_data:
+        if sponsor_data is None:
             sponsor_data = {}
         
         try:
@@ -284,12 +284,3 @@ class ProcessingAgent:
         except Exception as e:
             logger.error(f"Error calculating network statistics: {str(e)}")
             return {"status": "error", "message": str(e)}
-        """Get recommended approach based on metrics"""
-        if relationship_score >= 0.8 and fulfillment_rate >= 0.8:
-            return "strategic_partnership"
-        elif relationship_score >= 0.6 and fulfillment_rate >= 0.6:
-            return "direct_engagement"
-        elif relationship_score >= 0.4:
-            return "relationship_building"
-        else:
-            return "introductory_contact"
