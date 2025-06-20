@@ -292,31 +292,37 @@ class IntegrationAgent:
                             communication_data[recipient_email]["message_count"] += 1
             
             # Calculate collaboration scores
-            total_messages = sum(data["message_count"] for data in communication_data.values())
+            numeric_counts = [data["message_count"] for data in communication_data.values() if isinstance(data["message_count"], (int, float))]
+            total_messages = sum(numeric_counts) if numeric_counts else 0
             
             for email, data in communication_data.items():
                 if total_messages > 0:
                     # Base score on message frequency
-                    frequency_score = min(1.0, data["message_count"] / total_messages * 20)
+                    message_count = float(data["message_count"]) if isinstance(data["message_count"], (int, float)) else 0.0
+                    frequency_score = min(1.0, message_count / float(total_messages) * 20)
                     
                     # Boost score for bidirectional communication
                     bidirectional_bonus = 0.0
-                    if data["sent_count"] > 0 and data["received_count"] > 0:
+                    sent_count = float(data["sent_count"]) if isinstance(data["sent_count"], (int, float)) else 0.0
+                    received_count = float(data["received_count"]) if isinstance(data["received_count"], (int, float)) else 0.0
+                    if sent_count > 0 and received_count > 0:
                         bidirectional_bonus = 0.3
                     
                     # Boost for high importance messages
-                    importance_bonus = min(0.2, data["importance_high"] / max(1, data["message_count"]) * 0.5)
+                    importance_high = float(data["importance_high"]) if isinstance(data["importance_high"], (int, float)) else 0.0
+                    importance_bonus = min(0.2, importance_high / max(1.0, message_count) * 0.5)
                     
                     # Boost for attachments (indicates collaboration)
-                    attachment_bonus = min(0.2, data["has_attachments"] / max(1, data["message_count"]) * 0.4)
+                    has_attachments = float(data["has_attachments"]) if isinstance(data["has_attachments"], (int, float)) else 0.0
+                    attachment_bonus = min(0.2, has_attachments / max(1.0, message_count) * 0.4)
                     
                     data["collaboration_score"] = min(1.0, 
                         frequency_score + bidirectional_bonus + importance_bonus + attachment_bonus
                     )
                     
                     # Calculate response rate (simplified)
-                    if data["received_count"] > 0:
-                        data["response_rate"] = min(1.0, data["sent_count"] / data["received_count"])
+                    if received_count > 0:
+                        data["response_rate"] = min(1.0, sent_count / received_count)
             
             # Convert to regular dict and sort by collaboration score
             result_data = dict(communication_data)
