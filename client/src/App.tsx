@@ -13,6 +13,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 // Import layout and pages
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
+import AdminDashboard from '@/components/admin/AdminDashboard';
 import Sponsors from '@/pages/Sponsors';
 import Grants from '@/pages/Grants';
 import Relationships from '@/pages/Relationships';
@@ -33,6 +34,8 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
+        <Route path="/admin" component={AdminDashboard} />
+        <Route path="/admin/dashboard" component={AdminDashboard} />
         <Route path="/sponsors" component={Sponsors} />
         <Route path="/grants" component={Grants} />
         <Route path="/relationships" component={Relationships} />

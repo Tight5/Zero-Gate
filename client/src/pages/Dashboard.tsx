@@ -31,7 +31,7 @@ const Dashboard: React.FC = () => {
   const { currentTenant, isAdminMode, isAdmin } = useTenant();
   
   // Fetch dashboard metrics from API
-  const { data: metrics, isLoading, error, refetch } = useQuery<DashboardMetrics>({
+  const { data: response, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard-metrics', currentTenant?.id],
     queryFn: async () => {
       const headers: HeadersInit = {
@@ -55,6 +55,9 @@ const Dashboard: React.FC = () => {
     refetchInterval: 300000, // Refresh every 5 minutes
     staleTime: 240000, // Consider stale after 4 minutes
   });
+
+  // Extract metrics from the response data structure
+  const metrics = response?.success ? response.data : null;
 
   const handleRefresh = () => {
     refetch();
