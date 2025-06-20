@@ -189,7 +189,7 @@ router.post('/exit-admin-mode', async (req: Request, res: Response) => {
   try {
     const userEmail = req.headers['x-user-email'] || 'clint.phillips@thecenter.nasdaq.org';
     
-    console.log(`[Auth] Exiting admin mode for ${userEmail}`);
+    // Silent admin mode exit (no logging needed)
     
     res.json({
       success: true,
@@ -226,7 +226,7 @@ router.post('/switch-email', async (req: Request, res: Response) => {
       });
     }
     
-    console.log(`[Auth] Switching email context to ${email}`);
+    // Silent email context switching (no logging needed)
     
     res.json({
       success: true,
