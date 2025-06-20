@@ -43,13 +43,13 @@ class FeatureFlag(Enum):
 
 @dataclass
 class ResourceThresholds:
-    """Resource usage thresholds for feature management"""
-    cpu_high: float = 80.0
-    cpu_critical: float = 95.0
-    memory_high: float = 85.0
-    memory_critical: float = 95.0
-    disk_high: float = 90.0
-    disk_critical: float = 98.0
+    """Resource usage thresholds per attached asset specifications"""
+    cpu_high: float = 65.0      # As specified in attached assets
+    cpu_critical: float = 80.0
+    memory_high: float = 70.0   # As specified in attached assets (critical requirement)
+    memory_critical: float = 85.0
+    disk_high: float = 80.0
+    disk_critical: float = 90.0
 
 @dataclass
 class WorkflowTask:

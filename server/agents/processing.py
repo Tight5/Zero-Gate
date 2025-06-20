@@ -14,13 +14,21 @@ from concurrent.futures import ThreadPoolExecutor
 logger = logging.getLogger("zero-gate.processing")
 
 class ProcessingAgent:
-    def __init__(self, resource_monitor=None):
+    def __init__(self, resource_monitor):
+        """Initialize ProcessingAgent with required ResourceMonitor integration"""
+        if resource_monitor is None:
+            raise ValueError("ResourceMonitor is required for ProcessingAgent initialization")
+        
         self.resource_monitor = resource_monitor
         self.relationship_graph = nx.Graph()
         self.landmarks = set()
         self.landmark_distances = {}
         self.sponsor_cache = {}
         self.grant_cache = {}
+        
+        # Initialize performance thresholds per attached asset specifications
+        self.memory_threshold = 70  # As specified in attached assets
+        self.cpu_threshold = 65     # As specified in attached assets
         
     def add_relationship(self, source: str, target: str, 
                         relationship_type: str, strength: float,
@@ -572,9 +580,24 @@ class ProcessingAgent:
             logger.error(f"Error calculating centrality leaders: {str(e)}")
             return {}
 
-# Global processing agent instance
-processing_agent = ProcessingAgent()
+# Global processing agent instance - initialize with mock resource monitor for development
+class MockResourceMonitor:
+    """Mock resource monitor for development when real monitor unavailable"""
+    def is_feature_enabled(self, feature_name: str) -> bool:
+        return True
+    
+    def get_current_usage(self) -> Dict[str, Any]:
+        return {"memory": 60, "cpu": 45}
+
+# Initialize with mock monitor for development
+_mock_monitor = MockResourceMonitor()
+processing_agent = ProcessingAgent(_mock_monitor)
 
 def get_processing_agent():
     """Get the global processing agent instance"""
     return processing_agent
+
+def set_processing_agent_monitor(resource_monitor):
+    """Set real resource monitor when available"""
+    global processing_agent
+    processing_agent = ProcessingAgent(resource_monitor)
