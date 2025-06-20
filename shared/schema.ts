@@ -49,6 +49,20 @@ export const tenants = pgTable("tenants", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Tenant data feeds for dynamic integration
+export const tenantDataFeeds = pgTable("tenant_data_feeds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  feedType: varchar("feed_type", { length: 50 }).notNull(), // 'microsoft365', 'crm', 'custom'
+  sourceConfig: jsonb("source_config").notNull(),
+  classificationLevel: varchar("classification_level", { length: 20 }).notNull(), // 'public', 'internal', 'confidential'
+  syncFrequency: integer("sync_frequency").default(3600), // seconds
+  lastSync: timestamp("last_sync"),
+  status: varchar("status", { length: 20 }).default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // User-Tenant relationship (many-to-many)
 export const userTenants = pgTable("user_tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -63,6 +77,9 @@ export const sponsors = pgTable("sponsors", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
+  organization: varchar("organization", { length: 255 }),
+  domain: varchar("domain", { length: 255 }), // Added for Microsoft 365 integration
+  email: varchar("email", { length: 255 }),
   type: varchar("type", { length: 100 }),
   contactInfo: jsonb("contact_info").default({}),
   relationshipManager: varchar("relationship_manager", { length: 255 }),
@@ -70,6 +87,42 @@ export const sponsors = pgTable("sponsors", {
   relationshipStrength: integer("relationship_strength").default(1),
   tags: jsonb("tags").default([]),
   notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Sponsor stakeholders from Microsoft 365 integration
+export const sponsorStakeholders = pgTable("sponsor_stakeholders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sponsorId: uuid("sponsor_id").notNull().references(() => sponsors.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  email: varchar("email", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }),
+  role: varchar("role", { length: 100 }),
+  department: varchar("department", { length: 100 }),
+  orgLevel: integer("org_level"), // management hierarchy level
+  communicationFrequency: integer("communication_frequency").default(0),
+  lastInteraction: timestamp("last_interaction"),
+  influenceScore: decimal("influence_score", { precision: 3, scale: 2 }), // 0.00 to 1.00
+  relationshipStrength: varchar("relationship_strength", { length: 20 }), // 'weak', 'moderate', 'strong'
+  sourceFeed: varchar("source_feed", { length: 50 }).default("microsoft365"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Emerging topics from communication analysis
+export const sponsorTopics = pgTable("sponsor_topics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sponsorId: uuid("sponsor_id").notNull().references(() => sponsors.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  topicName: varchar("topic_name", { length: 255 }).notNull(),
+  relevanceScore: decimal("relevance_score", { precision: 3, scale: 2 }), // 0.00 to 1.00
+  frequency: integer("frequency").default(1),
+  firstMentioned: timestamp("first_mentioned"),
+  lastMentioned: timestamp("last_mentioned"),
+  sentiment: varchar("sentiment", { length: 20 }), // 'positive', 'neutral', 'negative'
+  keywords: jsonb("keywords").default([]),
+  sourceEmails: integer("source_emails").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -179,6 +232,37 @@ export const sponsorsRelations = relations(sponsors, ({ one, many }) => ({
     references: [tenants.id],
   }),
   grants: many(grants),
+  stakeholders: many(sponsorStakeholders),
+  topics: many(sponsorTopics),
+}));
+
+export const sponsorStakeholdersRelations = relations(sponsorStakeholders, ({ one }) => ({
+  sponsor: one(sponsors, {
+    fields: [sponsorStakeholders.sponsorId],
+    references: [sponsors.id],
+  }),
+  tenant: one(tenants, {
+    fields: [sponsorStakeholders.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const sponsorTopicsRelations = relations(sponsorTopics, ({ one }) => ({
+  sponsor: one(sponsors, {
+    fields: [sponsorTopics.sponsorId],
+    references: [sponsors.id],
+  }),
+  tenant: one(tenants, {
+    fields: [sponsorTopics.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const tenantDataFeedsRelations = relations(tenantDataFeeds, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [tenantDataFeeds.tenantId],
+    references: [tenants.id],
+  }),
 }));
 
 export const grantsRelations = relations(grants, ({ one, many }) => ({
@@ -259,6 +343,24 @@ export const insertGrantMilestoneSchema = createInsertSchema(grantMilestones).om
 });
 
 export const insertRelationshipSchema = createInsertSchema(relationships).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTenantDataFeedSchema = createInsertSchema(tenantDataFeeds).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSponsorStakeholderSchema = createInsertSchema(sponsorStakeholders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSponsorTopicSchema = createInsertSchema(sponsorTopics).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
