@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '../../contexts/TenantContext';
 import AdminModeToggle from '../common/AdminModeToggle';
+import EmailSwitcher from '../common/EmailSwitcher';
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -84,6 +85,9 @@ const Header: React.FC<HeaderProps> = React.memo(({ onMenuToggle }) => {
         </div>
 
         <div className="flex flex-1 items-center justify-end space-x-2">
+          {/* Email Switcher for seamless mode switching */}
+          <EmailSwitcher />
+          
           {/* Admin Mode Toggle - only show for admin users */}
           {isAdmin && <AdminModeToggle />}
           <Button

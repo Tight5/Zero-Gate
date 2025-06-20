@@ -61,10 +61,11 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
   const ADMIN_EMAIL = 'admin@tight5digital.com';
   const TENANT_EMAIL = 'clint.phillips@thecenter.nasdaq.org';
 
-  // Check if current user is admin
+  // Check if current user is admin based on stored email context
   const isAdmin = useMemo(() => {
-    return user?.email === ADMIN_EMAIL;
-  }, [user?.email]);
+    const userEmail = localStorage.getItem('userEmail') || 'clint.phillips@thecenter.nasdaq.org';
+    return userEmail === ADMIN_EMAIL;
+  }, [user?.email, ADMIN_EMAIL]);
 
   // Initialize admin mode from localStorage
   useEffect(() => {

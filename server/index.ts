@@ -28,10 +28,31 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// Email switching endpoint for seamless mode switching
+app.post('/api/auth/switch-email', (req: Request, res: Response) => {
+  const { email } = req.body;
+  
+  if (!email || !['clint.phillips@thecenter.nasdaq.org', 'admin@tight5digital.com'].includes(email)) {
+    return res.status(400).json({
+      error: 'Invalid email',
+      message: 'Only tenant and admin emails are supported'
+    });
+  }
+  
+  res.json({
+    success: true,
+    email: email,
+    message: `Switched to ${email}`,
+    isAdmin: email === 'admin@tight5digital.com'
+  });
+});
+
 // Simple auth endpoint for development
 app.get('/api/auth/user', (req: Request, res: Response) => {
   const tenantReq = req as any;
-  const userEmail = tenantReq.userEmail || 'clint.phillips@thecenter.nasdaq.org';
+  // Check for email switching first, then fall back to header, then default
+  const requestedEmail = req.headers['x-user-email'] as string;
+  const userEmail = requestedEmail || tenantReq.userEmail || 'clint.phillips@thecenter.nasdaq.org';
   
   const user = {
     id: 'dev-user-123',
@@ -39,7 +60,7 @@ app.get('/api/auth/user', (req: Request, res: Response) => {
     firstName: userEmail === 'admin@tight5digital.com' ? 'Admin' : 'Clint',
     lastName: userEmail === 'admin@tight5digital.com' ? 'User' : 'Phillips',
     profileImageUrl: null,
-    isAdmin: tenantReq.isAdmin,
+    isAdmin: tenantReq.isAdmin || userEmail === 'admin@tight5digital.com',
     currentTenantId: tenantReq.tenantId
   };
   res.json(user);
