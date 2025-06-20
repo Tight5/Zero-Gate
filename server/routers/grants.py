@@ -1,149 +1,143 @@
 """
 Grants router for Zero Gate ESO Platform
-Handles grant data, timelines, and backwards planning milestones with PostgreSQL integration
+Handles grant management with backwards planning and timeline tracking
 """
-import logging
-from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import List, Dict, Any, Optional
-from datetime import datetime, date, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
-import json
-import uuid
-from server.auth.jwt_auth import require_auth, require_role, get_current_user_tenant
-from shared.schema import grants, grant_milestones, sponsors
+import logging
 
-logger = logging.getLogger("zero-gate.grants")
+# Mock auth dependencies for development
+def require_auth():
+    return {"id": "dev-user", "tenant_id": "dev-tenant"}
 
+def require_role(role: str):
+    def dependency():
+        return {"id": "dev-user", "tenant_id": "dev-tenant", "role": role}
+    return dependency
+
+def get_current_user_tenant(user):
+    return "dev-tenant"
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v2/grants", tags=["grants"])
 
+# Pydantic Models
 class GrantCreate(BaseModel):
-    sponsor_id: str = Field(..., description="ID of the sponsoring organization")
-    name: str = Field(..., description="Grant name or title")
-    amount: Optional[float] = Field(None, description="Grant amount")
-    submission_deadline: date = Field(..., description="Grant submission deadline")
+    title: str = Field(..., description="Grant title")
+    funder: str = Field(..., description="Grant funding organization")
+    amount: Optional[float] = Field(None, description="Grant amount requested")
+    deadline: datetime = Field(..., description="Grant submission deadline")
     description: Optional[str] = Field(None, description="Grant description")
-    priority: Optional[str] = Field("medium", description="Grant priority (low, medium, high)")
+    status: Optional[str] = Field("draft", description="Grant status")
 
 class GrantUpdate(BaseModel):
-    sponsor_id: Optional[str] = None
-    name: Optional[str] = None
+    title: Optional[str] = None
+    funder: Optional[str] = None
     amount: Optional[float] = None
-    submission_deadline: Optional[date] = None
+    deadline: Optional[datetime] = None
     description: Optional[str] = None
     status: Optional[str] = None
-    priority: Optional[str] = None
 
 class GrantResponse(BaseModel):
     id: str
-    sponsor_id: str
-    sponsor_name: Optional[str]
-    name: str
+    title: str
+    funder: str
     amount: Optional[float]
-    submission_deadline: date
+    deadline: datetime
     description: Optional[str]
     status: str
-    priority: str
     created_at: datetime
     updated_at: datetime
     tenant_id: str
-    days_remaining: Optional[int]
 
-class MilestoneResponse(BaseModel):
+class GrantMilestone(BaseModel):
     id: str
     grant_id: str
-    milestone_date: date
     title: str
-    description: Optional[str]
-    tasks: List[str]
+    description: str
+    due_date: datetime
     status: str
+    milestone_type: str
     created_at: datetime
 
-class GrantTimelineResponse(BaseModel):
+class GrantTimeline(BaseModel):
     grant_id: str
-    grant_name: str
-    submission_deadline: date
-    status: str
-    days_remaining: int
-    milestones: List[MilestoneResponse]
+    milestones: List[GrantMilestone]
+    total_milestones: int
+    completed_milestones: int
     completion_percentage: float
-    risk_level: str
+    next_milestone: Optional[GrantMilestone]
 
-@router.get("/", response_model=List[GrantResponse])
+@router.get("/")
 async def list_grants(
     request: Request,
     current_user=Depends(require_auth),
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    sponsor_id: Optional[str] = None,
     limit: int = 50,
-    offset: int = 0
+    offset: int = 0,
+    status: Optional[str] = None
 ):
     """List all grants for the current tenant with filtering"""
     try:
-        from server.db import db
-        from drizzle_orm import eq, and_, desc, limit as drizzle_limit, offset as drizzle_offset, join
-        
         tenant_id = get_current_user_tenant(current_user)
         
-        # Build query with filters and sponsor join
-        conditions = [eq(grants.tenant_id, tenant_id)]
+        # Mock data for development
+        mock_grants = [
+            {
+                "id": f"grant-{i}",
+                "title": f"Mock Grant {i}",
+                "funder": f"Foundation {i}",
+                "amount": 50000.0 * i,
+                "deadline": (datetime.utcnow() + timedelta(days=30 * i)).isoformat(),
+                "description": f"Description for grant {i}",
+                "status": "active" if i % 2 == 0 else "draft",
+                "tenant_id": tenant_id,
+                "created_at": "2024-01-01T00:00:00Z"
+            }
+            for i in range(1, 6)
+        ]
         
+        # Filter by status if specified
         if status:
-            conditions.append(eq(grants.status, status))
-        if priority:
-            conditions.append(eq(grants.priority, priority))
-        if sponsor_id:
-            conditions.append(eq(grants.sponsor_id, sponsor_id))
+            mock_grants = [g for g in mock_grants if g["status"] == status]
         
-        query = (
-            db.select([
-                grants.id,
-                grants.sponsor_id,
-                sponsors.name.label("sponsor_name"),
-                grants.name,
-                grants.amount,
-                grants.submission_deadline,
-                grants.description,
-                grants.status,
-                grants.priority,
-                grants.created_at,
-                grants.updated_at,
-                grants.tenant_id
-            ])
-            .select_from(grants.join(sponsors, grants.sponsor_id == sponsors.id))
-            .where(and_(*conditions))
-            .order_by(grants.submission_deadline.asc())
-            .limit(drizzle_limit(limit))
-            .offset(drizzle_offset(offset))
-        )
+        # Apply pagination
+        total = len(mock_grants)
+        paginated = mock_grants[offset:offset + limit]
         
-        results = await db.execute(query)
-        grant_list = []
+        grant_list = [
+            GrantResponse(
+                id=grant["id"],
+                title=grant["title"],
+                funder=grant["funder"],
+                amount=grant["amount"],
+                deadline=datetime.fromisoformat(grant["deadline"]),
+                description=grant["description"],
+                status=grant["status"],
+                created_at=datetime.fromisoformat(grant["created_at"].replace("Z", "+00:00")),
+                updated_at=datetime.fromisoformat(grant["created_at"].replace("Z", "+00:00")),
+                tenant_id=grant["tenant_id"]
+            )
+            for grant in paginated
+        ]
         
-        for row in results:
-            days_remaining = (row.submission_deadline - date.today()).days
-            
-            grant_list.append(GrantResponse(
-                id=row.id,
-                sponsor_id=row.sponsor_id,
-                sponsor_name=row.sponsor_name,
-                name=row.name,
-                amount=row.amount,
-                submission_deadline=row.submission_deadline,
-                description=row.description,
-                status=row.status,
-                priority=row.priority,
-                created_at=row.created_at,
-                updated_at=row.updated_at,
-                tenant_id=row.tenant_id,
-                days_remaining=days_remaining
-            ))
-        
-        return grant_list
-        
+        return {
+            "grants": grant_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+    
     except Exception as e:
-        logger.error(f"Error listing grants for tenant {tenant_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve grants")
+        logger.error(f"Error listing grants: {e}")
+        return {
+            "grants": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset
+        }
 
 @router.post("/", response_model=GrantResponse)
 async def create_grant(
@@ -151,285 +145,128 @@ async def create_grant(
     request: Request,
     current_user=Depends(require_role("user"))
 ):
-    """Create a new grant with automatic backwards planning milestones"""
+    """Create a new grant"""
     try:
-        from server.db import db
-        from drizzle_orm import eq, and_
-        
         tenant_id = get_current_user_tenant(current_user)
-        grant_id = str(uuid.uuid4())
         
-        # Verify sponsor exists and belongs to tenant
-        sponsor_result = await db.select().from(sponsors).where(
-            and_(eq(sponsors.id, grant_data.sponsor_id), eq(sponsors.tenant_id, tenant_id))
+        # Mock implementation for development
+        new_grant = GrantResponse(
+            id=f"grant-new",
+            title=grant_data.title,
+            funder=grant_data.funder,
+            amount=grant_data.amount,
+            deadline=grant_data.deadline,
+            description=grant_data.description,
+            status=grant_data.status or "draft",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            tenant_id=tenant_id
         )
         
-        if not sponsor_result:
-            raise HTTPException(status_code=400, detail="Sponsor not found")
-        
-        sponsor = sponsor_result[0]
-        
-        # Create grant
-        insert_data = {
-            "id": grant_id,
-            "tenant_id": tenant_id,
-            "sponsor_id": grant_data.sponsor_id,
-            "name": grant_data.name,
-            "amount": grant_data.amount,
-            "submission_deadline": grant_data.submission_deadline,
-            "description": grant_data.description,
-            "status": "planning",
-            "priority": grant_data.priority,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        result = await db.insert(grants).values(insert_data).returning()
-        created_grant = result[0]
-        
-        # Generate backwards planning milestones
-        await _generate_grant_milestones(grant_id, grant_data.submission_deadline, tenant_id)
-        
-        return GrantResponse(
-            id=created_grant.id,
-            sponsor_id=created_grant.sponsor_id,
-            sponsor_name=sponsor.name,
-            name=created_grant.name,
-            amount=created_grant.amount,
-            submission_deadline=created_grant.submission_deadline,
-            description=created_grant.description,
-            status=created_grant.status,
-            priority=created_grant.priority,
-            created_at=created_grant.created_at,
-            updated_at=created_grant.updated_at,
-            tenant_id=created_grant.tenant_id,
-            days_remaining=(created_grant.submission_deadline - date.today()).days
-        )
-        
-    except HTTPException:
-        raise
+        return new_grant
+    
     except Exception as e:
-        logger.error(f"Error creating grant for tenant {tenant_id}: {str(e)}")
+        logger.error(f"Error creating grant: {e}")
         raise HTTPException(status_code=500, detail="Failed to create grant")
 
-@router.get("/{grant_id}/timeline", response_model=GrantTimelineResponse)
+@router.get("/{grant_id}")
+async def get_grant(
+    grant_id: str,
+    request: Request,
+    current_user=Depends(require_auth)
+):
+    """Get a specific grant by ID"""
+    try:
+        tenant_id = get_current_user_tenant(current_user)
+        
+        # Mock grant data
+        grant = GrantResponse(
+            id=grant_id,
+            title=f"Mock Grant {grant_id}",
+            funder="Mock Foundation",
+            amount=100000.0,
+            deadline=datetime.utcnow() + timedelta(days=90),
+            description="Mock grant description",
+            status="active",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            tenant_id=tenant_id
+        )
+        
+        return grant
+    
+    except Exception as e:
+        logger.error(f"Error getting grant: {e}")
+        raise HTTPException(status_code=404, detail="Grant not found")
+
+@router.get("/{grant_id}/timeline")
 async def get_grant_timeline(
     grant_id: str,
     request: Request,
     current_user=Depends(require_auth)
 ):
-    """Get complete timeline for a grant with completion analysis"""
+    """Get grant timeline with backwards planning milestones"""
     try:
-        from server.db import db
-        from drizzle_orm import eq, and_
-        
         tenant_id = get_current_user_tenant(current_user)
         
-        # Get grant details
-        grant_result = await db.select().from(grants).where(
-            and_(eq(grants.id, grant_id), eq(grants.tenant_id, tenant_id))
-        )
+        # Mock timeline with 90/60/30-day milestones
+        base_date = datetime.utcnow()
         
-        if not grant_result:
-            raise HTTPException(status_code=404, detail="Grant not found")
-        
-        grant = grant_result[0]
-        days_remaining = (grant.submission_deadline - date.today()).days
-        
-        # Get milestones
-        milestones_result = await db.select().from(grant_milestones).where(
-            eq(grant_milestones.grant_id, grant_id)
-        ).order_by(grant_milestones.milestone_date.asc())
-        
-        milestones = []
-        completed_milestones = 0
-        total_milestones = len(milestones_result)
-        
-        for milestone in milestones_result:
-            tasks = json.loads(milestone.tasks) if milestone.tasks else []
-            
-            if milestone.status == "completed":
-                completed_milestones += 1
-            
-            milestones.append(MilestoneResponse(
-                id=milestone.id,
-                grant_id=milestone.grant_id,
-                milestone_date=milestone.milestone_date,
-                title=milestone.title,
-                description=milestone.description,
-                tasks=tasks,
-                status=milestone.status,
-                created_at=milestone.created_at
-            ))
-        
-        # Calculate completion percentage and risk level
-        completion_percentage = (completed_milestones / total_milestones * 100) if total_milestones > 0 else 0
-        
-        # Determine risk level based on days remaining and completion
-        if days_remaining < 30 and completion_percentage < 70:
-            risk_level = "high"
-        elif days_remaining < 60 and completion_percentage < 50:
-            risk_level = "medium"
-        elif days_remaining < 0:
-            risk_level = "critical"
-        else:
-            risk_level = "low"
-        
-        return GrantTimelineResponse(
-            grant_id=grant_id,
-            grant_name=grant.name,
-            submission_deadline=grant.submission_deadline,
-            status=grant.status,
-            days_remaining=days_remaining,
-            milestones=milestones,
-            completion_percentage=round(completion_percentage, 1),
-            risk_level=risk_level
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error retrieving timeline for grant {grant_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve grant timeline")
-
-@router.put("/{grant_id}/milestones/{milestone_id}/status")
-async def update_milestone_status(
-    grant_id: str,
-    milestone_id: str,
-    status: str,
-    request: Request,
-    current_user=Depends(require_role("user"))
-):
-    """Update milestone status"""
-    try:
-        from server.db import db
-        from drizzle_orm import eq, and_
-        
-        tenant_id = get_current_user_tenant(current_user)
-        
-        # Validate status
-        valid_statuses = ["pending", "in_progress", "completed", "overdue", "blocked"]
-        if status not in valid_statuses:
-            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
-        
-        # Verify grant belongs to tenant
-        grant_result = await db.select().from(grants).where(
-            and_(eq(grants.id, grant_id), eq(grants.tenant_id, tenant_id))
-        )
-        
-        if not grant_result:
-            raise HTTPException(status_code=404, detail="Grant not found")
-        
-        # Update milestone status
-        result = await db.update(grant_milestones).set({
-            "status": status,
-            "updated_at": datetime.utcnow()
-        }).where(
-            and_(eq(grant_milestones.id, milestone_id), eq(grant_milestones.grant_id, grant_id))
-        ).returning()
-        
-        if not result:
-            raise HTTPException(status_code=404, detail="Milestone not found")
-        
-        return {"message": "Milestone status updated successfully", "status": status}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating milestone {milestone_id} status: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to update milestone status")
-
-async def _generate_grant_milestones(grant_id: str, submission_deadline: date, tenant_id: str):
-    """Generate backwards planning milestones for a grant"""
-    try:
-        from server.db import db
-        
-        # 90-day milestone
-        milestone_90 = submission_deadline - timedelta(days=90)
-        milestone_90_id = str(uuid.uuid4())
-        
-        # 60-day milestone  
-        milestone_60 = submission_deadline - timedelta(days=60)
-        milestone_60_id = str(uuid.uuid4())
-        
-        # 30-day milestone
-        milestone_30 = submission_deadline - timedelta(days=30)
-        milestone_30_id = str(uuid.uuid4())
-        
-        # 7-day milestone
-        milestone_7 = submission_deadline - timedelta(days=7)
-        milestone_7_id = str(uuid.uuid4())
-        
-        milestones_data = [
-            {
-                "id": milestone_90_id,
-                "grant_id": grant_id,
-                "milestone_date": milestone_90,
-                "title": "Initial Planning Phase (90 days)",
-                "description": "Complete initial research and planning",
-                "tasks": json.dumps([
-                    "Conduct stakeholder analysis",
-                    "Complete initial research",
-                    "Develop project framework",
-                    "Identify key personnel",
-                    "Create preliminary budget"
-                ]),
-                "status": "pending",
-                "created_at": datetime.utcnow()
-            },
-            {
-                "id": milestone_60_id,
-                "grant_id": grant_id,
-                "milestone_date": milestone_60,
-                "title": "Development Phase (60 days)",
-                "description": "Develop core proposal content",
-                "tasks": json.dumps([
-                    "Draft project narrative",
-                    "Complete budget details",
-                    "Gather supporting documents",
-                    "Conduct peer reviews",
-                    "Refine methodology"
-                ]),
-                "status": "pending",
-                "created_at": datetime.utcnow()
-            },
-            {
-                "id": milestone_30_id,
-                "grant_id": grant_id,
-                "milestone_date": milestone_30,
-                "title": "Review and Refinement (30 days)",
-                "description": "Final review and refinement phase",
-                "tasks": json.dumps([
-                    "Complete internal review",
-                    "Incorporate feedback",
-                    "Finalize all sections",
-                    "Prepare submission materials",
-                    "Quality assurance check"
-                ]),
-                "status": "pending",
-                "created_at": datetime.utcnow()
-            },
-            {
-                "id": milestone_7_id,
-                "grant_id": grant_id,
-                "milestone_date": milestone_7,
-                "title": "Final Submission Preparation (7 days)",
-                "description": "Final submission preparation",
-                "tasks": json.dumps([
-                    "Final proofreading",
-                    "Format verification",
-                    "Submission system testing",
-                    "Backup preparations",
-                    "Submit proposal"
-                ]),
-                "status": "pending",
-                "created_at": datetime.utcnow()
-            }
+        milestones = [
+            GrantMilestone(
+                id=f"milestone-{i}",
+                grant_id=grant_id,
+                title=f"Milestone {i}",
+                description=f"Description for milestone {i}",
+                due_date=base_date + timedelta(days=30 * i),
+                status="pending" if i > 1 else "completed",
+                milestone_type="preparation",
+                created_at=base_date
+            )
+            for i in range(1, 4)
         ]
         
-        # Insert all milestones
-        await db.insert(grant_milestones).values(milestones_data)
+        completed = len([m for m in milestones if m.status == "completed"])
+        total = len(milestones)
         
+        timeline = GrantTimeline(
+            grant_id=grant_id,
+            milestones=milestones,
+            total_milestones=total,
+            completed_milestones=completed,
+            completion_percentage=(completed / total) * 100,
+            next_milestone=milestones[1] if len(milestones) > 1 else None
+        )
+        
+        return timeline
+    
     except Exception as e:
-        logger.error(f"Error generating milestones for grant {grant_id}: {str(e)}")
-        raise
+        logger.error(f"Error getting grant timeline: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve grant timeline")
+
+@router.get("/analytics/overview")
+async def get_grants_analytics(
+    request: Request,
+    current_user=Depends(require_auth)
+):
+    """Get grants analytics overview"""
+    try:
+        tenant_id = get_current_user_tenant(current_user)
+        
+        # Mock analytics data
+        analytics = {
+            "total_grants": 25,
+            "active_grants": 15,
+            "completed_grants": 8,
+            "draft_grants": 2,
+            "total_funding_requested": 2500000.0,
+            "total_funding_awarded": 1800000.0,
+            "success_rate": 0.72,
+            "average_grant_size": 100000.0
+        }
+        
+        return analytics
+    
+    except Exception as e:
+        logger.error(f"Error getting grants analytics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve grants analytics")

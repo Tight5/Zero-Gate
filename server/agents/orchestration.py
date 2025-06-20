@@ -68,7 +68,7 @@ class WorkflowTask:
     retry_count: int = 0
     max_retries: int = 3
     estimated_duration: int = 300  # seconds
-    dependencies: List[str] = None
+    dependencies: List[str] = field(default_factory=list)
     
     def __post_init__(self):
         if self.dependencies is None:
