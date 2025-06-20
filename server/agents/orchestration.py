@@ -46,8 +46,9 @@ class ResourceThresholds:
     """Resource usage thresholds per attached asset specifications"""
     cpu_high: float = 65.0      # As specified in attached assets
     cpu_critical: float = 80.0
-    memory_high: float = 70.0   # As specified in attached assets (critical requirement)
+    memory_high: float = 70.0   # CRITICAL: 70% threshold per File 45 specifications
     memory_critical: float = 85.0
+    memory_emergency: float = 90.0  # Emergency threshold for immediate intervention
     disk_high: float = 80.0
     disk_critical: float = 90.0
 
