@@ -22,6 +22,7 @@ import Debug from '@/pages/Debug';
 import Reports from '@/pages/Reports';
 import Analytics from '@/pages/Analytics';
 import Orchestration from '@/pages/Orchestration';
+import Phase2Dashboard from '@/pages/Phase2Dashboard';
 import NotFound from '@/pages/not-found';
 
 
@@ -39,6 +40,7 @@ function Router() {
         <Route path="/calendar" component={ContentCalendar} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/orchestration" component={Orchestration} />
+        <Route path="/phase2" component={Phase2Dashboard} />
         <Route path="/settings" component={Settings} />
         <Route path="/debug" component={Debug} />
         <Route path="/reports" component={Reports} />
