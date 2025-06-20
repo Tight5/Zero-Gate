@@ -147,7 +147,7 @@ def handle_operation(operation: str, data: dict):
             }
             
         elif operation == 'get_network_statistics':
-            tenant_id = data.get('tenant_id')
+            tenant_id = data.get('tenant_id') or "default-tenant"
             
             stats = agent.get_network_statistics(tenant_id=tenant_id)
             
