@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { initializeWebSocket, getWebSocketManager } from "./websocket";
 import { registerAnalyticsRoutes } from "./routes/analytics";
+import workflowRoutes from "./routes/workflows";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -222,6 +223,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register analytics routes
   registerAnalyticsRoutes(app);
+  
+  // Register workflow orchestration routes
+  app.use('/api/workflows', workflowRoutes);
   
   // WebSocket status endpoint
   app.get('/api/websocket/status', isAuthenticated, (req, res) => {

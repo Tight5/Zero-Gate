@@ -55,6 +55,12 @@ const navigationItems = [
     description: 'Advanced analytics and insights'
   },
   {
+    path: '/orchestration',
+    label: 'Orchestration',
+    icon: SettingsIcon,
+    description: 'Workflow management and monitoring'
+  },
+  {
     path: '/settings',
     label: 'Settings',
     icon: SettingsIcon,

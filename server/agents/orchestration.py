@@ -1,31 +1,25 @@
 """
 Asyncio-based Orchestration Agent for Zero Gate ESO Platform
-Manages workflow tasks with resource-aware feature toggling
+Manages workflow tasks with intelligent resource monitoring and feature toggling
 """
 
 import asyncio
 import json
-import time
-import psutil
 import logging
+import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Any
-from dataclasses import dataclass, asdict
 from enum import Enum
-import aiohttp
-import asyncpg
+from typing import Dict, List, Optional, Any, Callable
+from dataclasses import dataclass, asdict
+from concurrent.futures import ThreadPoolExecutor
+import psutil
+import threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class TaskPriority(Enum):
-    CRITICAL = 1
-    HIGH = 2
-    MEDIUM = 3
-    LOW = 4
-
-class TaskStatus(Enum):
+class WorkflowStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -33,560 +27,706 @@ class TaskStatus(Enum):
     PAUSED = "paused"
     CANCELLED = "cancelled"
 
-class FeatureState(Enum):
-    ENABLED = "enabled"
-    DISABLED = "disabled"
-    DEGRADED = "degraded"
+class Priority(Enum):
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
+
+class FeatureFlag(Enum):
+    SPONSOR_ANALYSIS = "sponsor_analysis"
+    GRANT_TIMELINE = "grant_timeline"
+    RELATIONSHIP_MAPPING = "relationship_mapping"
+    ADVANCED_ANALYTICS = "advanced_analytics"
+    EXCEL_PROCESSING = "excel_processing"
+    EMAIL_ANALYSIS = "email_analysis"
 
 @dataclass
 class ResourceThresholds:
     """Resource usage thresholds for feature management"""
-    cpu_high: float = 80.0      # Disable low priority features
-    cpu_critical: float = 90.0   # Disable medium priority features
-    memory_high: float = 85.0    # Start degrading features
-    memory_critical: float = 95.0 # Emergency mode
-    disk_high: float = 85.0      # Reduce file operations
-    response_time_high: float = 2000.0  # 2 seconds
+    cpu_high: float = 80.0
+    cpu_critical: float = 95.0
+    memory_high: float = 85.0
+    memory_critical: float = 95.0
+    disk_high: float = 90.0
+    disk_critical: float = 98.0
 
 @dataclass
 class WorkflowTask:
-    """Represents a workflow task in the orchestration system"""
-    task_id: str
-    task_type: str
-    priority: TaskPriority
+    """Individual workflow task definition"""
+    id: str
+    name: str
+    workflow_type: str
+    priority: Priority
+    status: WorkflowStatus
     tenant_id: str
-    data: Dict[str, Any]
-    status: TaskStatus = TaskStatus.PENDING
-    created_at: datetime = None
+    payload: Dict[str, Any]
+    created_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     retry_count: int = 0
     max_retries: int = 3
+    estimated_duration: int = 300  # seconds
     dependencies: List[str] = None
     
     def __post_init__(self):
-        if self.created_at is None:
-            self.created_at = datetime.utcnow()
         if self.dependencies is None:
             self.dependencies = []
 
+@dataclass
+class ResourceMetrics:
+    """System resource utilization metrics"""
+    cpu_percent: float
+    memory_percent: float
+    disk_percent: float
+    network_io: Dict[str, int]
+    timestamp: datetime
+    active_processes: int
+    load_average: List[float]
+
 class ResourceMonitor:
-    """Monitors system resources and determines feature availability"""
+    """Intelligent resource monitoring with feature management"""
     
     def __init__(self, thresholds: ResourceThresholds):
         self.thresholds = thresholds
-        self.api_url = "http://localhost:5000"
+        self.enabled_features: Dict[FeatureFlag, bool] = {
+            feature: True for feature in FeatureFlag
+        }
+        self.metrics_history: List[ResourceMetrics] = []
+        self.monitoring_active = False
+        self._monitor_task = None
         
-    async def get_system_metrics(self) -> Dict[str, float]:
-        """Get current system resource metrics"""
-        try:
-            # Get local system metrics
+    async def start_monitoring(self, interval: int = 30):
+        """Start continuous resource monitoring"""
+        self.monitoring_active = True
+        self._monitor_task = asyncio.create_task(self._monitor_loop(interval))
+        logger.info("Resource monitoring started")
+        
+    async def stop_monitoring(self):
+        """Stop resource monitoring"""
+        self.monitoring_active = False
+        if self._monitor_task:
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Resource monitoring stopped")
+        
+    async def _monitor_loop(self, interval: int):
+        """Continuous monitoring loop"""
+        while self.monitoring_active:
+            try:
+                metrics = await self._collect_metrics()
+                self.metrics_history.append(metrics)
+                
+                # Keep only last 100 metrics entries
+                if len(self.metrics_history) > 100:
+                    self.metrics_history = self.metrics_history[-100:]
+                
+                await self._evaluate_feature_toggles(metrics)
+                await asyncio.sleep(interval)
+                
+            except Exception as e:
+                logger.error(f"Error in monitoring loop: {e}")
+                await asyncio.sleep(interval)
+    
+    async def _collect_metrics(self) -> ResourceMetrics:
+        """Collect current system resource metrics"""
+        def get_sync_metrics():
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
+            network = psutil.net_io_counters()._asdict()
+            load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+            active_processes = len(psutil.pids())
             
-            # Get application metrics from health endpoint
-            async with aiohttp.ClientSession() as session:
-                try:
-                    async with session.get(f"{self.api_url}/metrics", timeout=5) as response:
-                        if response.status == 200:
-                            app_metrics = await response.json()
-                            app_memory = app_metrics.get('system', {}).get('memory', {}).get('percentage', 0)
-                        else:
-                            app_memory = 0
-                except:
-                    app_memory = 0
+            return ResourceMetrics(
+                cpu_percent=cpu_percent,
+                memory_percent=memory.percent,
+                disk_percent=disk.percent,
+                network_io=network,
+                timestamp=datetime.now(),
+                active_processes=active_processes,
+                load_average=load_avg
+            )
+        
+        # Run CPU-intensive operations in thread pool
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            metrics = await loop.run_in_executor(executor, get_sync_metrics)
             
-            return {
-                'cpu_percent': cpu_percent,
-                'memory_percent': memory.percent,
-                'app_memory_percent': app_memory,
-                'disk_percent': disk.percent,
-                'memory_available_gb': memory.available / (1024**3),
-                'timestamp': time.time()
-            }
-        except Exception as e:
-            logger.error(f"Error getting system metrics: {e}")
-            return {
-                'cpu_percent': 0,
-                'memory_percent': 0,
-                'app_memory_percent': 0,
-                'disk_percent': 0,
-                'memory_available_gb': 0,
-                'timestamp': time.time()
-            }
+        return metrics
     
-    async def determine_feature_states(self, metrics: Dict[str, float]) -> Dict[str, FeatureState]:
-        """Determine which features should be enabled based on resource usage"""
-        states = {}
+    async def _evaluate_feature_toggles(self, metrics: ResourceMetrics):
+        """Evaluate and toggle features based on resource usage"""
+        cpu_high = metrics.cpu_percent > self.thresholds.cpu_high
+        cpu_critical = metrics.cpu_percent > self.thresholds.cpu_critical
+        memory_high = metrics.memory_percent > self.thresholds.memory_high
+        memory_critical = metrics.memory_percent > self.thresholds.memory_critical
         
-        cpu = metrics['cpu_percent']
-        memory = max(metrics['memory_percent'], metrics['app_memory_percent'])
-        disk = metrics['disk_percent']
-        
-        # Core features (always enabled unless critical)
-        states['authentication'] = FeatureState.ENABLED
-        states['basic_crud'] = FeatureState.ENABLED
-        
-        # Aggressive memory management - trigger at 85% threshold
-        if memory >= 85 or cpu > self.thresholds.cpu_critical:
-            # Emergency mode - disable non-essential features immediately
-            states['relationship_mapping'] = FeatureState.DISABLED
-            states['advanced_analytics'] = FeatureState.DISABLED
-            states['background_sync'] = FeatureState.DISABLED
-            states['file_processing'] = FeatureState.DISABLED
-            states['grant_timeline_analysis'] = FeatureState.DISABLED
-            logger.warning(f"CRITICAL: Emergency memory management activated - Memory={memory}%, CPU={cpu}%")
+        # Critical resource usage - disable all non-essential features
+        if cpu_critical or memory_critical:
+            await self._disable_non_essential_features()
+            logger.warning(f"Critical resources: CPU {metrics.cpu_percent}%, Memory {metrics.memory_percent}%")
             
-        elif memory >= 80 or cpu > self.thresholds.cpu_high:
-            # High usage - aggressively degrade features
-            states['relationship_mapping'] = FeatureState.DISABLED
-            states['advanced_analytics'] = FeatureState.DISABLED
-            states['background_sync'] = FeatureState.DEGRADED
-            states['file_processing'] = FeatureState.DEGRADED
-            states['grant_timeline_analysis'] = FeatureState.DEGRADED
-            logger.warning(f"HIGH: Aggressive memory management - Memory={memory}%, CPU={cpu}%")
+        # High resource usage - disable resource-intensive features
+        elif cpu_high or memory_high:
+            await self._disable_intensive_features()
+            logger.info(f"High resources: CPU {metrics.cpu_percent}%, Memory {metrics.memory_percent}%")
             
-        elif memory >= 75:
-            # Warning level - start disabling memory-intensive features
-            states['relationship_mapping'] = FeatureState.DEGRADED
-            states['advanced_analytics'] = FeatureState.DEGRADED
-            states['background_sync'] = FeatureState.ENABLED
-            states['file_processing'] = FeatureState.ENABLED
-            states['grant_timeline_analysis'] = FeatureState.ENABLED
-            logger.info(f"WARNING: Memory management engaged - Memory={memory}%, CPU={cpu}%")
-            
+        # Normal resource usage - re-enable features
         else:
-            # Normal operation
-            states['relationship_mapping'] = FeatureState.ENABLED
-            states['advanced_analytics'] = FeatureState.ENABLED
-            states['background_sync'] = FeatureState.ENABLED
-            states['file_processing'] = FeatureState.ENABLED
-            states['grant_timeline_analysis'] = FeatureState.ENABLED
+            await self._enable_standard_features()
+    
+    async def _disable_non_essential_features(self):
+        """Disable non-essential features during critical resource usage"""
+        features_to_disable = [
+            FeatureFlag.ADVANCED_ANALYTICS,
+            FeatureFlag.EXCEL_PROCESSING,
+            FeatureFlag.EMAIL_ANALYSIS,
+            FeatureFlag.RELATIONSHIP_MAPPING
+        ]
         
-        # Disk-specific features
-        if disk > self.thresholds.disk_high:
-            states['file_processing'] = FeatureState.DISABLED
-            states['backup_operations'] = FeatureState.DISABLED
+        for feature in features_to_disable:
+            if self.enabled_features[feature]:
+                self.enabled_features[feature] = False
+                logger.warning(f"Disabled feature: {feature.value}")
+    
+    async def _disable_intensive_features(self):
+        """Disable resource-intensive features during high usage"""
+        features_to_disable = [
+            FeatureFlag.ADVANCED_ANALYTICS,
+            FeatureFlag.EXCEL_PROCESSING
+        ]
+        
+        for feature in features_to_disable:
+            if self.enabled_features[feature]:
+                self.enabled_features[feature] = False
+                logger.info(f"Disabled intensive feature: {feature.value}")
+    
+    async def _enable_standard_features(self):
+        """Re-enable standard features when resources are available"""
+        standard_features = [
+            FeatureFlag.SPONSOR_ANALYSIS,
+            FeatureFlag.GRANT_TIMELINE,
+            FeatureFlag.RELATIONSHIP_MAPPING
+        ]
+        
+        for feature in standard_features:
+            if not self.enabled_features[feature]:
+                self.enabled_features[feature] = True
+                logger.info(f"Enabled feature: {feature.value}")
+    
+    def is_feature_enabled(self, feature: FeatureFlag) -> bool:
+        """Check if a feature is currently enabled"""
+        return self.enabled_features.get(feature, False)
+    
+    def get_current_metrics(self) -> Optional[ResourceMetrics]:
+        """Get the most recent resource metrics"""
+        return self.metrics_history[-1] if self.metrics_history else None
+
+class WorkflowQueue:
+    """Priority-based workflow task queue with dependency management"""
+    
+    def __init__(self):
+        self.tasks: Dict[str, WorkflowTask] = {}
+        self.pending_queue = asyncio.PriorityQueue()
+        self.running_tasks: Dict[str, asyncio.Task] = {}
+        self.completed_tasks: List[str] = []
+        self.failed_tasks: List[str] = []
+        
+    async def add_task(self, task: WorkflowTask):
+        """Add a task to the workflow queue"""
+        self.tasks[task.id] = task
+        
+        # Check if dependencies are satisfied
+        if await self._dependencies_satisfied(task):
+            # Add to priority queue (negative priority for max-heap behavior)
+            await self.pending_queue.put((-task.priority.value, task.created_at, task.id))
+            logger.info(f"Added task to queue: {task.name} (ID: {task.id})")
         else:
-            states['backup_operations'] = FeatureState.ENABLED
+            logger.info(f"Task {task.name} waiting for dependencies: {task.dependencies}")
+    
+    async def _dependencies_satisfied(self, task: WorkflowTask) -> bool:
+        """Check if all task dependencies are completed"""
+        for dep_id in task.dependencies:
+            if dep_id not in self.completed_tasks:
+                return False
+        return True
+    
+    async def get_next_task(self) -> Optional[WorkflowTask]:
+        """Get the next highest priority task from the queue"""
+        try:
+            _, _, task_id = await asyncio.wait_for(self.pending_queue.get(), timeout=1.0)
+            task = self.tasks.get(task_id)
+            if task and task.status == WorkflowStatus.PENDING:
+                return task
+        except asyncio.TimeoutError:
+            pass
+        return None
+    
+    async def mark_completed(self, task_id: str):
+        """Mark a task as completed and check for dependent tasks"""
+        if task_id in self.tasks:
+            self.tasks[task_id].status = WorkflowStatus.COMPLETED
+            self.tasks[task_id].completed_at = datetime.now()
+            self.completed_tasks.append(task_id)
             
-        return states
+            # Check for tasks waiting on this dependency
+            await self._check_dependent_tasks(task_id)
+            
+            logger.info(f"Task completed: {task_id}")
+    
+    async def mark_failed(self, task_id: str, error_message: str):
+        """Mark a task as failed"""
+        if task_id in self.tasks:
+            task = self.tasks[task_id]
+            task.status = WorkflowStatus.FAILED
+            task.error_message = error_message
+            task.completed_at = datetime.now()
+            self.failed_tasks.append(task_id)
+            
+            logger.error(f"Task failed: {task_id} - {error_message}")
+    
+    async def _check_dependent_tasks(self, completed_task_id: str):
+        """Check for tasks that were waiting on the completed task"""
+        for task in self.tasks.values():
+            if (task.status == WorkflowStatus.PENDING and 
+                completed_task_id in task.dependencies and
+                await self._dependencies_satisfied(task)):
+                await self.pending_queue.put((-task.priority.value, task.created_at, task.id))
 
 class OrchestrationAgent:
-    """Main orchestration agent managing workflow tasks"""
+    """Main orchestration agent managing workflow execution"""
     
-    def __init__(self, db_url: str, thresholds: ResourceThresholds = None):
-        self.db_url = db_url
-        self.thresholds = thresholds or ResourceThresholds()
-        self.resource_monitor = ResourceMonitor(self.thresholds)
-        self.task_queue = asyncio.Queue()
-        self.running_tasks = {}
-        self.feature_states = {}
-        self.workers = []
-        self.is_running = False
-        self.metrics_history = []
-        self.max_history = 1000
-        
-    async def start(self, num_workers: int = 3):
-        """Start the orchestration agent"""
-        self.is_running = True
-        logger.info(f"Starting orchestration agent with {num_workers} workers")
-        
-        # Start worker tasks
-        for i in range(num_workers):
-            worker = asyncio.create_task(self._worker(f"worker-{i}"))
-            self.workers.append(worker)
-        
-        # Start monitoring task
-        monitor_task = asyncio.create_task(self._monitor_resources())
-        self.workers.append(monitor_task)
-        
-        # Start cleanup task
-        cleanup_task = asyncio.create_task(self._cleanup_completed_tasks())
-        self.workers.append(cleanup_task)
-        
-        logger.info("Orchestration agent started successfully")
-    
-    async def stop(self):
-        """Stop the orchestration agent"""
-        self.is_running = False
-        logger.info("Stopping orchestration agent...")
-        
-        # Cancel all workers
-        for worker in self.workers:
-            worker.cancel()
-        
-        # Wait for workers to finish
-        await asyncio.gather(*self.workers, return_exceptions=True)
-        
-        logger.info("Orchestration agent stopped")
-    
-    async def submit_task(self, task: WorkflowTask) -> bool:
-        """Submit a task to the workflow queue"""
-        if not self._is_feature_enabled(task.task_type):
-            logger.warning(f"Task {task.task_type} disabled due to resource constraints")
-            task.status = TaskStatus.CANCELLED
-            task.error_message = "Feature disabled due to resource constraints"
-            return False
-        
-        await self.task_queue.put(task)
-        logger.info(f"Task {task.task_id} ({task.task_type}) submitted")
-        return True
-    
-    def _is_feature_enabled(self, task_type: str) -> bool:
-        """Check if a feature is enabled based on current resource state"""
-        feature_map = {
-            'sponsor_analysis': 'advanced_analytics',
-            'relationship_mapping': 'relationship_mapping',
-            'grant_timeline': 'grant_timeline_analysis',
-            'background_sync': 'background_sync',
-            'file_processing': 'file_processing'
+    def __init__(self, max_concurrent_tasks: int = 5):
+        self.max_concurrent_tasks = max_concurrent_tasks
+        self.resource_monitor = ResourceMonitor(ResourceThresholds())
+        self.workflow_queue = WorkflowQueue()
+        self.workflow_handlers: Dict[str, Callable] = {}
+        self.running = False
+        self.stats = {
+            'total_tasks': 0,
+            'completed_tasks': 0,
+            'failed_tasks': 0,
+            'average_execution_time': 0,
+            'uptime_start': None
         }
         
-        feature = feature_map.get(task_type, 'basic_crud')
-        state = self.feature_states.get(feature, FeatureState.ENABLED)
-        return state != FeatureState.DISABLED
+        # Register default workflow handlers
+        self._register_default_handlers()
     
-    async def _worker(self, worker_name: str):
-        """Worker coroutine that processes tasks from the queue"""
-        logger.info(f"Worker {worker_name} started")
-        
-        while self.is_running:
-            try:
-                # Get task from queue with timeout
-                task = await asyncio.wait_for(self.task_queue.get(), timeout=1.0)
-                
-                # Check dependencies
-                if not await self._check_dependencies(task):
-                    # Requeue task for later
-                    await asyncio.sleep(5)
-                    await self.task_queue.put(task)
-                    continue
-                
-                # Process the task
-                self.running_tasks[task.task_id] = task
-                task.status = TaskStatus.RUNNING
-                task.started_at = datetime.utcnow()
-                
-                logger.info(f"Worker {worker_name} processing task {task.task_id}")
-                
-                try:
-                    await self._execute_task(task)
-                    task.status = TaskStatus.COMPLETED
-                    task.completed_at = datetime.utcnow()
-                    logger.info(f"Task {task.task_id} completed successfully")
-                    
-                except Exception as e:
-                    task.retry_count += 1
-                    if task.retry_count <= task.max_retries:
-                        task.status = TaskStatus.PENDING
-                        task.error_message = str(e)
-                        await asyncio.sleep(2 ** task.retry_count)  # Exponential backoff
-                        await self.task_queue.put(task)
-                        logger.warning(f"Task {task.task_id} failed, retrying ({task.retry_count}/{task.max_retries})")
-                    else:
-                        task.status = TaskStatus.FAILED
-                        task.error_message = str(e)
-                        logger.error(f"Task {task.task_id} failed permanently: {e}")
-                
-                finally:
-                    if task.task_id in self.running_tasks:
-                        del self.running_tasks[task.task_id]
-                        
-            except asyncio.TimeoutError:
-                continue
-            except Exception as e:
-                logger.error(f"Worker {worker_name} error: {e}")
-                await asyncio.sleep(1)
-    
-    async def _check_dependencies(self, task: WorkflowTask) -> bool:
-        """Check if task dependencies are satisfied"""
-        if not task.dependencies:
-            return True
-        
-        # Check if dependency tasks are completed
-        # In a real implementation, this would check a persistent store
-        return True
-    
-    async def _execute_task(self, task: WorkflowTask):
-        """Execute a specific task based on its type"""
-        handler_map = {
+    def _register_default_handlers(self):
+        """Register default workflow handlers"""
+        self.workflow_handlers.update({
             'sponsor_analysis': self._handle_sponsor_analysis,
             'grant_timeline': self._handle_grant_timeline,
             'relationship_mapping': self._handle_relationship_mapping,
-            'background_sync': self._handle_background_sync,
-            'file_processing': self._handle_file_processing
-        }
-        
-        handler = handler_map.get(task.task_type)
-        if handler:
-            await handler(task)
-        else:
-            raise ValueError(f"Unknown task type: {task.task_type}")
+            'email_analysis': self._handle_email_analysis,
+            'excel_processing': self._handle_excel_processing
+        })
     
-    async def _handle_sponsor_analysis(self, task: WorkflowTask):
-        """Handle sponsor analysis workflow task"""
-        tenant_id = task.tenant_id
-        sponsor_data = task.data.get('sponsor_data', {})
+    async def start(self):
+        """Start the orchestration agent"""
+        if self.running:
+            logger.warning("Orchestration agent is already running")
+            return
+            
+        self.running = True
+        self.stats['uptime_start'] = datetime.now()
         
-        # Simulate sponsor analysis processing
-        await asyncio.sleep(2)  # Simulate processing time
+        # Start resource monitoring
+        await self.resource_monitor.start_monitoring(interval=30)
         
-        # In degraded mode, use simplified analysis
-        if self.feature_states.get('advanced_analytics') == FeatureState.DEGRADED:
-            logger.info(f"Running simplified sponsor analysis for tenant {tenant_id}")
-            analysis_result = {
-                'sponsor_id': sponsor_data.get('id'),
-                'tier': 'unknown',
-                'engagement_score': 0.5,
-                'simplified': True
-            }
-        else:
-            logger.info(f"Running full sponsor analysis for tenant {tenant_id}")
-            # Simulate complex analysis
-            await asyncio.sleep(3)
-            analysis_result = {
-                'sponsor_id': sponsor_data.get('id'),
-                'tier': 'tier-1',
-                'engagement_score': 0.85,
-                'funding_capacity': 'high',
-                'relationship_strength': 0.9,
-                'historical_grants': 12,
-                'success_rate': 0.75
-            }
+        # Start main execution loop
+        asyncio.create_task(self._execution_loop())
         
-        task.data['analysis_result'] = analysis_result
+        logger.info("Orchestration agent started")
     
-    async def _handle_grant_timeline(self, task: WorkflowTask):
-        """Handle grant timeline analysis workflow task"""
-        tenant_id = task.tenant_id
-        grant_data = task.data.get('grant_data', {})
+    async def stop(self):
+        """Stop the orchestration agent"""
+        self.running = False
+        await self.resource_monitor.stop_monitoring()
         
-        logger.info(f"Processing grant timeline for tenant {tenant_id}")
+        # Cancel running tasks
+        for task_id, task in self.workflow_queue.running_tasks.items():
+            task.cancel()
+            logger.info(f"Cancelled running task: {task_id}")
         
-        # Simulate timeline calculation
-        await asyncio.sleep(1)
-        
-        submission_deadline = grant_data.get('submission_deadline')
-        if submission_deadline:
-            # Calculate backwards planning milestones
-            timeline = {
-                'submission_deadline': submission_deadline,
-                'milestones': [
-                    {'name': '90-day milestone', 'days_before': 90},
-                    {'name': '60-day milestone', 'days_before': 60},
-                    {'name': '30-day milestone', 'days_before': 30}
-                ]
-            }
-        else:
-            timeline = {'error': 'Missing submission deadline'}
-        
-        task.data['timeline_result'] = timeline
+        logger.info("Orchestration agent stopped")
     
-    async def _handle_relationship_mapping(self, task: WorkflowTask):
-        """Handle relationship mapping workflow task"""
-        tenant_id = task.tenant_id
-        mapping_data = task.data.get('mapping_data', {})
-        
-        # Check if relationship mapping is enabled
-        if self.feature_states.get('relationship_mapping') == FeatureState.DISABLED:
-            raise Exception("Relationship mapping disabled due to resource constraints")
-        
-        logger.info(f"Processing relationship mapping for tenant {tenant_id}")
-        
-        if self.feature_states.get('relationship_mapping') == FeatureState.DEGRADED:
-            # Simplified relationship mapping
-            await asyncio.sleep(1)
-            result = {
-                'source': mapping_data.get('source'),
-                'target': mapping_data.get('target'),
-                'path_found': True,
-                'path_length': 3,
-                'simplified': True
-            }
-        else:
-            # Full 7-degree relationship mapping
-            await asyncio.sleep(5)  # Simulate complex graph traversal
-            result = {
-                'source': mapping_data.get('source'),
-                'target': mapping_data.get('target'),
-                'path_found': True,
-                'path_length': 4,
-                'intermediary_nodes': ['node1', 'node2', 'node3'],
-                'relationship_strength': 0.7,
-                'confidence_score': 0.85
-            }
-        
-        task.data['mapping_result'] = result
-    
-    async def _handle_background_sync(self, task: WorkflowTask):
-        """Handle background synchronization tasks"""
-        tenant_id = task.tenant_id
-        sync_data = task.data.get('sync_data', {})
-        
-        logger.info(f"Processing background sync for tenant {tenant_id}")
-        
-        # Simulate sync operation
-        if self.feature_states.get('background_sync') == FeatureState.DEGRADED:
-            await asyncio.sleep(0.5)  # Quick sync
-        else:
-            await asyncio.sleep(2)    # Full sync
-        
-        task.data['sync_result'] = {'status': 'completed', 'records_synced': 150}
-    
-    async def _handle_file_processing(self, task: WorkflowTask):
-        """Handle file processing workflow task"""
-        tenant_id = task.tenant_id
-        file_data = task.data.get('file_data', {})
-        
-        if self.feature_states.get('file_processing') == FeatureState.DISABLED:
-            raise Exception("File processing disabled due to resource constraints")
-        
-        logger.info(f"Processing file for tenant {tenant_id}")
-        
-        # Simulate file processing
-        await asyncio.sleep(3)
-        
-        task.data['processing_result'] = {
-            'file_id': file_data.get('file_id'),
-            'records_processed': 200,
-            'status': 'completed'
-        }
-    
-    async def _monitor_resources(self):
-        """Monitor system resources and update feature states"""
-        while self.is_running:
+    async def _execution_loop(self):
+        """Main execution loop for processing workflow tasks"""
+        while self.running:
             try:
-                metrics = await self.resource_monitor.get_system_metrics()
-                self.feature_states = await self.resource_monitor.determine_feature_states(metrics)
-                
-                # Store metrics history
-                self.metrics_history.append({
-                    'timestamp': datetime.utcnow(),
-                    'metrics': metrics,
-                    'feature_states': {k: v.value for k, v in self.feature_states.items()}
-                })
-                
-                # Limit history size
-                if len(self.metrics_history) > self.max_history:
-                    self.metrics_history = self.metrics_history[-self.max_history:]
-                
-                # Log resource status periodically
-                if int(time.time()) % 30 == 0:  # Every 30 seconds
-                    disabled_features = [k for k, v in self.feature_states.items() 
-                                       if v == FeatureState.DISABLED]
-                    if disabled_features:
-                        logger.warning(f"Disabled features: {disabled_features}")
+                # Check if we can start new tasks
+                current_running = len(self.workflow_queue.running_tasks)
+                if current_running < self.max_concurrent_tasks:
+                    
+                    # Get next task from queue
+                    workflow_task = await self.workflow_queue.get_next_task()
+                    if workflow_task:
+                        # Check if the required feature is enabled
+                        feature_map = {
+                            'sponsor_analysis': FeatureFlag.SPONSOR_ANALYSIS,
+                            'grant_timeline': FeatureFlag.GRANT_TIMELINE,
+                            'relationship_mapping': FeatureFlag.RELATIONSHIP_MAPPING,
+                            'email_analysis': FeatureFlag.EMAIL_ANALYSIS,
+                            'excel_processing': FeatureFlag.EXCEL_PROCESSING
+                        }
+                        
+                        required_feature = feature_map.get(workflow_task.workflow_type)
+                        if required_feature and not self.resource_monitor.is_feature_enabled(required_feature):
+                            # Postpone task if feature is disabled due to resource constraints
+                            logger.info(f"Postponing task {workflow_task.id} - feature {required_feature.value} disabled")
+                            await asyncio.sleep(30)  # Wait before checking again
+                            continue
+                        
+                        # Execute task
+                        task_coroutine = self._execute_task(workflow_task)
+                        asyncio_task = asyncio.create_task(task_coroutine)
+                        self.workflow_queue.running_tasks[workflow_task.id] = asyncio_task
+                        
+                        workflow_task.status = WorkflowStatus.RUNNING
+                        workflow_task.started_at = datetime.now()
+                        
+                        logger.info(f"Started executing task: {workflow_task.name}")
                 
                 await asyncio.sleep(5)  # Check every 5 seconds
                 
             except Exception as e:
-                logger.error(f"Error in resource monitoring: {e}")
+                logger.error(f"Error in execution loop: {e}")
                 await asyncio.sleep(10)
     
-    async def _cleanup_completed_tasks(self):
-        """Clean up old completed tasks"""
-        while self.is_running:
-            try:
-                # In a real implementation, this would clean up persistent storage
-                await asyncio.sleep(300)  # Clean up every 5 minutes
-                
-            except Exception as e:
-                logger.error(f"Error in cleanup: {e}")
-                await asyncio.sleep(60)
+    async def _execute_task(self, workflow_task: WorkflowTask):
+        """Execute a single workflow task"""
+        try:
+            handler = self.workflow_handlers.get(workflow_task.workflow_type)
+            if not handler:
+                raise ValueError(f"No handler found for workflow type: {workflow_task.workflow_type}")
+            
+            # Execute the workflow handler
+            result = await handler(workflow_task)
+            
+            # Mark task as completed
+            await self.workflow_queue.mark_completed(workflow_task.id)
+            
+            # Update statistics
+            self.stats['completed_tasks'] += 1
+            execution_time = (datetime.now() - workflow_task.started_at).total_seconds()
+            self._update_average_execution_time(execution_time)
+            
+            # Remove from running tasks
+            if workflow_task.id in self.workflow_queue.running_tasks:
+                del self.workflow_queue.running_tasks[workflow_task.id]
+            
+            logger.info(f"Task execution completed: {workflow_task.name}")
+            return result
+            
+        except Exception as e:
+            # Handle task failure
+            error_message = str(e)
+            await self.workflow_queue.mark_failed(workflow_task.id, error_message)
+            
+            # Update statistics
+            self.stats['failed_tasks'] += 1
+            
+            # Remove from running tasks
+            if workflow_task.id in self.workflow_queue.running_tasks:
+                del self.workflow_queue.running_tasks[workflow_task.id]
+            
+            # Retry logic
+            if workflow_task.retry_count < workflow_task.max_retries:
+                workflow_task.retry_count += 1
+                workflow_task.status = WorkflowStatus.PENDING
+                await self.workflow_queue.add_task(workflow_task)
+                logger.info(f"Retrying task: {workflow_task.name} (attempt {workflow_task.retry_count})")
+            else:
+                logger.error(f"Task failed permanently: {workflow_task.name} - {error_message}")
     
-    def get_status(self) -> Dict[str, Any]:
-        """Get current orchestration agent status"""
-        return {
-            'is_running': self.is_running,
-            'queue_size': self.task_queue.qsize(),
-            'running_tasks': len(self.running_tasks),
-            'feature_states': {k: v.value for k, v in self.feature_states.items()},
-            'worker_count': len([w for w in self.workers if not w.done()]),
-            'last_metrics': self.metrics_history[-1] if self.metrics_history else None
-        }
+    def _update_average_execution_time(self, execution_time: float):
+        """Update running average of execution times"""
+        total_completed = self.stats['completed_tasks']
+        current_avg = self.stats['average_execution_time']
+        self.stats['average_execution_time'] = ((current_avg * (total_completed - 1)) + execution_time) / total_completed
     
-    def get_metrics_summary(self) -> Dict[str, Any]:
-        """Get summary of recent metrics"""
-        if not self.metrics_history:
-            return {}
+    async def submit_workflow(self, workflow_type: str, tenant_id: str, payload: Dict[str, Any], 
+                            priority: Priority = Priority.MEDIUM, dependencies: List[str] = None) -> str:
+        """Submit a new workflow task"""
+        task_id = f"{workflow_type}_{tenant_id}_{int(time.time() * 1000)}"
         
-        recent_metrics = self.metrics_history[-10:]  # Last 10 data points
-        
-        avg_cpu = sum(m['metrics']['cpu_percent'] for m in recent_metrics) / len(recent_metrics)
-        avg_memory = sum(m['metrics']['memory_percent'] for m in recent_metrics) / len(recent_metrics)
-        avg_app_memory = sum(m['metrics']['app_memory_percent'] for m in recent_metrics) / len(recent_metrics)
-        
-        return {
-            'average_cpu_percent': round(avg_cpu, 2),
-            'average_memory_percent': round(avg_memory, 2),
-            'average_app_memory_percent': round(avg_app_memory, 2),
-            'data_points': len(recent_metrics),
-            'time_range': f"{recent_metrics[0]['timestamp']} to {recent_metrics[-1]['timestamp']}"
-        }
-
-# Factory functions for creating workflow tasks
-def create_sponsor_analysis_task(tenant_id: str, sponsor_data: Dict[str, Any]) -> WorkflowTask:
-    return WorkflowTask(
-        task_id=f"sponsor-analysis-{int(time.time())}",
-        task_type="sponsor_analysis",
-        priority=TaskPriority.HIGH,
-        tenant_id=tenant_id,
-        data={'sponsor_data': sponsor_data}
-    )
-
-def create_grant_timeline_task(tenant_id: str, grant_data: Dict[str, Any]) -> WorkflowTask:
-    return WorkflowTask(
-        task_id=f"grant-timeline-{int(time.time())}",
-        task_type="grant_timeline",
-        priority=TaskPriority.MEDIUM,
-        tenant_id=tenant_id,
-        data={'grant_data': grant_data}
-    )
-
-def create_relationship_mapping_task(tenant_id: str, source: str, target: str) -> WorkflowTask:
-    return WorkflowTask(
-        task_id=f"relationship-mapping-{int(time.time())}",
-        task_type="relationship_mapping",
-        priority=TaskPriority.LOW,
-        tenant_id=tenant_id,
-        data={'mapping_data': {'source': source, 'target': target}}
-    )
-
-if __name__ == "__main__":
-    async def main():
-        # Example usage
-        thresholds = ResourceThresholds(
-            cpu_high=70.0,
-            cpu_critical=85.0,
-            memory_high=80.0,
-            memory_critical=90.0
+        task = WorkflowTask(
+            id=task_id,
+            name=f"{workflow_type.replace('_', ' ').title()}",
+            workflow_type=workflow_type,
+            priority=priority,
+            status=WorkflowStatus.PENDING,
+            tenant_id=tenant_id,
+            payload=payload,
+            created_at=datetime.now(),
+            dependencies=dependencies or []
         )
         
-        agent = OrchestrationAgent("postgresql://localhost/test", thresholds)
+        await self.workflow_queue.add_task(task)
+        self.stats['total_tasks'] += 1
         
-        try:
-            await agent.start(num_workers=2)
-            
-            # Submit some test tasks
-            sponsor_task = create_sponsor_analysis_task("tenant-1", {"id": "sponsor-123"})
-            await agent.submit_task(sponsor_task)
-            
-            timeline_task = create_grant_timeline_task("tenant-1", {
-                "id": "grant-456",
-                "submission_deadline": "2024-12-31"
-            })
-            await agent.submit_task(timeline_task)
-            
-            # Run for a while
-            await asyncio.sleep(30)
-            
-            print("Agent Status:", agent.get_status())
-            print("Metrics Summary:", agent.get_metrics_summary())
-            
-        finally:
-            await agent.stop()
+        logger.info(f"Submitted workflow: {workflow_type} for tenant {tenant_id}")
+        return task_id
+    
+    def register_workflow_handler(self, workflow_type: str, handler: Callable):
+        """Register a custom workflow handler"""
+        self.workflow_handlers[workflow_type] = handler
+        logger.info(f"Registered workflow handler: {workflow_type}")
+    
+    async def get_workflow_status(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Get the status of a specific workflow task"""
+        task = self.workflow_queue.tasks.get(task_id)
+        if task:
+            return {
+                'id': task.id,
+                'name': task.name,
+                'status': task.status.value,
+                'progress': self._calculate_progress(task),
+                'created_at': task.created_at.isoformat(),
+                'started_at': task.started_at.isoformat() if task.started_at else None,
+                'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+                'error_message': task.error_message,
+                'retry_count': task.retry_count
+            }
+        return None
+    
+    def _calculate_progress(self, task: WorkflowTask) -> float:
+        """Calculate task progress percentage"""
+        if task.status == WorkflowStatus.COMPLETED:
+            return 100.0
+        elif task.status == WorkflowStatus.FAILED:
+            return 0.0
+        elif task.status == WorkflowStatus.RUNNING and task.started_at:
+            elapsed = (datetime.now() - task.started_at).total_seconds()
+            return min(90.0, (elapsed / task.estimated_duration) * 100.0)
+        return 0.0
+    
+    async def get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive system status"""
+        current_metrics = self.resource_monitor.get_current_metrics()
+        
+        return {
+            'agent_status': 'running' if self.running else 'stopped',
+            'uptime': (datetime.now() - self.stats['uptime_start']).total_seconds() if self.stats['uptime_start'] else 0,
+            'statistics': self.stats,
+            'queue_status': {
+                'pending_tasks': self.workflow_queue.pending_queue.qsize(),
+                'running_tasks': len(self.workflow_queue.running_tasks),
+                'completed_tasks': len(self.workflow_queue.completed_tasks),
+                'failed_tasks': len(self.workflow_queue.failed_tasks)
+            },
+            'resource_metrics': asdict(current_metrics) if current_metrics else None,
+            'enabled_features': {flag.value: enabled for flag, enabled in self.resource_monitor.enabled_features.items()},
+            'max_concurrent_tasks': self.max_concurrent_tasks
+        }
+    
+    # Default workflow handlers
+    async def _handle_sponsor_analysis(self, task: WorkflowTask) -> Dict[str, Any]:
+        """Handle sponsor analysis workflow"""
+        payload = task.payload
+        sponsor_id = payload.get('sponsor_id')
+        
+        logger.info(f"Processing sponsor analysis for sponsor: {sponsor_id}")
+        
+        # Simulate sponsor analysis processing
+        await asyncio.sleep(2)  # Simulate processing time
+        
+        return {
+            'sponsor_id': sponsor_id,
+            'analysis_completed': True,
+            'metrics': {
+                'relationship_strength': 85,
+                'funding_probability': 0.7,
+                'response_time_days': 14,
+                'influence_score': 92
+            },
+            'recommendations': [
+                'Schedule follow-up meeting within 2 weeks',
+                'Prepare detailed project proposal',
+                'Include sustainability metrics'
+            ]
+        }
+    
+    async def _handle_grant_timeline(self, task: WorkflowTask) -> Dict[str, Any]:
+        """Handle grant timeline workflow"""
+        payload = task.payload
+        grant_id = payload.get('grant_id')
+        
+        logger.info(f"Processing grant timeline for grant: {grant_id}")
+        
+        # Simulate timeline processing
+        await asyncio.sleep(3)
+        
+        return {
+            'grant_id': grant_id,
+            'timeline_generated': True,
+            'milestones': [
+                {
+                    'milestone': '90-day checkpoint',
+                    'due_date': (datetime.now() + timedelta(days=90)).isoformat(),
+                    'tasks': ['Research completion', 'Partner identification', 'Budget finalization']
+                },
+                {
+                    'milestone': '60-day checkpoint',
+                    'due_date': (datetime.now() + timedelta(days=60)).isoformat(),
+                    'tasks': ['Proposal draft', 'Stakeholder review', 'Technical specifications']
+                },
+                {
+                    'milestone': '30-day checkpoint',
+                    'due_date': (datetime.now() + timedelta(days=30)).isoformat(),
+                    'tasks': ['Final review', 'Submission preparation', 'Quality assurance']
+                }
+            ],
+            'risk_assessment': 'Medium',
+            'completion_probability': 0.8
+        }
+    
+    async def _handle_relationship_mapping(self, task: WorkflowTask) -> Dict[str, Any]:
+        """Handle relationship mapping workflow"""
+        payload = task.payload
+        source_entity = payload.get('source_entity')
+        target_entity = payload.get('target_entity')
+        
+        logger.info(f"Processing relationship mapping: {source_entity} -> {target_entity}")
+        
+        # Simulate relationship analysis
+        await asyncio.sleep(4)
+        
+        return {
+            'source_entity': source_entity,
+            'target_entity': target_entity,
+            'mapping_completed': True,
+            'path_analysis': {
+                'shortest_path_length': 3,
+                'path_confidence': 0.85,
+                'intermediate_connections': [
+                    'Microsoft Foundation',
+                    'Tech Innovation Hub'
+                ],
+                'relationship_strength': 'Strong'
+            },
+            'network_metrics': {
+                'centrality_score': 0.78,
+                'influence_radius': 5,
+                'connection_quality': 'High'
+            }
+        }
+    
+    async def _handle_email_analysis(self, task: WorkflowTask) -> Dict[str, Any]:
+        """Handle email analysis workflow"""
+        payload = task.payload
+        email_batch_id = payload.get('email_batch_id')
+        
+        logger.info(f"Processing email analysis for batch: {email_batch_id}")
+        
+        # Simulate email processing
+        await asyncio.sleep(5)
+        
+        return {
+            'email_batch_id': email_batch_id,
+            'analysis_completed': True,
+            'processed_emails': 156,
+            'relationship_updates': 23,
+            'sentiment_analysis': {
+                'positive': 78,
+                'neutral': 67,
+                'negative': 11
+            },
+            'key_insights': [
+                'Increased engagement from tech sector sponsors',
+                'Growing interest in sustainability projects',
+                'Need for more detailed funding timelines'
+            ]
+        }
+    
+    async def _handle_excel_processing(self, task: WorkflowTask) -> Dict[str, Any]:
+        """Handle Excel file processing workflow"""
+        payload = task.payload
+        file_path = payload.get('file_path')
+        processing_type = payload.get('processing_type', 'data_extraction')
+        
+        logger.info(f"Processing Excel file: {file_path}")
+        
+        # Simulate Excel processing
+        await asyncio.sleep(3)
+        
+        return {
+            'file_path': file_path,
+            'processing_type': processing_type,
+            'processing_completed': True,
+            'extracted_records': 245,
+            'data_quality_score': 0.92,
+            'identified_entities': {
+                'sponsors': 45,
+                'grants': 78,
+                'relationships': 156
+            },
+            'validation_results': {
+                'valid_records': 239,
+                'invalid_records': 6,
+                'duplicate_records': 12
+            }
+        }
+
+# Global orchestration agent instance
+orchestration_agent = OrchestrationAgent()
+
+async def initialize_orchestration():
+    """Initialize the orchestration agent"""
+    await orchestration_agent.start()
+    return orchestration_agent
+
+async def shutdown_orchestration():
+    """Shutdown the orchestration agent"""
+    await orchestration_agent.stop()
+
+if __name__ == "__main__":
+    # Example usage
+    async def main():
+        # Initialize orchestration agent
+        agent = await initialize_orchestration()
+        
+        # Submit some example workflows
+        task1_id = await agent.submit_workflow(
+            'sponsor_analysis',
+            'nasdaq-center',
+            {'sponsor_id': 'microsoft-foundation'},
+            Priority.HIGH
+        )
+        
+        task2_id = await agent.submit_workflow(
+            'grant_timeline',
+            'nasdaq-center',
+            {'grant_id': 'tech-innovation-2025'},
+            Priority.MEDIUM
+        )
+        
+        task3_id = await agent.submit_workflow(
+            'relationship_mapping',
+            'nasdaq-center',
+            {
+                'source_entity': 'nasdaq-foundation',
+                'target_entity': 'community-tech-center'
+            },
+            Priority.MEDIUM,
+            dependencies=[task1_id]  # Depends on sponsor analysis
+        )
+        
+        # Wait for some processing
+        await asyncio.sleep(30)
+        
+        # Check system status
+        status = await agent.get_system_status()
+        print(f"System Status: {json.dumps(status, indent=2, default=str)}")
+        
+        # Shutdown
+        await shutdown_orchestration()
     
     asyncio.run(main())

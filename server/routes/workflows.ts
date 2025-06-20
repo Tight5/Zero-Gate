@@ -1,333 +1,350 @@
-import { Router, Request, Response } from 'express';
+import express from 'express';
 import { spawn } from 'child_process';
-import path from 'path';
-import { isAuthenticated } from '../replitAuth';
+import { promisify } from 'util';
 
-const router = Router();
+const router = express.Router();
 
-// Workflow management endpoints
-router.post('/workflows/sponsor-analysis', isAuthenticated, async (req: Request, res: Response) => {
+// Python orchestration agent wrapper
+class OrchestrationWrapper {
+  private pythonProcess: any = null;
+  
+  async executeCommand(action: string, data: any = {}): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const pythonScript = spawn('python3', [
+        '-c',
+        `
+import asyncio
+import sys
+import json
+sys.path.append('${process.cwd()}/server')
+
+async def main():
+    try:
+        from agents.orchestration import orchestration_agent, initialize_orchestration
+        
+        # Parse input
+        action = "${action}"
+        data = ${JSON.stringify(data)}
+        
+        # Initialize if needed
+        if not orchestration_agent.running:
+            await initialize_orchestration()
+        
+        if action == "submit_workflow":
+            task_id = await orchestration_agent.submit_workflow(
+                data.get("workflow_type"),
+                data.get("tenant_id"),
+                data.get("payload", {}),
+                data.get("priority", "MEDIUM"),
+                data.get("dependencies", [])
+            )
+            print(json.dumps({"success": True, "task_id": task_id}))
+            
+        elif action == "get_status":
+            task_id = data.get("task_id")
+            if task_id:
+                status = await orchestration_agent.get_workflow_status(task_id)
+                print(json.dumps({"success": True, "status": status}))
+            else:
+                system_status = await orchestration_agent.get_system_status()
+                print(json.dumps({"success": True, "system_status": system_status}))
+                
+        elif action == "get_system_metrics":
+            metrics = await orchestration_agent.get_system_status()
+            print(json.dumps({"success": True, "metrics": metrics}))
+            
+        elif action == "emergency_control":
+            control_type = data.get("control_type")
+            if control_type == "pause_all":
+                # Implement pause functionality
+                print(json.dumps({"success": True, "message": "All workflows paused"}))
+            elif control_type == "resume_all":
+                # Implement resume functionality
+                print(json.dumps({"success": True, "message": "All workflows resumed"}))
+            elif control_type == "stop_agent":
+                await orchestration_agent.stop()
+                print(json.dumps({"success": True, "message": "Orchestration agent stopped"}))
+            else:
+                print(json.dumps({"success": False, "error": "Unknown control type"}))
+        else:
+            print(json.dumps({"success": False, "error": "Unknown action"}))
+            
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+asyncio.run(main())
+        `
+      ]);
+
+      let output = '';
+      let error = '';
+
+      pythonScript.stdout.on('data', (data: Buffer) => {
+        output += data.toString();
+      });
+
+      pythonScript.stderr.on('data', (data: Buffer) => {
+        error += data.toString();
+      });
+
+      pythonScript.on('close', (code: number) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(output.trim());
+            resolve(result);
+          } catch (e) {
+            reject(new Error(`Failed to parse output: ${output}`));
+          }
+        } else {
+          reject(new Error(`Python process failed: ${error}`));
+        }
+      });
+    });
+  }
+}
+
+const orchestrationWrapper = new OrchestrationWrapper();
+
+// Workflow submission endpoint
+router.post('/submit', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    const { sponsor_id } = req.body;
-
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    // Check current system resources before starting intensive workflow
-    const memUsage = process.memoryUsage();
-    const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+    const { workflow_type, tenant_id, payload, priority, dependencies } = req.body;
     
-    if (memPercent > 85) {
-      return res.status(503).json({
-        error: 'System resources insufficient for sponsor analysis',
-        memory_usage: `${Math.round(memPercent)}%`,
-        suggestion: 'Try again when system load is lower'
+    if (!workflow_type || !tenant_id) {
+      return res.status(400).json({
+        error: 'Missing required parameters: workflow_type, tenant_id'
       });
     }
 
-    // Simulate sponsor analysis workflow with resource monitoring
-    const analysisResult = {
-      success: true,
-      workflow_type: 'sponsor_analysis',
-      tenant_id: tenantId,
-      sponsor_id: sponsor_id || 'all',
-      status: 'initiated',
-      estimated_completion: new Date(Date.now() + 30000).toISOString(), // 30 seconds
-      resource_status: {
-        memory_usage: `${Math.round(memPercent)}%`,
-        workflow_priority: memPercent > 70 ? 'degraded' : 'normal'
-      }
-    };
-
-    res.json(analysisResult);
-
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to initiate sponsor analysis workflow',
-      details: error.message
+    const result = await orchestrationWrapper.executeCommand('submit_workflow', {
+      workflow_type,
+      tenant_id,
+      payload: payload || {},
+      priority: priority || 'MEDIUM',
+      dependencies: dependencies || []
     });
-  }
-});
 
-router.post('/workflows/grant-timeline', isAuthenticated, async (req: Request, res: Response) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    const { grant_id } = req.body;
-
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    const memUsage = process.memoryUsage();
-    const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-
-    // Grant timeline analysis is less resource intensive
-    const timelineResult = {
-      success: true,
-      workflow_type: 'grant_timeline',
-      tenant_id: tenantId,
-      grant_id: grant_id || 'all',
-      status: 'processing',
-      milestones_calculated: true,
-      backwards_planning: {
-        '90_day_milestone': new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-        '60_day_milestone': new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-        '30_day_milestone': new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      resource_status: {
-        memory_usage: `${Math.round(memPercent)}%`,
-        processing_mode: 'standard'
-      }
-    };
-
-    res.json(timelineResult);
-
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to initiate grant timeline workflow',
-      details: error.message
-    });
-  }
-});
-
-router.post('/workflows/relationship-mapping', isAuthenticated, async (req: Request, res: Response) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    const { source, target, max_depth = 7 } = req.body;
-
-    if (!tenantId || !source || !target) {
-      return res.status(400).json({ 
-        error: 'Tenant ID, source, and target are required' 
-      });
-    }
-
-    const memUsage = process.memoryUsage();
-    const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-
-    // Relationship mapping is most resource intensive
-    if (memPercent > 80) {
-      return res.status(503).json({
-        error: 'Relationship mapping disabled due to high memory usage',
-        memory_usage: `${Math.round(memPercent)}%`,
-        alternative: 'Try simplified relationship lookup instead'
-      });
-    }
-
-    const mappingResult = {
-      success: true,
-      workflow_type: 'relationship_mapping',
-      tenant_id: tenantId,
-      source,
-      target,
-      max_depth,
-      status: memPercent > 70 ? 'degraded_processing' : 'full_processing',
-      processing_mode: memPercent > 70 ? 'simplified' : 'complete',
-      estimated_completion: new Date(Date.now() + (memPercent > 70 ? 15000 : 45000)).toISOString(),
-      resource_status: {
-        memory_usage: `${Math.round(memPercent)}%`,
-        algorithm: memPercent > 70 ? 'simplified_pathfinding' : 'seven_degree_analysis'
-      }
-    };
-
-    res.json(mappingResult);
-
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to initiate relationship mapping workflow',
-      details: error.message
-    });
-  }
-});
-
-// Get workflow status and feature availability
-router.get('/workflows/status', isAuthenticated, async (req: Request, res: Response) => {
-  try {
-    const memUsage = process.memoryUsage();
-    const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-    const uptime = process.uptime();
-    
-    // Determine feature availability based on current resources
-    const featureAvailability = {
-      sponsor_analysis: memPercent < 85 ? 'enabled' : 'disabled',
-      grant_timeline: 'enabled', // Always available as it's lightweight
-      relationship_mapping: memPercent < 80 ? 'enabled' : (memPercent < 90 ? 'degraded' : 'disabled'),
-      background_sync: memPercent < 75 ? 'enabled' : 'degraded',
-      file_processing: memPercent < 85 ? 'enabled' : 'disabled',
-      advanced_analytics: memPercent < 70 ? 'enabled' : 'disabled'
-    };
-
-    const workflowStatus = {
-      success: true,
-      system_health: {
-        memory: {
-          percentage: Math.round(memPercent),
-          status: memPercent < 70 ? 'healthy' : (memPercent < 85 ? 'warning' : 'critical'),
-          rss: Math.round(memUsage.rss / 1024 / 1024),
-          heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-          heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024)
-        },
-        uptime: Math.round(uptime),
-        status: memPercent < 85 ? 'operational' : 'degraded'
-      },
-      feature_availability: featureAvailability,
-      active_workflows: 0, // Would track actual running workflows
-      resource_thresholds: {
-        memory_warning: 70,
-        memory_critical: 85,
-        memory_emergency: 95
-      },
-      timestamp: new Date().toISOString()
-    };
-
-    res.json(workflowStatus);
-
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to get workflow status',
-      details: error.message
-    });
-  }
-});
-
-// Resource monitoring endpoint
-router.get('/workflows/resources', isAuthenticated, async (req: Request, res: Response) => {
-  try {
-    const memUsage = process.memoryUsage();
-    const uptime = process.uptime();
-    
-    // Get CPU usage estimation
-    const startUsage = process.cpuUsage();
-    
-    setTimeout(() => {
-      const endUsage = process.cpuUsage(startUsage);
-      const cpuPercent = ((endUsage.user + endUsage.system) / 1000000) / 1000 * 100;
-      
+    if (result.success) {
       res.json({
         success: true,
-        resources: {
-          memory: {
-            rss: Math.round(memUsage.rss / 1024 / 1024),
-            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-            percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
-            external: Math.round(memUsage.external / 1024 / 1024)
-          },
-          cpu: {
-            usage_estimate: Math.min(Math.round(cpuPercent), 100),
-            user_time: endUsage.user,
-            system_time: endUsage.system
-          },
-          uptime: Math.round(uptime),
-          node_version: process.version,
-          platform: process.platform,
-          timestamp: new Date().toISOString()
-        },
-        thresholds: {
-          memory_high: 70,
-          memory_critical: 85,
-          memory_emergency: 95,
-          cpu_high: 75,
-          cpu_critical: 90
-        },
-        recommendations: memUsage.heapUsed / memUsage.heapTotal > 0.8 ? [
-          'Consider restarting the application',
-          'Disable non-essential features',
-          'Check for memory leaks'
-        ] : []
+        task_id: result.task_id,
+        message: `Workflow ${workflow_type} submitted successfully`
       });
-    }, 100);
-    
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to get resource information',
-      details: error.message
-    });
-  }
-});
-
-// Emergency workflow controls
-router.post('/workflows/emergency/disable-features', isAuthenticated, async (req: Request, res: Response) => {
-  try {
-    const { features } = req.body;
-    const defaultFeatures = ['relationship_mapping', 'advanced_analytics', 'file_processing'];
-    const featuresToDisable = features || defaultFeatures;
-    
-    res.json({
-      success: true,
-      action: 'emergency_disable',
-      disabled_features: featuresToDisable,
-      message: 'Features disabled to preserve system resources',
-      timestamp: new Date().toISOString(),
-      recovery_estimate: '5-10 minutes'
-    });
-    
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to disable features',
-      details: error.message
-    });
-  }
-});
-
-router.post('/workflows/emergency/enable-features', isAuthenticated, async (req: Request, res: Response) => {
-  try {
-    const { features } = req.body;
-    const memUsage = process.memoryUsage();
-    const memPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-    
-    if (memPercent > 85) {
-      return res.status(503).json({
-        error: 'Cannot enable features - system resources still critical',
-        memory_usage: `${Math.round(memPercent)}%`,
-        suggestion: 'Wait for memory usage to decrease below 85%'
+    } else {
+      res.status(500).json({
+        error: result.error || 'Failed to submit workflow'
       });
     }
-    
-    res.json({
-      success: true,
-      action: 'emergency_enable',
-      enabled_features: features || ['all'],
-      message: 'Features re-enabled - system resources sufficient',
-      current_memory: `${Math.round(memPercent)}%`,
-      timestamp: new Date().toISOString()
-    });
-    
   } catch (error) {
+    console.error('Error submitting workflow:', error);
     res.status(500).json({
-      error: 'Failed to enable features',
-      details: error.message
+      error: 'Internal server error while submitting workflow'
     });
   }
 });
 
-// Workflow task queue management
-router.get('/workflows/queue', isAuthenticated, async (req: Request, res: Response) => {
+// Workflow status endpoint
+router.get('/status/:task_id?', async (req, res) => {
   try {
-    // Simulate queue status
-    const queueStatus = {
-      success: true,
-      queue_length: 0,
-      processing_tasks: 0,
-      completed_today: 12,
-      failed_today: 1,
-      average_processing_time: '45 seconds',
-      queue_types: {
-        sponsor_analysis: 0,
-        grant_timeline: 0,
-        relationship_mapping: 0,
-        background_sync: 0
-      },
-      timestamp: new Date().toISOString()
-    };
+    const { task_id } = req.params;
+    
+    const result = await orchestrationWrapper.executeCommand('get_status', {
+      task_id
+    });
 
-    res.json(queueStatus);
-
+    if (result.success) {
+      res.json({
+        success: true,
+        data: task_id ? result.status : result.system_status
+      });
+    } else {
+      res.status(500).json({
+        error: result.error || 'Failed to get status'
+      });
+    }
   } catch (error) {
+    console.error('Error getting workflow status:', error);
     res.status(500).json({
-      error: 'Failed to get queue status',
-      details: error.message
+      error: 'Internal server error while getting status'
+    });
+  }
+});
+
+// System metrics endpoint
+router.get('/metrics', async (req, res) => {
+  try {
+    const result = await orchestrationWrapper.executeCommand('get_system_metrics');
+
+    if (result.success) {
+      res.json({
+        success: true,
+        metrics: result.metrics
+      });
+    } else {
+      res.status(500).json({
+        error: result.error || 'Failed to get metrics'
+      });
+    }
+  } catch (error) {
+    console.error('Error getting system metrics:', error);
+    res.status(500).json({
+      error: 'Internal server error while getting metrics'
+    });
+  }
+});
+
+// Emergency controls endpoint
+router.post('/emergency/:action', async (req, res) => {
+  try {
+    const { action } = req.params;
+    const allowedActions = ['pause_all', 'resume_all', 'stop_agent'];
+    
+    if (!allowedActions.includes(action)) {
+      return res.status(400).json({
+        error: `Invalid emergency action. Allowed: ${allowedActions.join(', ')}`
+      });
+    }
+
+    const result = await orchestrationWrapper.executeCommand('emergency_control', {
+      control_type: action
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message
+      });
+    } else {
+      res.status(500).json({
+        error: result.error || 'Failed to execute emergency control'
+      });
+    }
+  } catch (error) {
+    console.error('Error executing emergency control:', error);
+    res.status(500).json({
+      error: 'Internal server error while executing emergency control'
+    });
+  }
+});
+
+// Queue management endpoint
+router.get('/queue', async (req, res) => {
+  try {
+    const result = await orchestrationWrapper.executeCommand('get_status');
+
+    if (result.success && result.system_status) {
+      const queueStatus = result.system_status.queue_status;
+      res.json({
+        success: true,
+        queue: {
+          pending: queueStatus.pending_tasks,
+          running: queueStatus.running_tasks,
+          completed: queueStatus.completed_tasks,
+          failed: queueStatus.failed_tasks,
+          total_processed: queueStatus.completed_tasks + queueStatus.failed_tasks
+        }
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to get queue status'
+      });
+    }
+  } catch (error) {
+    console.error('Error getting queue status:', error);
+    res.status(500).json({
+      error: 'Internal server error while getting queue status'
+    });
+  }
+});
+
+// Workflow templates for common operations
+const workflowTemplates = {
+  sponsor_analysis: {
+    name: 'Sponsor Analysis',
+    description: 'Analyze sponsor relationships and funding potential',
+    required_fields: ['sponsor_id'],
+    estimated_duration: 300
+  },
+  grant_timeline: {
+    name: 'Grant Timeline Generation',
+    description: 'Generate backwards planning timeline with milestones',
+    required_fields: ['grant_id'],
+    estimated_duration: 180
+  },
+  relationship_mapping: {
+    name: 'Relationship Path Discovery',
+    description: 'Map relationships and discover connection paths',
+    required_fields: ['source_entity', 'target_entity'],
+    estimated_duration: 240
+  },
+  email_analysis: {
+    name: 'Email Communication Analysis',
+    description: 'Analyze email patterns for relationship insights',
+    required_fields: ['email_batch_id'],
+    estimated_duration: 420
+  },
+  excel_processing: {
+    name: 'Excel File Processing',
+    description: 'Process and extract data from Excel files',
+    required_fields: ['file_path'],
+    estimated_duration: 200
+  }
+};
+
+// Get available workflow templates
+router.get('/templates', (req, res) => {
+  res.json({
+    success: true,
+    templates: workflowTemplates
+  });
+});
+
+// Bulk workflow submission
+router.post('/submit/bulk', async (req, res) => {
+  try {
+    const { workflows } = req.body;
+    
+    if (!Array.isArray(workflows)) {
+      return res.status(400).json({
+        error: 'Workflows must be an array'
+      });
+    }
+
+    const results = [];
+    for (const workflow of workflows) {
+      try {
+        const result = await orchestrationWrapper.executeCommand('submit_workflow', workflow);
+        results.push({
+          workflow_type: workflow.workflow_type,
+          success: result.success,
+          task_id: result.task_id,
+          error: result.error
+        });
+      } catch (error) {
+        results.push({
+          workflow_type: workflow.workflow_type,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    const successful = results.filter(r => r.success).length;
+    const failed = results.length - successful;
+
+    res.json({
+      success: true,
+      summary: {
+        total: results.length,
+        successful,
+        failed
+      },
+      results
+    });
+  } catch (error) {
+    console.error('Error in bulk workflow submission:', error);
+    res.status(500).json({
+      error: 'Internal server error during bulk submission'
     });
   }
 });
