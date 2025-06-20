@@ -95,7 +95,7 @@ router.get('/health', async (req: Request, res: Response) => {
     if (tokenResponse.ok) {
       const tokenData = await tokenResponse.json();
       const accessToken = tokenData.access_token;
-      healthStatus.authentication = { status: 'healthy', token_obtained: true };
+      healthStatus.authentication = { status: 'healthy' };
 
       // Test key endpoints
       const endpointTests = [
@@ -135,8 +135,7 @@ router.get('/health', async (req: Request, res: Response) => {
 
       healthStatus.permissions = {
         accessible_endpoints: accessibleCount,
-        total_tested: endpointTests.length,
-        details: endpointResults
+        total_tested: endpointTests.length
       };
 
       // Test data pipeline with small sample
@@ -148,9 +147,7 @@ router.get('/health', async (req: Request, res: Response) => {
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
           healthStatus.data_pipeline = {
-            status: 'healthy',
-            sample_users: usersData.value?.length || 0,
-            can_extract_organizational_data: true
+            status: 'healthy'
           };
         } else {
           healthStatus.data_pipeline = {

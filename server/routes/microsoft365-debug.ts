@@ -144,10 +144,12 @@ router.get('/organizational-data', (req: TenantRequest, res: Response) => {
   try {
     const tenant = mockOrganizationalData;
     
+    const { tenant_id: _, ...tenantData } = tenant;
+    
     res.json({
       success: true,
       tenant_id: req.tenantId || "1",
-      ...tenant,
+      ...tenantData,
       data_quality: {
         completeness: 94.7,
         accuracy: 98.2,
