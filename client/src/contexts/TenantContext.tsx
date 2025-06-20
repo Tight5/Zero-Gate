@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { useAuth } from './AuthContext';
 
 interface Tenant {
   id: string;
@@ -19,8 +20,15 @@ interface TenantContextType {
   availableTenants: Tenant[];
   loading: boolean;
   error: string | null;
+  isAdminMode: boolean;
+  isAdmin: boolean;
+  selectedTenant: string | null;
   switchTenant: (tenantId: string) => Promise<void>;
   updateTenantSettings: (settings: any) => void;
+  toggleAdminMode: () => Promise<void>;
+  enterAdminMode: () => Promise<void>;
+  exitAdminMode: () => Promise<void>;
+  getAllTenants: () => Promise<Tenant[]>;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -40,24 +48,64 @@ interface TenantProviderProps {
 // Export types for external use
 export type { Tenant, TenantContextType };
 
-export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
+export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ children }) => {
+  const { user } = useAuth();
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
+  const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
 
+  // Admin email configuration
+  const ADMIN_EMAIL = 'admin@tight5digital.com';
+  const TENANT_EMAIL = 'clint.phillips@thecenter.nasdaq.org';
+
+  // Check if current user is admin
+  const isAdmin = useMemo(() => {
+    return user?.email === ADMIN_EMAIL;
+  }, [user?.email]);
+
+  // Initialize admin mode from localStorage
   useEffect(() => {
+    const savedAdminMode = localStorage.getItem('isAdminMode') === 'true';
+    const savedTenantId = localStorage.getItem('selectedTenant');
+    
+    if (isAdmin && savedAdminMode) {
+      setIsAdminMode(true);
+    }
+    
+    if (savedTenantId) {
+      setSelectedTenant(savedTenantId);
+    }
+    
     loadTenants();
-  }, []);
+  }, [isAdmin]);
 
-  const loadTenants = async () => {
+  const loadTenants = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/auth/user/tenants');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add admin mode header if in admin mode
+      if (isAdminMode && isAdmin) {
+        headers['X-Admin-Mode'] = 'true';
+      }
+
+      const response = await fetch('/api/auth/user/tenants', { headers });
       
       if (response.ok) {
         const data = await response.json();
         setAvailableTenants(data.tenants || []);
+        
+        // In admin mode, don't automatically set current tenant
+        if (isAdminMode && isAdmin) {
+          // Admin can see all tenants but doesn't have a "current" tenant
+          setCurrentTenant(null);
+          return;
+        }
         
         // Set current tenant from localStorage or first available
         const savedTenantId = localStorage.getItem('currentTenantId');
@@ -85,18 +133,25 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdminMode, isAdmin]);
 
-  const switchTenant = async (tenantId: string) => {
+  const switchTenant = useCallback(async (tenantId: string) => {
     try {
       setLoading(true);
       setError(null);
 
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add admin mode header if applicable
+      if (isAdminMode && isAdmin) {
+        headers['X-Admin-Mode'] = 'true';
+      }
+
       const response = await fetch('/api/auth/switch-tenant', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ tenantId }),
       });
 
@@ -104,7 +159,9 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
         const tenant = availableTenants.find(t => t.id === tenantId);
         if (tenant) {
           setCurrentTenant(tenant);
+          setSelectedTenant(tenantId);
           localStorage.setItem('currentTenantId', tenantId);
+          localStorage.setItem('selectedTenant', tenantId);
         }
       } else {
         throw new Error('Failed to switch tenant');
@@ -116,24 +173,116 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [availableTenants, isAdminMode, isAdmin]);
 
-  const updateTenantSettings = (settings: any) => {
+  const updateTenantSettings = useCallback((settings: any) => {
     if (currentTenant) {
       setCurrentTenant({
         ...currentTenant,
         settings: { ...currentTenant.settings, ...settings }
       });
     }
-  };
+  }, [currentTenant]);
+
+  // Admin mode management functions
+  const toggleAdminMode = useCallback(async () => {
+    if (!isAdmin) {
+      throw new Error('Only admin users can toggle admin mode');
+    }
+
+    try {
+      setLoading(true);
+      const newAdminMode = !isAdminMode;
+      
+      setIsAdminMode(newAdminMode);
+      localStorage.setItem('isAdminMode', newAdminMode.toString());
+      
+      if (newAdminMode) {
+        // Entering admin mode - clear current tenant
+        setCurrentTenant(null);
+        localStorage.removeItem('currentTenantId');
+      } else {
+        // Exiting admin mode - restore previous tenant or set first available
+        const savedTenantId = localStorage.getItem('selectedTenant');
+        if (savedTenantId && availableTenants.length > 0) {
+          const tenant = availableTenants.find(t => t.id === savedTenantId);
+          if (tenant) {
+            setCurrentTenant(tenant);
+            localStorage.setItem('currentTenantId', savedTenantId);
+          }
+        } else if (availableTenants.length > 0) {
+          setCurrentTenant(availableTenants[0]);
+          localStorage.setItem('currentTenantId', availableTenants[0].id);
+        }
+      }
+      
+      // Reload tenants with new context
+      await loadTenants();
+    } catch (err) {
+      console.error('Error toggling admin mode:', err);
+      setError('Failed to toggle admin mode');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, isAdminMode, availableTenants, loadTenants]);
+
+  const enterAdminMode = useCallback(async () => {
+    if (!isAdmin) {
+      throw new Error('Only admin users can enter admin mode');
+    }
+    
+    if (!isAdminMode) {
+      await toggleAdminMode();
+    }
+  }, [isAdmin, isAdminMode, toggleAdminMode]);
+
+  const exitAdminMode = useCallback(async () => {
+    if (isAdminMode) {
+      await toggleAdminMode();
+    }
+  }, [isAdminMode, toggleAdminMode]);
+
+  // Get all tenants (admin function)
+  const getAllTenants = useCallback(async (): Promise<Tenant[]> => {
+    if (!isAdmin) {
+      throw new Error('Only admin users can access all tenants');
+    }
+
+    try {
+      const response = await fetch('/api/admin/tenants', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Mode': 'true',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.tenants || [];
+      } else {
+        throw new Error('Failed to fetch all tenants');
+      }
+    } catch (err) {
+      console.error('Error fetching all tenants:', err);
+      throw err;
+    }
+  }, [isAdmin]);
 
   const value: TenantContextType = {
     currentTenant,
     availableTenants,
     loading,
     error,
+    isAdminMode,
+    isAdmin,
+    selectedTenant,
     switchTenant,
     updateTenantSettings,
+    toggleAdminMode,
+    enterAdminMode,
+    exitAdminMode,
+    getAllTenants,
   };
 
   return (
@@ -141,6 +290,4 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       {children}
     </TenantContext.Provider>
   );
-};
-
-export default TenantProvider;
+});
