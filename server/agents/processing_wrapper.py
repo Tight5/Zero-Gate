@@ -67,10 +67,13 @@ def handle_operation(operation: str, data: dict):
             }
             
         elif operation == 'find_all_paths_within_degrees':
-            source = data.get('source')
-            target = data.get('target')
-            tenant_id = data.get('tenant_id')
-            max_depth = data.get('max_depth', 7)
+            source = str(data.get('source', ''))
+            target = str(data.get('target', ''))
+            tenant_id = str(data.get('tenant_id', ''))
+            max_depth = int(data.get('max_depth', 7))
+            
+            if not all([source, target, tenant_id]):
+                return {'success': False, 'error': 'Missing required parameters'}
             
             paths = agent.find_all_paths_within_degrees(
                 source=source,
