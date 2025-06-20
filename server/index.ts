@@ -4,6 +4,7 @@ import { tenantContextMiddleware } from "./middleware/tenantMiddleware";
 import relationshipsRouter from "./routes/relationships";
 import dashboardRouter from "./routes/dashboard";
 import tenantsRouter from "./routes/tenants";
+import microsoft365DebugRouter from "./routes/microsoft365-debug";
 
 // Create Express app with API-first routing
 const app = express();
@@ -21,6 +22,7 @@ apiRouter.use(tenantContextMiddleware);
 apiRouter.use('/relationships', relationshipsRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/tenants', tenantsRouter);
+apiRouter.use('/microsoft365', microsoft365DebugRouter);
 
 // Mount the API router with highest priority
 app.use('/api', apiRouter);
