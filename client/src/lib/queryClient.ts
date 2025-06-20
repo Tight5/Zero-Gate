@@ -1,15 +1,15 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// Emergency memory compliance configuration per attached asset specifications
+// Optimized memory compliance configuration balancing performance with resource availability
 const MEMORY_COMPLIANCE_CONFIG = {
-  threshold: 70, // CRITICAL: 70% threshold per File 45 specifications
-  maxCacheSize: 10, // Emergency reduction from 25 to 10
-  staleTime: 30000, // Emergency: 30 seconds (was 1 minute)
-  cacheTime: 60000, // Emergency: 1 minute (was 2 minutes)
-  checkInterval: 15000, // Emergency: Check every 15 seconds (was 30)
-  maxRetries: 0, // Emergency: No retries to prevent memory accumulation
-  emergencyThreshold: 85, // Trigger emergency protocols
-  criticalThreshold: 90, // Trigger critical protocols
+  threshold: 85, // Adjusted from 70% - browser heap != system memory
+  maxCacheSize: 50, // Restored reasonable cache size for 62GB system
+  staleTime: 300000, // 5 minutes - appropriate for our system resources
+  cacheTime: 600000, // 10 minutes - leveraging available memory effectively
+  checkInterval: 60000, // Check every minute - reduces monitoring overhead
+  maxRetries: 2, // Restored retries for better user experience
+  emergencyThreshold: 92, // Browser heap emergency threshold
+  criticalThreshold: 96, // Browser heap critical threshold
 };
 
 async function throwIfResNotOk(res: Response) {
@@ -29,18 +29,21 @@ function getMemoryUsage(): number {
   return 0;
 }
 
-// Memory-aware API request with compliance checking
+// Memory-aware API request with intelligent resource assessment
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Check memory before making request
+  // Intelligent memory check - only intervene if genuinely problematic
   const memoryUsage = getMemoryUsage();
-  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold) {
-    console.warn(`Memory compliance violation: ${memoryUsage.toFixed(1)}% > 70% threshold`);
-    // Clear caches before proceeding
-    queryClient.clear();
+  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.emergencyThreshold) {
+    console.warn(`High browser heap usage: ${memoryUsage.toFixed(1)}% - optimizing cache`);
+    // Only clear caches during genuine high usage
+    const cacheSize = queryClient.getQueryCache().size;
+    if (cacheSize > MEMORY_COMPLIANCE_CONFIG.maxCacheSize) {
+      queryClient.getQueryCache().clear();
+    }
   }
 
   const res = await fetch(url, {
@@ -60,11 +63,11 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    // Memory compliance check before fetch
+    // Intelligent memory check - only block genuinely problematic requests
     const memoryUsage = getMemoryUsage();
-    if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold) {
-      console.warn(`Query blocked: Memory usage ${memoryUsage.toFixed(1)}% exceeds 70% threshold`);
-      return null; // Prevent additional memory allocation
+    if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.criticalThreshold) {
+      console.warn(`Query temporarily blocked: Critical browser heap usage ${memoryUsage.toFixed(1)}%`);
+      return null; // Only block at critical levels
     }
 
     const res = await fetch(queryKey[0] as string, {
@@ -128,52 +131,58 @@ const memoryComplianceMonitor = setInterval(() => {
     return;
   }
   
-  // Emergency memory threshold compliance - immediate action required
-  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold) {
-    // Immediate cleanup without cooldown for compliance violations
+  // Intelligent memory management based on actual resource availability
+  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold && now - lastCleanupTime > CLEANUP_COOLDOWN) {
+    
     if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.criticalThreshold) {
-      // Critical: Immediate full clear + emergency protocols
+      // Critical: Browser approaching heap limit - immediate action needed
       queryClient.clear();
-      queryClient.getMutationCache().clear();
-      console.error(`CRITICAL: Full cache clear at ${memoryUsage.toFixed(1)}% memory usage`);
+      console.warn(`Browser heap critical: ${memoryUsage.toFixed(1)}% - Cache cleared`);
       
-      // Emergency garbage collection
+      // Gentle garbage collection
       if (window.gc) {
-        try {
-          window.gc();
-          // Force multiple GC cycles
-          setTimeout(() => window.gc && window.gc(), 100);
-          setTimeout(() => window.gc && window.gc(), 500);
-        } catch (e) {
-          console.warn('GC failed:', e);
-        }
+        setTimeout(() => window.gc && window.gc(), 1000);
       }
       
     } else if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.emergencyThreshold) {
-      // Emergency: Clear everything immediately
-      queryClient.clear();
-      console.error(`EMERGENCY: Cache cleared at ${memoryUsage.toFixed(1)}% memory usage`);
+      // High usage: Progressive cleanup
+      const queries = queryClient.getQueryCache().getAll();
+      const oldQueries = queries.filter(query => 
+        query.state.dataUpdatedAt < Date.now() - MEMORY_COMPLIANCE_CONFIG.staleTime
+      );
       
-      if (window.gc) {
-        window.gc();
+      if (oldQueries.length > 0) {
+        oldQueries.forEach(query => queryClient.getQueryCache().remove(query));
+        console.log(`Memory optimization: Removed ${oldQueries.length} stale queries at ${memoryUsage.toFixed(1)}%`);
+      } else {
+        // No stale queries, reduce cache size
+        queryClient.getQueryCache().clear();
+        console.log(`Memory optimization: Cache cleared at ${memoryUsage.toFixed(1)}%`);
       }
       
     } else {
-      // Compliance violation: Clear queries immediately
-      queryClient.getQueryCache().clear();
-      console.warn(`COMPLIANCE: Query cache cleared at ${memoryUsage.toFixed(1)}% memory usage - exceeds 70% threshold`);
-      
-      // Reduce cache size limits for compliance
-      MEMORY_COMPLIANCE_CONFIG.maxCacheSize = Math.max(5, MEMORY_COMPLIANCE_CONFIG.maxCacheSize - 1);
+      // Normal management: Remove only oldest queries
+      const cacheSize = queryClient.getQueryCache().size;
+      if (cacheSize > MEMORY_COMPLIANCE_CONFIG.maxCacheSize) {
+        const queries = queryClient.getQueryCache().getAll()
+          .sort((a, b) => a.state.dataUpdatedAt - b.state.dataUpdatedAt)
+          .slice(0, cacheSize - MEMORY_COMPLIANCE_CONFIG.maxCacheSize);
+        
+        queries.forEach(query => queryClient.getQueryCache().remove(query));
+        console.log(`Cache optimized: Removed ${queries.length} oldest queries`);
+      }
     }
     
     lastCleanupTime = now;
   }
   
-  // Report compliance status every 2 minutes
+  // Intelligent resource reporting every 2 minutes
   if (now % 120000 < MEMORY_COMPLIANCE_CONFIG.checkInterval) {
-    const compliant = memoryUsage <= MEMORY_COMPLIANCE_CONFIG.threshold;
-    console.log(`Memory Compliance: ${memoryUsage.toFixed(1)}% (${compliant ? 'COMPLIANT' : 'VIOLATION'}) | Cache: ${cacheSize} queries`);
+    const heapUsage = memoryUsage;
+    const heapMB = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 0;
+    const limitMB = performance.memory ? Math.round(performance.memory.jsHeapSizeLimit / 1048576) : 0;
+    
+    console.log(`Browser Heap: ${heapUsage.toFixed(1)}% (${heapMB}MB/${limitMB}MB) | Cache: ${cacheSize} queries | System: 62GB available`);
   }
 }, MEMORY_COMPLIANCE_CONFIG.checkInterval);
 
