@@ -54,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenant_id: req.user?.tenant_id || 'nasdaq-center',
+          tenant_id: (req as any).user?.tenant_id || 'nasdaq-center',
           filters: {
             relationship_type: relationshipType,
             strength_threshold: parseFloat(strengthThreshold as string),
@@ -148,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenant_id: req.user?.tenant_id || 'nasdaq-center',
+          tenant_id: (req as any).user?.tenant_id || 'nasdaq-center',
           source_id: sourceId,
           target_id: targetId,
           algorithm: algorithm,

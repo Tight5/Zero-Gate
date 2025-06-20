@@ -14,13 +14,64 @@ import { useQuery } from '@tanstack/react-query';
 import { getMemoryStatus } from '@/lib/queryClient';
 import 'leaflet/dist/leaflet.css';
 
+// Type definitions for API responses
+interface RelationshipNode {
+  id: string;
+  label: string;
+  type: 'person' | 'organization' | 'sponsor' | 'grantmaker' | 'influencer';
+  lat?: number;
+  lng?: number;
+  connections: number;
+  centrality_score: number;
+  color?: string;
+  size?: number;
+  opacity?: number;
+}
+
+interface RelationshipLink {
+  id: string;
+  source: string;
+  target: string;
+  strength: number;
+  type: string;
+  color?: string;
+  width?: number;
+  opacity?: number;
+}
+
+interface GraphData {
+  nodes: RelationshipNode[];
+  links: RelationshipLink[];
+  stats: {
+    node_count: number;
+    edge_count: number;
+    avg_strength?: number;
+    network_density?: number;
+  };
+}
+
+interface PathData {
+  path_found: boolean;
+  path_length: number;
+  path: string[];
+  path_quality: string;
+  confidence_score: number;
+  relationship_analysis: {
+    average_strength: number;
+    minimum_strength: number;
+    relationship_types: string[];
+  };
+  geographic_path?: [number, number][];
+  edges?: string[];
+}
+
 // Memory-compliant data fetching with automatic degradation
 const useRelationshipData = (filters: any) => {
-  return useQuery({
+  return useQuery<GraphData>({
     queryKey: ['/api/relationships/graph', filters],
     enabled: getMemoryStatus().compliant,
     staleTime: 300000, // 5 minutes for memory compliance
-    select: (data) => {
+    select: (data: GraphData) => {
       // Memory-optimized data transformation
       const memoryStatus = getMemoryStatus();
       if (!memoryStatus.compliant) {
@@ -37,7 +88,7 @@ const useRelationshipData = (filters: any) => {
 };
 
 const usePathDiscovery = (sourceId: string, targetId: string, enabled: boolean) => {
-  return useQuery({
+  return useQuery<PathData>({
     queryKey: ['/api/relationships/path-discovery', sourceId, targetId],
     enabled: enabled && getMemoryStatus().compliant,
     staleTime: 600000, // 10 minutes for expensive path calculations
