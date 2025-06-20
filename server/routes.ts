@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { registerProcessingRoutes } from "./routes/processing";
 import { initializeWebSocket, getWebSocketManager } from "./websocket";
 import { registerAnalyticsRoutes } from "./routes/analytics";
 import workflowRoutes from "./routes/workflows";
@@ -266,6 +267,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to trigger update' });
     }
   });
+
+  // Register ProcessingAgent routes for NetworkX-based relationship graph management
+  registerProcessingRoutes(app);
 
   return httpServer;
 }

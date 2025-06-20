@@ -1,604 +1,580 @@
 """
-ProcessingAgent: Advanced relationship graph processing using NetworkX
-Handles sponsor metrics, grant timeline generation, and path discovery algorithms
+Processing Agent for Zero Gate ESO Platform
+Handles NetworkX-based relationship graph management, sponsor metrics, and grant timeline generation
 """
-
-import asyncio
-import json
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any, Set
-from dataclasses import dataclass, asdict
-from collections import defaultdict, deque
 import networkx as nx
-import math
+import pandas as pd
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Tuple
+import json
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-@dataclass
-class Sponsor:
-    id: str
-    name: str
-    tier: str  # 'platinum', 'gold', 'silver', 'bronze'
-    contact_strength: float  # 0.0 to 1.0
-    funding_capacity: int
-    response_rate: float
-    last_contact: datetime
-    industries: List[str]
-    location: str
-    tenant_id: str
-
-@dataclass
-class Grant:
-    id: str
-    title: str
-    sponsor_id: str
-    amount: int
-    submission_deadline: datetime
-    status: str  # 'active', 'submitted', 'awarded', 'rejected'
-    requirements: List[str]
-    tenant_id: str
-
-@dataclass
-class Relationship:
-    source_id: str
-    target_id: str
-    strength: float  # 0.0 to 1.0
-    relationship_type: str  # 'professional', 'personal', 'organizational'
-    context: str
-    last_interaction: datetime
-    tenant_id: str
-
-@dataclass
-class PathResult:
-    source: str
-    target: str
-    path: List[str]
-    total_strength: float
-    path_length: int
-    estimated_time_hours: float
-    confidence_score: float
-
-@dataclass
-class SponsorMetrics:
-    sponsor_id: str
-    network_centrality: float
-    influence_score: float
-    funding_probability: float
-    response_likelihood: float
-    optimal_contact_window: str
-    key_connections: List[str]
-    grant_success_rate: float
-
-@dataclass
-class GrantTimeline:
-    grant_id: str
-    submission_deadline: datetime
-    milestones: List[Dict[str, Any]]
-    critical_path: List[str]
-    buffer_days: int
-    risk_assessment: str
+logger = logging.getLogger("zero-gate.processing")
 
 class ProcessingAgent:
-    """
-    Advanced relationship graph processor using NetworkX for ESO platform
-    Provides intelligent path discovery, sponsor analytics, and grant planning
-    """
-    
-    def __init__(self, tenant_id: str):
-        self.tenant_id = tenant_id
-        self.graph = nx.DiGraph()  # Directed graph for asymmetric relationships
-        self.landmarks = set()  # Key nodes for distance estimation
+    def __init__(self, resource_monitor=None):
+        self.resource_monitor = resource_monitor
+        self.relationship_graph = nx.Graph()
+        self.landmarks = set()
+        self.landmark_distances = {}
         self.sponsor_cache = {}
         self.grant_cache = {}
-        self.metrics_cache = {}
-        self.last_analysis = None
         
-        # Performance thresholds
-        self.max_path_length = 7
-        self.landmark_ratio = 0.1  # 10% of nodes as landmarks
-        self.cache_ttl = 3600  # 1 hour cache TTL
+    def add_relationship(self, source: str, target: str, 
+                        relationship_type: str, strength: float,
+                        tenant_id: str, metadata: Dict[str, Any] = None):
+        """Add a relationship to the graph"""
+        if metadata is None:
+            metadata = {}
+            
+        self.relationship_graph.add_edge(
+            source, target,
+            type=relationship_type,
+            strength=strength,
+            tenant_id=tenant_id,
+            created_at=datetime.now(),
+            **metadata
+        )
         
-        logger.info(f"ProcessingAgent initialized for tenant {tenant_id}")
+        # Update landmarks if needed
+        if len(self.relationship_graph.nodes) % 100 == 0:
+            self._update_landmarks()
     
-    async def add_sponsor(self, sponsor: Sponsor) -> None:
-        """Add sponsor node to the relationship graph"""
-        try:
-            # Add node with sponsor attributes
-            self.graph.add_node(
-                sponsor.id,
-                name=sponsor.name,
-                type='sponsor',
-                tier=sponsor.tier,
-                contact_strength=sponsor.contact_strength,
-                funding_capacity=sponsor.funding_capacity,
-                response_rate=sponsor.response_rate,
-                industries=sponsor.industries,
-                location=sponsor.location,
-                last_contact=sponsor.last_contact.isoformat(),
-                tenant_id=sponsor.tenant_id
-            )
+    def _update_landmarks(self):
+        """Update landmark nodes for efficient pathfinding"""
+        if self.resource_monitor and not self.resource_monitor.is_feature_enabled("relationship_mapping"):
+            return
+        
+        # Select high-degree nodes as landmarks
+        degrees = dict(self.relationship_graph.degree())
+        if not degrees:
+            return
             
-            self.sponsor_cache[sponsor.id] = sponsor
-            
-            # Update landmarks if graph size changed significantly
-            if len(self.graph.nodes) % 50 == 0:  # Every 50 nodes
-                await self._update_landmarks()
-            
-            logger.info(f"Added sponsor {sponsor.name} to graph")
-            
-        except Exception as e:
-            logger.error(f"Error adding sponsor {sponsor.id}: {e}")
-            raise
+        sorted_nodes = sorted(degrees.items(), key=lambda x: x[1], reverse=True)
+        
+        # Select top 10% as landmarks, minimum 10, maximum 100
+        num_landmarks = max(10, min(100, len(sorted_nodes) // 10))
+        self.landmarks = set([node for node, _ in sorted_nodes[:num_landmarks]])
+        
+        # Precompute distances to landmarks
+        self._precompute_landmark_distances()
     
-    async def add_relationship(self, relationship: Relationship) -> None:
-        """Add relationship edge to the graph"""
-        try:
-            # Ensure both nodes exist
-            if not self.graph.has_node(relationship.source_id):
-                self.graph.add_node(relationship.source_id, type='entity', tenant_id=relationship.tenant_id)
-            
-            if not self.graph.has_node(relationship.target_id):
-                self.graph.add_node(relationship.target_id, type='entity', tenant_id=relationship.tenant_id)
-            
-            # Add weighted edge
-            self.graph.add_edge(
-                relationship.source_id,
-                relationship.target_id,
-                weight=relationship.strength,
-                relationship_type=relationship.relationship_type,
-                context=relationship.context,
-                last_interaction=relationship.last_interaction.isoformat(),
-                tenant_id=relationship.tenant_id
-            )
-            
-            # Add reverse edge with slightly reduced weight for bidirectionality
-            self.graph.add_edge(
-                relationship.target_id,
-                relationship.source_id,
-                weight=relationship.strength * 0.8,  # Asymmetric weighting
-                relationship_type=relationship.relationship_type,
-                context=f"reverse_{relationship.context}",
-                last_interaction=relationship.last_interaction.isoformat(),
-                tenant_id=relationship.tenant_id
-            )
-            
-            logger.info(f"Added relationship {relationship.source_id} -> {relationship.target_id}")
-            
-        except Exception as e:
-            logger.error(f"Error adding relationship: {e}")
-            raise
-    
-    async def _update_landmarks(self) -> None:
-        """Update landmark nodes for distance estimation"""
-        try:
-            if len(self.graph.nodes) < 10:
-                return
-            
-            # Calculate centrality measures
-            betweenness = nx.betweenness_centrality(self.graph)
-            degree_centrality = nx.degree_centrality(self.graph)
-            
-            # Combine centrality scores
-            combined_scores = {}
-            for node in self.graph.nodes:
-                combined_scores[node] = (
-                    betweenness.get(node, 0) * 0.6 +
-                    degree_centrality.get(node, 0) * 0.4
-                )
-            
-            # Select top nodes as landmarks
-            landmark_count = max(3, int(len(self.graph.nodes) * self.landmark_ratio))
-            self.landmarks = set(
-                sorted(combined_scores.keys(), key=combined_scores.get, reverse=True)[:landmark_count]
-            )
-            
-            logger.info(f"Updated landmarks: {len(self.landmarks)} nodes selected")
-            
-        except Exception as e:
-            logger.error(f"Error updating landmarks: {e}")
-    
-    async def estimate_distance(self, source: str, target: str) -> float:
-        """Estimate distance between nodes using landmark-based approximation"""
-        try:
-            if not self.landmarks:
-                await self._update_landmarks()
-            
-            if source == target:
-                return 0.0
-            
-            # Direct path check
-            if self.graph.has_edge(source, target):
-                return 1.0 / self.graph[source][target]['weight']
-            
-            # Landmark-based estimation
-            min_distance = float('inf')
-            
+    def _precompute_landmark_distances(self):
+        """Precompute distances from each node to landmarks"""
+        self.landmark_distances = {}
+        
+        for node in self.relationship_graph.nodes():
+            self.landmark_distances[node] = {}
             for landmark in self.landmarks:
                 try:
-                    # Distance from source to landmark
-                    dist_source_landmark = nx.shortest_path_length(
-                        self.graph, source, landmark, weight='weight'
-                    )
-                    
-                    # Distance from landmark to target
-                    dist_landmark_target = nx.shortest_path_length(
-                        self.graph, landmark, target, weight='weight'
-                    )
-                    
-                    total_distance = dist_source_landmark + dist_landmark_target
-                    min_distance = min(min_distance, total_distance)
-                    
+                    path = nx.shortest_path(self.relationship_graph, node, landmark)
+                    self.landmark_distances[node][landmark] = len(path) - 1
                 except nx.NetworkXNoPath:
-                    continue
-            
-            return min_distance if min_distance != float('inf') else -1
-            
-        except Exception as e:
-            logger.error(f"Error estimating distance {source} -> {target}: {e}")
-            return -1
+                    self.landmark_distances[node][landmark] = float('inf')
     
-    async def find_shortest_path(self, source: str, target: str, max_length: int = 7) -> Optional[PathResult]:
-        """Find shortest path between nodes up to seven degrees"""
+    def find_relationship_path(self, source: str, target: str, 
+                             tenant_id: str, max_depth: int = 7) -> Optional[List[str]]:
+        """Find relationship path between two individuals up to seven degrees"""
+        if self.resource_monitor and not self.resource_monitor.is_feature_enabled("relationship_mapping"):
+            logger.warning("Relationship mapping disabled due to resource constraints")
+            return None
+        
         try:
-            if source == target:
-                return PathResult(
-                    source=source,
-                    target=target,
-                    path=[source],
-                    total_strength=1.0,
-                    path_length=0,
-                    estimated_time_hours=0.0,
-                    confidence_score=1.0
-                )
-            
-            # Use Dijkstra with weight inversion (higher strength = lower cost)
-            try:
-                path = nx.shortest_path(
-                    self.graph,
-                    source,
-                    target,
-                    weight=lambda u, v, d: 1.0 / max(d['weight'], 0.1)  # Avoid division by zero
-                )
-                
-                if len(path) > max_length + 1:  # +1 because path includes both endpoints
+            # Use landmark-based estimation for efficiency
+            if self.landmarks and source in self.landmark_distances and target in self.landmark_distances:
+                estimated_distance = self._estimate_distance(source, target)
+                if estimated_distance > max_depth:
                     return None
-                
-                # Calculate path metrics
-                total_strength = 1.0
-                estimated_time = 0.0
-                
-                for i in range(len(path) - 1):
-                    edge_data = self.graph[path[i]][path[i + 1]]
-                    strength = edge_data['weight']
-                    total_strength *= strength
-                    
-                    # Estimate time based on relationship strength and type
-                    base_time = 24  # 24 hours base contact time
-                    relationship_type = edge_data.get('relationship_type', 'professional')
-                    
-                    if relationship_type == 'personal':
-                        base_time *= 0.5  # Faster personal connections
-                    elif relationship_type == 'organizational':
-                        base_time *= 1.5  # Slower organizational connections
-                    
-                    estimated_time += base_time / strength
-                
-                # Calculate confidence score based on path length and strength
-                confidence = total_strength * (0.9 ** (len(path) - 1))
-                
-                return PathResult(
-                    source=source,
-                    target=target,
-                    path=path,
-                    total_strength=total_strength,
-                    path_length=len(path) - 1,
-                    estimated_time_hours=estimated_time,
-                    confidence_score=confidence
-                )
-                
-            except nx.NetworkXNoPath:
-                return None
             
+            # Find actual shortest path
+            path = nx.shortest_path(self.relationship_graph, source, target)
+            
+            if len(path) - 1 <= max_depth:
+                return path
+            else:
+                return None
+                
+        except nx.NetworkXNoPath:
+            return None
         except Exception as e:
-            logger.error(f"Error finding path {source} -> {target}: {e}")
+            logger.error(f"Error finding relationship path: {str(e)}")
             return None
     
-    async def find_multiple_paths(self, source: str, target: str, k: int = 3) -> List[PathResult]:
-        """Find k shortest paths between nodes"""
+    def find_all_paths_within_degrees(self, source: str, target: str, 
+                                    tenant_id: str, max_depth: int = 7) -> List[List[str]]:
+        """Find all paths between two nodes within specified degrees"""
         try:
             paths = []
+            for path in nx.all_simple_paths(self.relationship_graph, source, target, cutoff=max_depth):
+                if len(path) - 1 <= max_depth:
+                    paths.append(path)
             
-            # Use k-shortest paths algorithm
-            try:
-                for path in nx.shortest_simple_paths(
-                    self.graph,
-                    source,
-                    target,
-                    weight=lambda u, v, d: 1.0 / max(d['weight'], 0.1)
-                ):
-                    if len(path) > self.max_path_length + 1:
-                        break
-                    
-                    # Calculate path metrics
-                    total_strength = 1.0
-                    estimated_time = 0.0
-                    
-                    for i in range(len(path) - 1):
-                        edge_data = self.graph[path[i]][path[i + 1]]
-                        strength = edge_data['weight']
-                        total_strength *= strength
-                        estimated_time += 24 / strength  # Base estimation
-                    
-                    confidence = total_strength * (0.9 ** (len(path) - 1))
-                    
-                    paths.append(PathResult(
-                        source=source,
-                        target=target,
-                        path=path,
-                        total_strength=total_strength,
-                        path_length=len(path) - 1,
-                        estimated_time_hours=estimated_time,
-                        confidence_score=confidence
-                    ))
-                    
-                    if len(paths) >= k:
-                        break
-                        
-            except nx.NetworkXNoPath:
-                pass
+            # Sort by path length and relationship strength
+            paths.sort(key=lambda p: (len(p), -self._calculate_path_strength(p)))
+            return paths[:10]  # Return top 10 paths
             
-            return sorted(paths, key=lambda p: p.confidence_score, reverse=True)
-            
+        except nx.NetworkXNoPath:
+            return []
         except Exception as e:
-            logger.error(f"Error finding multiple paths: {e}")
+            logger.error(f"Error finding all paths: {str(e)}")
             return []
     
-    async def calculate_sponsor_metrics(self, sponsor_id: str) -> SponsorMetrics:
-        """Calculate comprehensive metrics for a sponsor"""
+    def _calculate_path_strength(self, path: List[str]) -> float:
+        """Calculate overall strength of a path"""
+        if len(path) < 2:
+            return 0
+        
+        strengths = []
+        for i in range(len(path) - 1):
+            edge_data = self.relationship_graph.get_edge_data(path[i], path[i + 1])
+            if edge_data:
+                strengths.append(edge_data.get('strength', 0))
+        
+        return sum(strengths) / len(strengths) if strengths else 0
+    
+    def _estimate_distance(self, source: str, target: str) -> float:
+        """Estimate distance between two nodes using landmarks"""
+        min_distance = float('inf')
+        
+        for landmark in self.landmarks:
+            source_dist = self.landmark_distances.get(source, {}).get(landmark, float('inf'))
+            target_dist = self.landmark_distances.get(target, {}).get(landmark, float('inf'))
+            
+            if source_dist != float('inf') and target_dist != float('inf'):
+                estimated = abs(source_dist - target_dist)
+                min_distance = min(min_distance, estimated)
+        
+        return min_distance
+    
+    def analyze_relationship_strength(self, path: List[str], tenant_id: str) -> Dict[str, Any]:
+        """Analyze the strength of relationships in a path"""
+        if len(path) < 2:
+            return {"strength": 0, "quality": "none"}
+        
+        strengths = []
+        relationship_types = []
+        edge_details = []
+        
+        for i in range(len(path) - 1):
+            edge_data = self.relationship_graph.get_edge_data(path[i], path[i + 1])
+            if edge_data:
+                strength = edge_data.get('strength', 0)
+                rel_type = edge_data.get('type', 'unknown')
+                strengths.append(strength)
+                relationship_types.append(rel_type)
+                edge_details.append({
+                    "from": path[i],
+                    "to": path[i + 1],
+                    "type": rel_type,
+                    "strength": strength,
+                    "created_at": edge_data.get('created_at', '').isoformat() if edge_data.get('created_at') else ''
+                })
+        
+        avg_strength = sum(strengths) / len(strengths) if strengths else 0
+        min_strength = min(strengths) if strengths else 0
+        
+        return {
+            "average_strength": avg_strength,
+            "minimum_strength": min_strength,
+            "path_length": len(path) - 1,
+            "relationship_types": relationship_types,
+            "edge_details": edge_details,
+            "quality": self._assess_path_quality(avg_strength, min_strength),
+            "confidence_score": self._calculate_confidence_score(strengths, len(path))
+        }
+    
+    def _assess_path_quality(self, avg_strength: float, min_strength: float) -> str:
+        """Assess the quality of a relationship path"""
+        if min_strength >= 0.8 and avg_strength >= 0.8:
+            return "excellent"
+        elif min_strength >= 0.6 and avg_strength >= 0.7:
+            return "good"
+        elif min_strength >= 0.4 and avg_strength >= 0.5:
+            return "fair"
+        else:
+            return "weak"
+    
+    def _calculate_confidence_score(self, strengths: List[float], path_length: int) -> float:
+        """Calculate confidence score for path reliability"""
+        if not strengths:
+            return 0
+        
+        # Base score from average strength
+        avg_strength = sum(strengths) / len(strengths)
+        
+        # Penalty for path length (longer paths are less reliable)
+        length_penalty = max(0, 1 - (path_length - 1) * 0.1)
+        
+        # Penalty for weak links
+        min_strength = min(strengths)
+        weak_link_penalty = min_strength
+        
+        return avg_strength * length_penalty * weak_link_penalty
+    
+    def generate_grant_timeline(self, grant_deadline: datetime, 
+                              grant_type: str, tenant_id: str) -> Dict[str, Any]:
+        """Generate backwards-planned timeline for grant preparation"""
+        milestones = {}
+        
+        # 90-day milestone
+        milestone_90 = grant_deadline - timedelta(days=90)
+        milestones['90_days'] = {
+            "date": milestone_90.isoformat(),
+            "title": "Strategic Foundation & Content Strategy",
+            "description": "Establish strategic foundation and comprehensive content strategy",
+            "tasks": [
+                "Complete comprehensive content audit and gap analysis",
+                "Develop stakeholder mapping and engagement strategy",
+                "Create initial grant proposal framework",
+                "Establish communication strategy and timeline",
+                "Identify key relationship pathways and influencers",
+                "Begin preliminary sponsor outreach and relationship building"
+            ],
+            "deliverables": [
+                "Content audit report",
+                "Stakeholder engagement plan",
+                "Grant proposal outline",
+                "Communication timeline"
+            ],
+            "risk_factors": ["Resource allocation", "Stakeholder availability"],
+            "days_from_deadline": 90
+        }
+        
+        # 60-day milestone
+        milestone_60 = grant_deadline - timedelta(days=60)
+        milestones['60_days'] = {
+            "date": milestone_60.isoformat(),
+            "title": "Content Development & Review Cycle",
+            "description": "Intensive content development and stakeholder review process",
+            "tasks": [
+                "Complete draft content development and review",
+                "Conduct internal stakeholder briefings and feedback sessions",
+                "Finalize channel preparation and testing protocols",
+                "Implement content calendar and scheduling system",
+                "Execute relationship pathway activation",
+                "Conduct mid-cycle sponsor relationship assessment"
+            ],
+            "deliverables": [
+                "Draft grant proposal",
+                "Stakeholder feedback report",
+                "Content calendar",
+                "Channel testing results"
+            ],
+            "risk_factors": ["Content quality", "Stakeholder feedback integration"],
+            "days_from_deadline": 60
+        }
+        
+        # 30-day milestone
+        milestone_30 = grant_deadline - timedelta(days=30)
+        milestones['30_days'] = {
+            "date": milestone_30.isoformat(),
+            "title": "Execution & Final Grant Preparation",
+            "description": "Final execution phase and grant submission preparation",
+            "tasks": [
+                "Execute content publication across all channels",
+                "Implement real-time engagement monitoring and adjustments",
+                "Complete final grant proposal preparation and review",
+                "Conduct comprehensive stakeholder follow-up implementation",
+                "Activate all relationship pathways for maximum impact",
+                "Perform final quality assurance and submission readiness check"
+            ],
+            "deliverables": [
+                "Published content across channels",
+                "Final grant proposal",
+                "Engagement metrics report",
+                "Submission package"
+            ],
+            "risk_factors": ["Timing coordination", "Final review quality"],
+            "days_from_deadline": 30
+        }
+        
+        # Calculate critical path and risk assessment
+        total_tasks = sum(len(milestone["tasks"]) for milestone in milestones.values())
+        
+        return {
+            "grant_deadline": grant_deadline.isoformat(),
+            "grant_type": grant_type,
+            "tenant_id": tenant_id,
+            "milestones": milestones,
+            "total_preparation_days": 90,
+            "total_tasks": total_tasks,
+            "critical_path_analysis": self._analyze_critical_path(milestones),
+            "risk_assessment": self._assess_timeline_risks(milestones),
+            "success_probability": self._calculate_success_probability(grant_type, 90)
+        }
+    
+    def _analyze_critical_path(self, milestones: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze critical path for grant timeline"""
+        return {
+            "critical_milestones": ["90_days", "60_days", "30_days"],
+            "buffer_days": 7,  # Built-in buffer
+            "parallel_tasks": ["Content development", "Stakeholder engagement"],
+            "sequential_dependencies": [
+                "Strategic foundation → Content development → Final preparation"
+            ]
+        }
+    
+    def _assess_timeline_risks(self, milestones: Dict[str, Any]) -> Dict[str, Any]:
+        """Assess risks in the grant timeline"""
+        risk_factors = []
+        for milestone in milestones.values():
+            risk_factors.extend(milestone.get("risk_factors", []))
+        
+        return {
+            "high_risk_factors": ["Resource allocation", "Final review quality"],
+            "medium_risk_factors": ["Stakeholder availability", "Content quality"],
+            "low_risk_factors": ["Timing coordination"],
+            "mitigation_strategies": [
+                "Early stakeholder engagement",
+                "Buffer time allocation",
+                "Quality checkpoints at each milestone"
+            ]
+        }
+    
+    def _calculate_success_probability(self, grant_type: str, preparation_days: int) -> float:
+        """Calculate success probability based on grant type and preparation time"""
+        base_probability = 0.7  # 70% base success rate
+        
+        # Adjust for preparation time
+        if preparation_days >= 90:
+            time_factor = 1.0
+        elif preparation_days >= 60:
+            time_factor = 0.85
+        elif preparation_days >= 30:
+            time_factor = 0.7
+        else:
+            time_factor = 0.5
+        
+        # Adjust for grant type complexity
+        grant_complexity = {
+            "federal": 0.8,
+            "state": 0.9,
+            "foundation": 0.95,
+            "corporate": 1.0,
+            "research": 0.75
+        }
+        
+        complexity_factor = grant_complexity.get(grant_type.lower(), 0.9)
+        
+        return min(0.95, base_probability * time_factor * complexity_factor)
+    
+    def calculate_sponsor_metrics(self, sponsor_data: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+        """Calculate ESO-specific metrics for sponsor relationships"""
+        if self.resource_monitor and not self.resource_monitor.is_feature_enabled("advanced_analytics"):
+            return {"status": "disabled", "message": "Analytics disabled due to resource constraints"}
+        
         try:
-            if sponsor_id not in self.graph.nodes:
-                raise ValueError(f"Sponsor {sponsor_id} not found in graph")
+            # Extract sponsor data
+            sponsor_id = sponsor_data.get("id", "unknown")
             
-            # Network centrality measures
-            betweenness = nx.betweenness_centrality(self.graph).get(sponsor_id, 0)
-            degree_centrality = nx.degree_centrality(self.graph).get(sponsor_id, 0)
-            closeness = nx.closeness_centrality(self.graph).get(sponsor_id, 0)
+            # Relationship strength indicators
+            communication_frequency = sponsor_data.get("communication_frequency", 0)
+            response_time = sponsor_data.get("avg_response_time", 24)  # hours
+            engagement_quality = sponsor_data.get("engagement_quality", 50)  # 0-100 scale
             
-            # Calculate influence score
-            influence_score = (betweenness * 0.4 + degree_centrality * 0.3 + closeness * 0.3)
+            # Calculate composite relationship score
+            # Normalize communication frequency (assume max 10 contacts per month)
+            comm_score = min(1.0, communication_frequency / 10.0)
             
-            # Get sponsor data
-            sponsor_data = self.graph.nodes[sponsor_id]
-            contact_strength = sponsor_data.get('contact_strength', 0.5)
-            response_rate = sponsor_data.get('response_rate', 0.5)
-            tier = sponsor_data.get('tier', 'bronze')
+            # Normalize response time (assume 24 hours is baseline, lower is better)
+            response_score = max(0, min(1.0, (48 - response_time) / 48))
             
-            # Calculate funding probability based on tier and network position
-            tier_multipliers = {'platinum': 0.9, 'gold': 0.7, 'silver': 0.5, 'bronze': 0.3}
-            funding_probability = tier_multipliers.get(tier, 0.3) * influence_score * contact_strength
+            # Normalize engagement quality (0-100 scale)
+            engagement_score = engagement_quality / 100.0
             
-            # Response likelihood
-            response_likelihood = response_rate * (1 + influence_score * 0.5)
-            
-            # Find key connections (highest strength neighbors)
-            neighbors = list(self.graph.neighbors(sponsor_id))
-            key_connections = sorted(
-                neighbors,
-                key=lambda n: self.graph[sponsor_id][n]['weight'],
-                reverse=True
-            )[:5]  # Top 5 connections
-            
-            # Optimal contact window based on historical data
-            last_contact = sponsor_data.get('last_contact')
-            if last_contact:
-                days_since = (datetime.now() - datetime.fromisoformat(last_contact)).days
-                if days_since < 30:
-                    contact_window = "recent_contact"
-                elif days_since < 90:
-                    contact_window = "optimal"
-                else:
-                    contact_window = "overdue"
-            else:
-                contact_window = "initial_contact"
-            
-            # Grant success rate (simplified calculation)
-            grant_success_rate = funding_probability * response_likelihood * 0.8
-            
-            return SponsorMetrics(
-                sponsor_id=sponsor_id,
-                network_centrality=influence_score,
-                influence_score=influence_score,
-                funding_probability=min(funding_probability, 1.0),
-                response_likelihood=min(response_likelihood, 1.0),
-                optimal_contact_window=contact_window,
-                key_connections=key_connections,
-                grant_success_rate=min(grant_success_rate, 1.0)
+            relationship_score = (
+                (comm_score * 0.3) +
+                (response_score * 0.3) +
+                (engagement_score * 0.4)
             )
             
-        except Exception as e:
-            logger.error(f"Error calculating sponsor metrics for {sponsor_id}: {e}")
-            raise
-    
-    async def generate_grant_timeline(self, grant: Grant) -> GrantTimeline:
-        """Generate backwards planning timeline for grant submission"""
-        try:
-            current_date = datetime.now()
-            submission_deadline = grant.submission_deadline
+            # Sponsorship fulfillment metrics
+            deliverables_completed = sponsor_data.get("deliverables_completed", 0)
+            total_deliverables = sponsor_data.get("total_deliverables", 1)
+            fulfillment_rate = deliverables_completed / total_deliverables if total_deliverables > 0 else 0
             
-            if submission_deadline <= current_date:
-                raise ValueError("Grant deadline has already passed")
+            # Network centrality if sponsor is in relationship graph
+            centrality_score = 0
+            if sponsor_id in self.relationship_graph.nodes:
+                centrality_score = nx.degree_centrality(self.relationship_graph).get(sponsor_id, 0)
             
-            total_days = (submission_deadline - current_date).days
-            
-            # Define standard milestones with backwards planning
-            milestones = [
-                {
-                    "name": "Final Review and Submission",
-                    "days_before_deadline": 1,
-                    "duration_days": 2,
-                    "priority": "critical",
-                    "description": "Final document review, formatting, and submission"
-                },
-                {
-                    "name": "Internal Review and Approval",
-                    "days_before_deadline": 7,
-                    "duration_days": 5,
-                    "priority": "critical",
-                    "description": "Internal stakeholder review and approval process"
-                },
-                {
-                    "name": "Budget Finalization",
-                    "days_before_deadline": 14,
-                    "duration_days": 3,
-                    "priority": "high",
-                    "description": "Complete budget documentation and justification"
-                },
-                {
-                    "name": "Document Preparation",
-                    "days_before_deadline": 21,
-                    "duration_days": 7,
-                    "priority": "high",
-                    "description": "Prepare all required documents and attachments"
-                },
-                {
-                    "name": "Stakeholder Coordination",
-                    "days_before_deadline": 30,
-                    "duration_days": 9,
-                    "priority": "medium",
-                    "description": "Coordinate with partners and gather letters of support"
-                },
-                {
-                    "name": "Initial Draft Completion",
-                    "days_before_deadline": 45,
-                    "duration_days": 15,
-                    "priority": "medium",
-                    "description": "Complete first draft of grant application"
-                },
-                {
-                    "name": "Research and Planning",
-                    "days_before_deadline": 60,
-                    "duration_days": 15,
-                    "priority": "medium",
-                    "description": "Research requirements and develop project plan"
-                },
-                {
-                    "name": "Team Assembly",
-                    "days_before_deadline": 75,
-                    "duration_days": 10,
-                    "priority": "low",
-                    "description": "Assemble project team and define roles"
-                },
-                {
-                    "name": "Opportunity Assessment",
-                    "days_before_deadline": 90,
-                    "duration_days": 5,
-                    "priority": "low",
-                    "description": "Assess grant opportunity and alignment"
-                }
-            ]
-            
-            # Filter milestones based on available time
-            valid_milestones = []
-            critical_path = []
-            
-            for milestone in milestones:
-                if milestone["days_before_deadline"] <= total_days:
-                    milestone_date = submission_deadline - timedelta(days=milestone["days_before_deadline"])
-                    milestone["date"] = milestone_date.isoformat()
-                    milestone["start_date"] = (milestone_date - timedelta(days=milestone["duration_days"])).isoformat()
-                    valid_milestones.append(milestone)
-                    
-                    if milestone["priority"] == "critical":
-                        critical_path.append(milestone["name"])
-            
-            # Calculate buffer days
-            if valid_milestones:
-                earliest_start = min(
-                    datetime.fromisoformat(m["start_date"]) for m in valid_milestones
-                )
-                buffer_days = (earliest_start - current_date).days
-            else:
-                buffer_days = 0
+            # Calculate tier classification
+            tier = self._calculate_sponsor_tier(relationship_score, fulfillment_rate, centrality_score)
             
             # Risk assessment
-            if total_days < 30:
-                risk_assessment = "high"
-            elif total_days < 60:
-                risk_assessment = "medium"
-            else:
-                risk_assessment = "low"
+            risk_score = self._calculate_sponsor_risk(sponsor_data, relationship_score, fulfillment_rate)
             
-            if buffer_days < 0:
-                risk_assessment = "critical"
-            
-            return GrantTimeline(
-                grant_id=grant.id,
-                submission_deadline=submission_deadline,
-                milestones=valid_milestones,
-                critical_path=critical_path,
-                buffer_days=buffer_days,
-                risk_assessment=risk_assessment
-            )
-            
-        except Exception as e:
-            logger.error(f"Error generating grant timeline for {grant.id}: {e}")
-            raise
-    
-    async def get_network_statistics(self) -> Dict[str, Any]:
-        """Get comprehensive network statistics"""
-        try:
-            stats = {
-                "node_count": self.graph.number_of_nodes(),
-                "edge_count": self.graph.number_of_edges(),
-                "density": nx.density(self.graph),
-                "is_connected": nx.is_weakly_connected(self.graph),
-                "landmark_count": len(self.landmarks),
-                "tenant_id": self.tenant_id,
-                "last_updated": datetime.now().isoformat()
+            metrics = {
+                "sponsor_id": sponsor_id,
+                "tenant_id": tenant_id,
+                "relationship_score": round(relationship_score, 3),
+                "fulfillment_rate": round(fulfillment_rate, 3),
+                "communication_effectiveness": round(comm_score, 3),
+                "response_efficiency": round(response_score, 3),
+                "engagement_quality_score": round(engagement_score, 3),
+                "network_centrality": round(centrality_score, 3),
+                "overall_health": round((relationship_score + fulfillment_rate) / 2, 3),
+                "tier_classification": tier,
+                "risk_assessment": risk_score,
+                "recommendation": self._generate_sponsor_recommendation(relationship_score, fulfillment_rate, risk_score),
+                "calculated_at": datetime.now().isoformat()
             }
             
-            if self.graph.number_of_nodes() > 0:
-                # Calculate additional metrics
-                try:
-                    stats["average_clustering"] = nx.average_clustering(self.graph.to_undirected())
-                    stats["diameter"] = nx.diameter(self.graph.to_undirected()) if nx.is_connected(self.graph.to_undirected()) else -1
-                except:
-                    stats["average_clustering"] = 0
-                    stats["diameter"] = -1
-                
-                # Node type distribution
-                node_types = defaultdict(int)
-                for node, data in self.graph.nodes(data=True):
-                    node_types[data.get('type', 'unknown')] += 1
-                stats["node_types"] = dict(node_types)
+            # Cache the results
+            self.sponsor_cache[f"{tenant_id}_{sponsor_id}"] = metrics
+            
+            return metrics
+            
+        except Exception as e:
+            logger.error(f"Error calculating sponsor metrics: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    def _calculate_sponsor_tier(self, relationship_score: float, fulfillment_rate: float, centrality_score: float) -> str:
+        """Calculate sponsor tier classification"""
+        composite_score = (relationship_score * 0.4) + (fulfillment_rate * 0.4) + (centrality_score * 0.2)
+        
+        if composite_score >= 0.8:
+            return "platinum"
+        elif composite_score >= 0.6:
+            return "gold"
+        elif composite_score >= 0.4:
+            return "silver"
+        else:
+            return "bronze"
+    
+    def _calculate_sponsor_risk(self, sponsor_data: Dict[str, Any], relationship_score: float, fulfillment_rate: float) -> Dict[str, Any]:
+        """Calculate risk assessment for sponsor relationship"""
+        risk_factors = []
+        risk_level = "low"
+        
+        if relationship_score < 0.3:
+            risk_factors.append("Low relationship strength")
+            risk_level = "high"
+        elif relationship_score < 0.5:
+            risk_factors.append("Moderate relationship concerns")
+            risk_level = "medium" if risk_level == "low" else risk_level
+        
+        if fulfillment_rate < 0.7:
+            risk_factors.append("Below-target fulfillment rate")
+            risk_level = "high"
+        elif fulfillment_rate < 0.8:
+            risk_factors.append("Fulfillment rate needs improvement")
+            risk_level = "medium" if risk_level == "low" else risk_level
+        
+        last_contact = sponsor_data.get("last_contact_date")
+        if last_contact:
+            try:
+                last_contact_date = datetime.fromisoformat(last_contact.replace('Z', '+00:00'))
+                days_since_contact = (datetime.now() - last_contact_date.replace(tzinfo=None)).days
+                if days_since_contact > 60:
+                    risk_factors.append("Extended period without contact")
+                    risk_level = "high"
+                elif days_since_contact > 30:
+                    risk_factors.append("Infrequent recent contact")
+                    risk_level = "medium" if risk_level == "low" else risk_level
+            except:
+                pass
+        
+        return {
+            "level": risk_level,
+            "factors": risk_factors,
+            "score": len(risk_factors) / 5.0  # Normalize to 0-1 scale
+        }
+    
+    def _generate_sponsor_recommendation(self, relationship_score: float, fulfillment_rate: float, risk_score: Dict[str, Any]) -> List[str]:
+        """Generate actionable recommendations for sponsor management"""
+        recommendations = []
+        
+        if risk_score["level"] == "high":
+            recommendations.append("Schedule immediate relationship review meeting")
+            recommendations.append("Develop targeted engagement strategy")
+        
+        if relationship_score < 0.5:
+            recommendations.append("Increase communication frequency")
+            recommendations.append("Implement relationship-building activities")
+        
+        if fulfillment_rate < 0.8:
+            recommendations.append("Review and clarify deliverable expectations")
+            recommendations.append("Implement progress tracking system")
+        
+        if not recommendations:
+            recommendations.append("Maintain current engagement level")
+            recommendations.append("Continue monitoring relationship health")
+        
+        return recommendations
+    
+    def get_network_statistics(self, tenant_id: str) -> Dict[str, Any]:
+        """Get comprehensive network statistics for tenant"""
+        try:
+            # Filter nodes by tenant
+            tenant_nodes = [n for n in self.relationship_graph.nodes() 
+                          if any(self.relationship_graph.get_edge_data(n, neighbor, {}).get('tenant_id') == tenant_id 
+                                for neighbor in self.relationship_graph.neighbors(n))]
+            
+            if not tenant_nodes:
+                return {"nodes": 0, "edges": 0, "density": 0, "components": 0}
+            
+            # Create subgraph for tenant
+            tenant_subgraph = self.relationship_graph.subgraph(tenant_nodes)
+            
+            stats = {
+                "nodes": len(tenant_subgraph.nodes()),
+                "edges": len(tenant_subgraph.edges()),
+                "density": nx.density(tenant_subgraph),
+                "components": nx.number_connected_components(tenant_subgraph),
+                "average_clustering": nx.average_clustering(tenant_subgraph),
+                "diameter": self._safe_diameter(tenant_subgraph),
+                "centrality_leaders": self._get_centrality_leaders(tenant_subgraph),
+                "tenant_id": tenant_id
+            }
             
             return stats
             
         except Exception as e:
-            logger.error(f"Error getting network statistics: {e}")
+            logger.error(f"Error calculating network statistics: {str(e)}")
             return {"error": str(e)}
     
-    async def cleanup_cache(self) -> None:
-        """Clean up expired cache entries"""
+    def _safe_diameter(self, graph):
+        """Safely calculate graph diameter"""
         try:
-            current_time = datetime.now()
-            if self.last_analysis and (current_time - self.last_analysis).seconds > self.cache_ttl:
-                self.metrics_cache.clear()
-                self.last_analysis = current_time
-                logger.info("Cache cleaned up")
+            if nx.is_connected(graph):
+                return nx.diameter(graph)
+            else:
+                # For disconnected graphs, return the maximum diameter of components
+                components = nx.connected_components(graph)
+                max_diameter = 0
+                for component in components:
+                    subgraph = graph.subgraph(component)
+                    if len(subgraph) > 1:
+                        max_diameter = max(max_diameter, nx.diameter(subgraph))
+                return max_diameter
+        except:
+            return 0
+    
+    def _get_centrality_leaders(self, graph, limit: int = 5):
+        """Get top nodes by centrality measures"""
+        try:
+            if len(graph.nodes()) == 0:
+                return {}
+            
+            degree_centrality = nx.degree_centrality(graph)
+            betweenness_centrality = nx.betweenness_centrality(graph)
+            closeness_centrality = nx.closeness_centrality(graph)
+            
+            return {
+                "degree": sorted(degree_centrality.items(), key=lambda x: x[1], reverse=True)[:limit],
+                "betweenness": sorted(betweenness_centrality.items(), key=lambda x: x[1], reverse=True)[:limit],
+                "closeness": sorted(closeness_centrality.items(), key=lambda x: x[1], reverse=True)[:limit]
+            }
         except Exception as e:
-            logger.error(f"Error cleaning cache: {e}")
+            logger.error(f"Error calculating centrality leaders: {str(e)}")
+            return {}
 
-# Export main class and data structures
-__all__ = [
-    'ProcessingAgent',
-    'Sponsor',
-    'Grant', 
-    'Relationship',
-    'PathResult',
-    'SponsorMetrics',
-    'GrantTimeline'
-]
+# Global processing agent instance
+processing_agent = ProcessingAgent()
+
+def get_processing_agent():
+    """Get the global processing agent instance"""
+    return processing_agent
