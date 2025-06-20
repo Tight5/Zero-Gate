@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db';
 import { grants, grantMilestones } from '../../shared/schema';
-import { eq, and, desc, asc } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, count } from 'drizzle-orm';
 
 const router = Router();
 
@@ -51,7 +51,7 @@ router.get('/grants/:grantId', async (req, res) => {
       .select()
       .from(grantMilestones)
       .where(eq(grantMilestones.grantId, grantId))
-      .orderBy(asc(grantMilestones.dueDate));
+      .orderBy(asc(grantMilestones.milestoneDate));
     
     res.json({ ...grant, milestones });
   } catch (error) {
@@ -86,16 +86,17 @@ router.post('/grants', async (req, res) => {
     const [newGrant] = await db
       .insert(grants)
       .values({
+        name: grantData.title,
         tenantId,
-        title: grantData.title,
+        sponsorId: null, // Will be linked later if needed
         description: grantData.description,
         organization: grantData.organization,
-        amount: grantData.amount,
-        submissionDeadline: new Date(grantData.submissionDeadline),
+        amount: grantData.amount.toString(),
         status: grantData.status,
-        priority: grantData.priority,
-        category: grantData.category,
+        deadline: new Date(grantData.submissionDeadline),
+        submissionDeadline: new Date(grantData.submissionDeadline),
         requirements: grantData.requirements,
+        notes: `Category: ${grantData.category || 'General'}, Priority: ${grantData.priority}`,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -108,10 +109,9 @@ router.post('/grants', async (req, res) => {
         grantId: newGrant.id,
         title: 'Final Review & Submission',
         description: 'Complete final review and submit grant application',
-        dueDate: new Date(submissionDate.getTime() - 7 * 24 * 60 * 60 * 1000), // 7 days before
-        priority: 'critical' as const,
+        milestoneDate: new Date(submissionDate.getTime() - 7 * 24 * 60 * 60 * 1000), // 7 days before
         status: 'pending' as const,
-        estimatedHours: 8,
+        tasks: [{ task: 'Final review', estimated_hours: 8 }],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -119,10 +119,9 @@ router.post('/grants', async (req, res) => {
         grantId: newGrant.id,
         title: '30-Day Milestone',
         description: 'Complete all supporting documents and narratives',
-        dueDate: new Date(submissionDate.getTime() - 30 * 24 * 60 * 60 * 1000), // 30 days before
-        priority: 'high' as const,
+        milestoneDate: new Date(submissionDate.getTime() - 30 * 24 * 60 * 60 * 1000), // 30 days before
         status: 'pending' as const,
-        estimatedHours: 40,
+        tasks: [{ task: 'Document preparation', estimated_hours: 40 }],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -130,10 +129,9 @@ router.post('/grants', async (req, res) => {
         grantId: newGrant.id,
         title: '60-Day Milestone',
         description: 'Finalize budget, timeline, and key partnerships',
-        dueDate: new Date(submissionDate.getTime() - 60 * 24 * 60 * 60 * 1000), // 60 days before
-        priority: 'high' as const,
+        milestoneDate: new Date(submissionDate.getTime() - 60 * 24 * 60 * 60 * 1000), // 60 days before
         status: 'pending' as const,
-        estimatedHours: 24,
+        tasks: [{ task: 'Budget and partnerships', estimated_hours: 24 }],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -141,10 +139,9 @@ router.post('/grants', async (req, res) => {
         grantId: newGrant.id,
         title: '90-Day Milestone',
         description: 'Initial research, stakeholder outreach, and requirement analysis',
-        dueDate: new Date(submissionDate.getTime() - 90 * 24 * 60 * 60 * 1000), // 90 days before
-        priority: 'medium' as const,
+        milestoneDate: new Date(submissionDate.getTime() - 90 * 24 * 60 * 60 * 1000), // 90 days before
         status: 'pending' as const,
-        estimatedHours: 16,
+        tasks: [{ task: 'Research and analysis', estimated_hours: 16 }],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
