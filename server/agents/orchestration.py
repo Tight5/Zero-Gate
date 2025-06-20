@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field, asdict
 from concurrent.futures import ThreadPoolExecutor
 import psutil
 import threading
@@ -69,10 +69,6 @@ class WorkflowTask:
     max_retries: int = 3
     estimated_duration: int = 300  # seconds
     dependencies: List[str] = field(default_factory=list)
-    
-    def __post_init__(self):
-        if self.dependencies is None:
-            self.dependencies = []
 
 @dataclass
 class ResourceMetrics:
@@ -149,7 +145,7 @@ class ResourceMonitor:
                 network_io=network,
                 timestamp=datetime.now(),
                 active_processes=active_processes,
-                load_average=load_avg
+                load_average=list(map(float, load_avg))
             )
         
         # Run CPU-intensive operations in thread pool
@@ -415,7 +411,7 @@ class OrchestrationAgent:
             
             # Update statistics
             self.stats['completed_tasks'] += 1
-            execution_time = (datetime.now() - workflow_task.started_at).total_seconds()
+            execution_time = (datetime.now() - (workflow_task.started_at or datetime.now())).total_seconds()
             self._update_average_execution_time(execution_time)
             
             # Remove from running tasks
@@ -453,7 +449,7 @@ class OrchestrationAgent:
         self.stats['average_execution_time'] = ((current_avg * (total_completed - 1)) + execution_time) / total_completed
     
     async def submit_workflow(self, workflow_type: str, tenant_id: str, payload: Dict[str, Any], 
-                            priority: Priority = Priority.MEDIUM, dependencies: List[str] = None) -> str:
+                            priority: Priority = Priority.MEDIUM, dependencies: Optional[List[str]] = None) -> str:
         """Submit a new workflow task"""
         task_id = f"{workflow_type}_{tenant_id}_{int(time.time() * 1000)}"
         
@@ -466,7 +462,7 @@ class OrchestrationAgent:
             tenant_id=tenant_id,
             payload=payload,
             created_at=datetime.now(),
-            dependencies=dependencies or []
+            dependencies=dependencies if dependencies is not None else []
         )
         
         await self.workflow_queue.add_task(task)
