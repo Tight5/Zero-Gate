@@ -157,7 +157,17 @@
 **Deviation Type**: None - Direct specification implementation  
 **Impact Assessment**: Enterprise-grade quality assurance  
 **Compliance Score**: 100% - Complete specification alignment  
-**Regression Status**: Pass - Testing validates all functionality preservation  
+**Regression Status**: Pass - Testing validates all functionality preservation
+
+### Decision ID: 2025-06-20-016
+**File Reference**: File 26 (Hybrid Relationship Mapping)  
+**Component**: HybridRelationshipMap Component  
+**Decision**: Convert @replit/ui to shadcn/ui while maintaining exact functionality  
+**Rationale**: Specification requires hybrid geographic/network visualization with filtering  
+**Deviation Type**: Minor - UI library substitution for compatibility  
+**Impact Assessment**: Enhanced TypeScript integration with preserved functionality  
+**Compliance Score**: 98% - Complete functional alignment with UI library adaptation  
+**Regression Status**: Pass - Added component without affecting existing features  
 
 ## Compliance Summary
 

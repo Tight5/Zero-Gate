@@ -1,58 +1,85 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import ForceGraph2D from 'react-force-graph-2d';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Map, Network, Maximize2, Filter, Users } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Map, Network, Maximize2, Filter, Loader2, AlertCircle } from 'lucide-react';
+import { useRelationshipData } from '@/hooks/useRelationshipData';
 import { useResource } from '@/contexts/ResourceContext';
 import { useTenant } from '@/contexts/TenantContext';
+import 'leaflet/dist/leaflet.css';
+
+interface RelationshipNode {
+  id: string;
+  label: string;
+  type: 'person' | 'organization' | 'sponsor' | 'grantmaker';
+  lat?: number;
+  lng?: number;
+  connections?: number;
+  color?: string;
+  size?: number;
+  strength?: number;
+  tier?: string;
+}
+
+interface RelationshipLink {
+  source: string;
+  target: string;
+  type: string;
+  strength: number;
+  color?: string;
+  width?: number;
+}
 
 interface GraphData {
-  nodes: Array<{
-    id: string;
-    label: string;
-    type: string;
-    lat?: number;
-    lng?: number;
-    connections?: number;
-    color?: string;
-  }>;
-  links: Array<{
-    source: string;
-    target: string;
-    color?: string;
-    width?: number;
-    strength?: number;
-  }>;
-  stats: {
+  nodes: RelationshipNode[];
+  links: RelationshipLink[];
+  stats?: {
     node_count: number;
     edge_count: number;
+    density: number;
+    avg_clustering: number;
   };
 }
 
 interface HybridRelationshipMapProps {
+  data?: GraphData;
   viewMode?: 'geographic' | 'network' | 'hybrid';
+  onNodeClick?: (node: RelationshipNode) => void;
+  onLinkClick?: (link: RelationshipLink) => void;
 }
 
 const HybridRelationshipMap: React.FC<HybridRelationshipMapProps> = ({ 
-  viewMode = 'hybrid' 
+  data, 
+  viewMode = 'hybrid',
+  onNodeClick,
+  onLinkClick 
 }) => {
+  const mapRef = useRef<any>(null);
+  const graphRef = useRef<any>(null);
   const { isFeatureEnabled } = useResource();
   const { currentTenant } = useTenant();
   const [activeView, setActiveView] = useState(viewMode);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [filters, setFilters] = useState({
     relationshipType: 'all',
     strengthThreshold: 0.3,
+    nodeType: 'all',
     includeWeak: false
   });
 
-  const { data: graphData, isLoading, error } = useQuery({
-    queryKey: ['/api/relationships/graph', currentTenant?.id, filters],
-    enabled: !!currentTenant && isFeatureEnabled('relationship_mapping'),
-    refetchInterval: 180000, // Emergency optimization: 30s → 180s to reduce memory pressure
+  const { data: graphData, isLoading, error, refetch } = useRelationshipData({
+    includeWeak: filters.includeWeak,
+    strengthThreshold: filters.strengthThreshold,
+    relationshipType: filters.relationshipType,
+    nodeType: filters.nodeType
   });
+
+  const processedData = data || graphData;
 
   useEffect(() => {
     if (!isFeatureEnabled('relationship_mapping')) {
@@ -60,62 +87,178 @@ const HybridRelationshipMap: React.FC<HybridRelationshipMapProps> = ({
     }
   }, [isFeatureEnabled]);
 
+  const getNodeColor = (node: RelationshipNode): string => {
+    if (node.color) return node.color;
+    
+    switch (node.type) {
+      case 'person': return '#3366ff';
+      case 'organization': return '#ff6633';
+      case 'sponsor': return '#33ff66';
+      case 'grantmaker': return '#ff3366';
+      default: return '#666666';
+    }
+  };
+
+  const getNodeSize = (node: RelationshipNode): number => {
+    if (node.size) return node.size;
+    return Math.max(4, Math.min(12, (node.connections || 1) * 2));
+  };
+
+  const getLinkColor = (link: RelationshipLink): string => {
+    if (link.color) return link.color;
+    
+    const opacity = Math.max(0.3, link.strength);
+    return `rgba(153, 153, 153, ${opacity})`;
+  };
+
+  const getLinkWidth = (link: RelationshipLink): number => {
+    return Math.max(1, link.strength * 4);
+  };
+
+  const filteredData = React.useMemo(() => {
+    if (!processedData || !processedData.nodes || !processedData.links) {
+      return { nodes: [], links: [], stats: undefined };
+    }
+
+    let filteredNodes = [...processedData.nodes];
+    let filteredLinks = [...processedData.links];
+
+    // Filter by relationship type
+    if (filters.relationshipType !== 'all') {
+      filteredLinks = filteredLinks.filter((link: RelationshipLink) => link.type === filters.relationshipType);
+      const connectedNodeIds = new Set([
+        ...filteredLinks.map((link: RelationshipLink) => link.source),
+        ...filteredLinks.map((link: RelationshipLink) => link.target)
+      ]);
+      filteredNodes = filteredNodes.filter((node: RelationshipNode) => connectedNodeIds.has(node.id));
+    }
+
+    // Filter by node type
+    if (filters.nodeType !== 'all') {
+      filteredNodes = filteredNodes.filter((node: RelationshipNode) => node.type === filters.nodeType);
+      const nodeIds = new Set(filteredNodes.map((node: RelationshipNode) => node.id));
+      filteredLinks = filteredLinks.filter((link: RelationshipLink) => 
+        nodeIds.has(link.source as string) && nodeIds.has(link.target as string)
+      );
+    }
+
+    // Filter by strength threshold
+    filteredLinks = filteredLinks.filter((link: RelationshipLink) => link.strength >= filters.strengthThreshold);
+
+    return {
+      nodes: filteredNodes,
+      links: filteredLinks,
+      stats: processedData.stats
+    };
+  }, [processedData, filters]);
+
   const renderGeographicView = () => (
-    <div className="geographic-view h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-      <div className="text-center text-gray-600 dark:text-gray-400">
-        <Map className="w-16 h-16 mx-auto mb-4 opacity-50" />
-        <h3 className="text-lg font-semibold mb-2">Geographic View</h3>
-        <p className="text-sm">Interactive map visualization with location-based relationship markers</p>
-        <p className="text-xs mt-2">Geographic data integration coming soon</p>
-      </div>
+    <div className="h-full w-full">
+      <MapContainer
+        center={[39.8283, -98.5795]} // Center of US
+        zoom={4}
+        style={{ height: '100%', width: '100%' }}
+        ref={mapRef}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        {filteredData.nodes.map((node) => (
+          node.lat && node.lng && (
+            <Marker 
+              key={node.id} 
+              position={[node.lat, node.lng]}
+              eventHandlers={{
+                click: () => onNodeClick?.(node)
+              }}
+            >
+              <Popup>
+                <div className="space-y-2">
+                  <div className="font-semibold">{node.label}</div>
+                  <div className="text-sm space-y-1">
+                    <div>Type: <Badge variant="outline">{node.type}</Badge></div>
+                    <div>Connections: {node.connections || 0}</div>
+                    {node.tier && <div>Tier: <Badge>{node.tier}</Badge></div>}
+                    {node.strength && (
+                      <div>Strength: {(node.strength * 100).toFixed(0)}%</div>
+                    )}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          )
+        ))}
+      </MapContainer>
     </div>
   );
 
   const renderNetworkView = () => (
-    <div className="network-view h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-      <div className="text-center text-gray-600 dark:text-gray-400">
-        <Network className="w-16 h-16 mx-auto mb-4 opacity-50" />
-        <h3 className="text-lg font-semibold mb-2">Network Graph</h3>
-        <p className="text-sm">Force-directed graph visualization of relationship connections</p>
-        <div className="mt-4 text-xs">
-          <p>Nodes: {graphData?.stats?.node_count || 0}</p>
-          <p>Edges: {graphData?.stats?.edge_count || 0}</p>
-        </div>
-      </div>
+    <div className="h-full w-full">
+      <ForceGraph2D
+        ref={graphRef}
+        graphData={filteredData}
+        nodeLabel={(node: any) => `${node.label} (${node.type})`}
+        nodeColor={getNodeColor}
+        nodeRelSize={getNodeSize}
+        nodeCanvasObjectMode={() => 'after'}
+        nodeCanvasObject={(node: any, ctx, globalScale) => {
+          const label = node.label;
+          const fontSize = 12 / globalScale;
+          ctx.font = `${fontSize}px Sans-Serif`;
+          const textWidth = ctx.measureText(label).width;
+          const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+          ctx.fillRect(
+            node.x - bckgDimensions[0] / 2,
+            node.y - bckgDimensions[1] / 2,
+            ...bckgDimensions
+          );
+
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#333';
+          ctx.fillText(label, node.x, node.y);
+        }}
+        linkColor={getLinkColor}
+        linkWidth={getLinkWidth}
+        linkDirectionalParticles={2}
+        linkDirectionalParticleSpeed={0.005}
+        onNodeClick={(node: any) => onNodeClick?.(node)}
+        onLinkClick={(link: any) => onLinkClick?.(link)}
+        width={800}
+        height={600}
+        cooldownTime={3000}
+        warmupTicks={100}
+        d3AlphaDecay={0.02}
+        d3VelocityDecay={0.3}
+      />
     </div>
   );
 
   const renderHybridView = () => (
-    <div className="hybrid-view h-full">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
-        <div className="geographic-panel">
-          {renderGeographicView()}
-        </div>
-        <div className="network-panel">
-          {renderNetworkView()}
-        </div>
+    <div className="h-full flex">
+      <div className="flex-1 border-r">
+        {renderGeographicView()}
+      </div>
+      <div className="flex-1">
+        {renderNetworkView()}
       </div>
     </div>
   );
 
   if (!isFeatureEnabled('relationship_mapping')) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Network className="w-16 h-16 text-gray-400 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Relationship Mapping Unavailable
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 text-center max-w-md">
-            This feature is temporarily disabled due to system resource constraints.
-          </p>
-          <Button 
-            variant="outline" 
-            className="mt-4"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </Button>
+      <Card className="h-full">
+        <CardContent className="flex flex-col items-center justify-center h-full space-y-4">
+          <Network size={48} className="text-muted-foreground" />
+          <div className="text-center space-y-2">
+            <h3 className="text-lg font-semibold">Relationship Mapping Unavailable</h3>
+            <p className="text-muted-foreground">
+              This feature is temporarily disabled due to system resource constraints.
+            </p>
+          </div>
         </CardContent>
       </Card>
     );
@@ -123,10 +266,10 @@ const HybridRelationshipMap: React.FC<HybridRelationshipMapProps> = ({
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading relationship data...</p>
+      <Card className="h-full">
+        <CardContent className="flex flex-col items-center justify-center h-full space-y-4">
+          <Loader2 size={48} className="animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading relationship data...</p>
         </CardContent>
       </Card>
     );
@@ -134,41 +277,39 @@ const HybridRelationshipMap: React.FC<HybridRelationshipMapProps> = ({
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Relationship Data</h3>
-          <p className="text-gray-600 dark:text-gray-400 text-center mb-4">
-            {error instanceof Error ? error.message : 'An error occurred'}
-          </p>
-          <Button onClick={() => window.location.reload()}>
-            Retry
-          </Button>
+      <Card className="h-full">
+        <CardContent className="flex flex-col items-center justify-center h-full space-y-4">
+          <AlertCircle size={48} className="text-destructive" />
+          <div className="text-center space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold">Failed to Load Relationship Data</h3>
+              <p className="text-muted-foreground">{error.message}</p>
+            </div>
+            <Button onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Network className="w-5 h-5" />
-              Relationship Network
-            </CardTitle>
-            <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-              <Badge variant="outline">
-                <Users className="w-3 h-3 mr-1" />
-                {graphData?.stats?.node_count || 0} people
-              </Badge>
-              <Badge variant="outline">
-                {graphData?.stats?.edge_count || 0} connections
-              </Badge>
+    <Card className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-full'}`}>
+      <CardHeader className="pb-4">
+        <div className="flex justify-between items-start">
+          <div className="space-y-1">
+            <CardTitle>Relationship Network Analysis</CardTitle>
+            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+              <span>{filteredData.nodes.length} people</span>
+              <span>{filteredData.links.length} connections</span>
+              {filteredData.stats?.density && (
+                <span>Density: {(filteredData.stats.density * 100).toFixed(1)}%</span>
+              )}
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center space-x-2">
             <Select
               value={filters.relationshipType}
               onValueChange={(value) => setFilters(prev => ({ ...prev, relationshipType: value }))}
@@ -177,54 +318,74 @@ const HybridRelationshipMap: React.FC<HybridRelationshipMapProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Relationships</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
                 <SelectItem value="colleague">Colleague</SelectItem>
                 <SelectItem value="sponsor">Sponsor</SelectItem>
                 <SelectItem value="collaborator">Collaborator</SelectItem>
+                <SelectItem value="professional">Professional</SelectItem>
               </SelectContent>
             </Select>
             
-            <Button variant="outline" size="sm">
-              <Filter className="w-4 h-4 mr-2" />
-              Filters
-            </Button>
+            <Select
+              value={filters.nodeType}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, nodeType: value }))}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Entities</SelectItem>
+                <SelectItem value="person">People</SelectItem>
+                <SelectItem value="organization">Organizations</SelectItem>
+                <SelectItem value="sponsor">Sponsors</SelectItem>
+                <SelectItem value="grantmaker">Grantmakers</SelectItem>
+              </SelectContent>
+            </Select>
             
-            <Button variant="outline" size="sm">
-              <Maximize2 className="w-4 h-4 mr-2" />
-              Fullscreen
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+            >
+              <Maximize2 size={16} />
+              {isFullscreen ? 'Exit' : 'Fullscreen'}
             </Button>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1">
+      <CardContent className="p-0 flex-1">
         <Tabs value={activeView} onValueChange={setActiveView} className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="geographic" className="flex items-center gap-2">
-              <Map className="w-4 h-4" />
-              Geographic
-            </TabsTrigger>
-            <TabsTrigger value="network" className="flex items-center gap-2">
-              <Network className="w-4 h-4" />
-              Network
-            </TabsTrigger>
-            <TabsTrigger value="hybrid">
-              Hybrid View
-            </TabsTrigger>
-          </TabsList>
+          <div className="px-6 pb-4">
+            <TabsList>
+              <TabsTrigger value="geographic" className="flex items-center space-x-2">
+                <Map size={16} />
+                <span>Geographic</span>
+              </TabsTrigger>
+              <TabsTrigger value="network" className="flex items-center space-x-2">
+                <Network size={16} />
+                <span>Network</span>
+              </TabsTrigger>
+              <TabsTrigger value="hybrid" className="flex items-center space-x-2">
+                <span>Hybrid View</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <TabsContent value="geographic" className="flex-1 mt-4">
-            {renderGeographicView()}
-          </TabsContent>
+          <div className="flex-1 px-6 pb-6">
+            <TabsContent value="geographic" className="h-full m-0">
+              {renderGeographicView()}
+            </TabsContent>
 
-          <TabsContent value="network" className="flex-1 mt-4">
-            {renderNetworkView()}
-          </TabsContent>
+            <TabsContent value="network" className="h-full m-0">
+              {renderNetworkView()}
+            </TabsContent>
 
-          <TabsContent value="hybrid" className="flex-1 mt-4">
-            {renderHybridView()}
-          </TabsContent>
+            <TabsContent value="hybrid" className="h-full m-0">
+              {renderHybridView()}
+            </TabsContent>
+          </div>
         </Tabs>
       </CardContent>
     </Card>
