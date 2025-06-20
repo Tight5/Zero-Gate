@@ -1,0 +1,143 @@
+"""
+Tenant context management for Zero Gate ESO Platform
+Handles multi-tenant isolation and security
+"""
+import jwt
+import logging
+from fastapi import Request, HTTPException, status
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+import os
+from typing import Optional, Dict, Any
+
+logger = logging.getLogger("zero-gate.tenant")
+
+class TenantContext:
+    """Tenant context for the current request"""
+    def __init__(self, tenant_id: str, tenant_name: str, tenant_settings: Dict[str, Any]):
+        self.tenant_id = tenant_id
+        self.tenant_name = tenant_name
+        self.settings = tenant_settings
+
+class TenantMiddleware(BaseHTTPMiddleware):
+    """Middleware to handle tenant context for all requests"""
+    
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Skip tenant context for public endpoints
+        if self._is_public_endpoint(request.url.path):
+            response = await call_next(request)
+            return response
+        
+        # Extract tenant ID from header or token
+        tenant_id = self._get_tenant_id(request)
+        if not tenant_id:
+            return Response(
+                content='{"detail": "Tenant ID is required"}',
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        # Validate tenant exists and user has access
+        tenant = await self._validate_tenant(tenant_id, request)
+        if not tenant:
+            return Response(
+                content='{"detail": "Invalid tenant or insufficient permissions"}',
+                status_code=status.HTTP_403_FORBIDDEN,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        # Set tenant context for the request
+        request.state.tenant = tenant
+        
+        # Process request with tenant context
+        response = await call_next(request)
+        
+        return response
+    
+    def _is_public_endpoint(self, path: str) -> bool:
+        """Check if the endpoint is public (no tenant context required)"""
+        public_paths = [
+            "/",
+            "/health",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/status"
+        ]
+        return any(path.startswith(p) for p in public_paths)
+    
+    def _get_tenant_id(self, request: Request) -> Optional[str]:
+        """Extract tenant ID from header or JWT token"""
+        # Try from header first
+        tenant_id = request.headers.get("X-Tenant-ID")
+        if tenant_id:
+            return tenant_id
+        
+        # Try from authorization token
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "")
+            try:
+                payload = jwt.decode(
+                    token, 
+                    os.getenv("JWT_SECRET", "default-secret"), 
+                    algorithms=["HS256"]
+                )
+                return payload.get("tenant_id")
+            except jwt.PyJWTError:
+                logger.warning("Invalid JWT token provided")
+                return None
+        
+        return None
+    
+    async def _validate_tenant(self, tenant_id: str, request: Request) -> Optional[TenantContext]:
+        """Validate tenant exists and user has access"""
+        try:
+            # Get database manager from app state
+            db_manager = getattr(request.app.state, 'db_manager', None)
+            
+            if db_manager:
+                # Get tenant info from central database
+                tenant_info = await db_manager.get_tenant_info(tenant_id)
+                
+                if tenant_info:
+                    return TenantContext(
+                        tenant_id=tenant_info["tenant_id"],
+                        tenant_name=tenant_info["name"],
+                        tenant_settings=tenant_info.get("settings", {})
+                    )
+            
+            # For development, create a default tenant context
+            if os.getenv("NODE_ENV") == "development" or not db_manager:
+                return TenantContext(
+                    tenant_id=tenant_id,
+                    tenant_name=f"Tenant {tenant_id}",
+                    tenant_settings={}
+                )
+            
+            return None
+                
+        except Exception as e:
+            logger.error(f"Error validating tenant {tenant_id}: {str(e)}")
+            # Return development tenant context on error
+            return TenantContext(
+                tenant_id=tenant_id,
+                tenant_name=f"Development Tenant {tenant_id}",
+                tenant_settings={}
+            )
+
+def get_current_tenant(request: Request) -> Optional[TenantContext]:
+    """Get the current tenant context from request"""
+    return getattr(request.state, 'tenant', None)
+
+def require_tenant(request: Request) -> TenantContext:
+    """Get the current tenant context, raising an exception if not found"""
+    tenant = get_current_tenant(request)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tenant context required"
+        )
+    return tenant
