@@ -52,7 +52,7 @@ interface AdminOverviewData {
   };
 }
 
-export function AdminDashboard() {
+export default function AdminDashboard() {
   const { isAdminMode } = useTenant();
   const [overviewData, setOverviewData] = useState<AdminOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
