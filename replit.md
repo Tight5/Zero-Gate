@@ -609,4 +609,5 @@ Changelog:
 Preferred communication style: Simple, everyday language.
 Repository: Connected to git@github.com:Tight5/Zero-Gate.git for version control
 Development Focus: Production-ready platform with authentic data integration
+Implementation Requirements: Cross-reference all updates with attached_assets, document deviations with reason and impact, maintain regression testing, never reduce existing functionality
 ```
