@@ -229,6 +229,10 @@ router.get('/tenant-data-feeds/:feedId/health', async (req, res) => {
     const { feedId } = req.params;
     const tenantId = (req as any).tenantId;
 
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     const [feed] = await db
       .select()
       .from(tenantDataFeeds)
@@ -244,7 +248,7 @@ router.get('/tenant-data-feeds/:feedId/health', async (req, res) => {
     // Calculate health metrics
     const now = new Date();
     const lastSyncAge = feed.lastSync ? now.getTime() - feed.lastSync.getTime() : null;
-    const expectedSyncInterval = feed.syncFrequency * 1000; // Convert to milliseconds
+    const expectedSyncInterval = (feed.syncFrequency || 3600) * 1000; // Convert to milliseconds
 
     let healthScore = 100;
     let status = 'healthy';
@@ -268,7 +272,7 @@ router.get('/tenant-data-feeds/:feedId/health', async (req, res) => {
       issues.push('Sync is past due');
     }
 
-    // Get data quality metrics based on feed type
+    // Get data quality metrics based on feed type (db is already checked above)
     let dataQuality = {};
     if (feed.feedType === 'microsoft365') {
       const stakeholderMetrics = await db
@@ -305,6 +309,10 @@ router.get('/tenant-data-feeds/:feedId/health', async (req, res) => {
 router.get('/tenant-data-feeds/analytics', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
+
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
 
     const feedMetrics = await db
       .select({
