@@ -247,7 +247,7 @@ const TenantSwitcher: React.FC = () => {
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
           <h4 className="font-medium text-blue-900 mb-2">Current Organization Features</h4>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            {settings?.features?.slice(0, 6).map((feature) => (
+            {settings?.features?.slice(0, 6).map((feature: string) => (
               <div key={feature} className="flex items-center gap-2 text-blue-800">
                 <CheckCircle className="h-3 w-3" />
                 <span className="capitalize">{feature.replace('_', ' ')}</span>

@@ -45,7 +45,7 @@ const TenantAdminPanel: React.FC<TenantAdminPanelProps> = ({ tenantId }) => {
     
     const updatedFeatures = enabled
       ? [...(settings.features || []), feature]
-      : (settings.features || []).filter(f => f !== feature);
+      : (settings.features || []).filter((f: string) => f !== feature);
     
     await updateSettings({
       ...settings,
