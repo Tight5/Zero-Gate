@@ -93,33 +93,50 @@ async def list_sponsors(
             for i in range(1, 6)
         ]
         
-        # Mock data for development - replace with actual database queries
+        # Filter by status and tier if specified
+        if status:
+            mock_sponsors = [s for s in mock_sponsors if s["status"] == status]
+        if tier:
+            mock_sponsors = [s for s in mock_sponsors if s["tier"] == tier]
+        
+        # Apply pagination
+        total = len(mock_sponsors)
+        paginated = mock_sponsors[offset:offset + limit]
+        
         sponsor_list = [
             SponsorResponse(
-                id="sponsor-1",
-                name="Microsoft Corporation",
-                contact_info={"email": "partnerships@microsoft.com", "phone": "+1-425-882-8080"},
-                relationship_manager="John Smith",
-                tier="tier_1",
-                status=status or "active",
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
-                tenant_id=tenant_id
-            ),
-            SponsorResponse(
-                id="sponsor-2", 
-                name="Google LLC",
-                contact_info={"email": "grants@google.com", "phone": "+1-650-253-0000"},
-                relationship_manager="Jane Doe",
-                tier="tier_1",
-                status=status or "active",
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
-                tenant_id=tenant_id
+                id=sponsor["id"],
+                name=sponsor["name"],
+                contact_info={"email": sponsor["email"]},
+                relationship_manager="System Admin",
+                tier=sponsor["tier"],
+                status=sponsor["status"],
+                created_at=datetime.fromisoformat(sponsor["created_at"].replace("Z", "+00:00")),
+                updated_at=datetime.fromisoformat(sponsor["created_at"].replace("Z", "+00:00")),
+                tenant_id=sponsor["tenant_id"]
             )
+            for sponsor in paginated
         ]
         
-        # Apply tier filter if specified
+        return {
+            "sponsors": sponsor_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+    
+    except Exception as e:
+        logger.error(f"Error listing sponsors: {e}")
+        return {
+            "sponsors": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset
+        
+
+
+@router.post("/")
+async def create_sponsor(
         if tier:
             sponsor_list = [s for s in sponsor_list if s.tier == tier]
         
