@@ -265,6 +265,55 @@ export const tenantDataFeedsRelations = relations(tenantDataFeeds, ({ one }) => 
   }),
 }));
 
+// OneDrive Storage Management Table
+export const onedriveStorage = pgTable('onedrive_storage', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  fileType: text('file_type').notNull(), // 'sponsor_profile', 'stakeholder_data', 'analytics', 'documents'
+  entityId: uuid('entity_id').notNull(), // Reference to sponsor, grant, etc.
+  onedriveFileId: text('onedrive_file_id').notNull(),
+  onedriveStoragePath: text('onedrive_storage_path').notNull(),
+  fileName: text('file_name').notNull(),
+  fileSize: integer('file_size'),
+  contentType: text('content_type').default('application/json'),
+  uploadMethod: text('upload_method').notNull().default('direct'), // 'direct', 'chunked', 'session'
+  syncStatus: text('sync_status').notNull().default('synced'),
+  lastSyncAt: timestamp('last_sync_at').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  // Data classification for security
+  classificationLevel: text('classification_level').notNull().default('internal'), // 'public', 'internal', 'confidential'
+  encryptionStatus: text('encryption_status').notNull().default('encrypted'),
+  accessControl: jsonb('access_control') // Store access control metadata
+});
+
+// Data Classification Schema
+export const dataClassification = pgTable('data_classification', {
+  id: serial('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  dataType: text('data_type').notNull(), // 'sponsor_data', 'stakeholder_info', 'analytics'
+  sensitivityLevel: text('sensitivity_level').notNull(), // 'public', 'internal', 'confidential', 'restricted'
+  retentionPeriod: integer('retention_period').notNull(), // Days
+  accessControl: jsonb('access_control'),
+  storageLocation: text('storage_location').notNull().default('postgresql'), // 'postgresql', 'onedrive', 'hybrid'
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const onedriveStorageRelations = relations(onedriveStorage, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [onedriveStorage.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const dataClassificationRelations = relations(dataClassification, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [dataClassification.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
 export const grantsRelations = relations(grants, ({ one, many }) => ({
   tenant: one(tenants, {
     fields: [grants.tenantId],
