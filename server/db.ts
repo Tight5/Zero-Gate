@@ -28,3 +28,7 @@ try {
 }
 
 export { pool, db };
+
+export function getDb() {
+  return db;
+}
