@@ -4,18 +4,24 @@ import { tenantContextMiddleware } from "./middleware/tenantMiddleware";
 import relationshipsRouter from "./routes/relationships";
 import dashboardRouter from "./routes/dashboard";
 
-// Simple debug server for troubleshooting
+// Create Express app with API-first routing
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
-// Apply tenant context middleware to all API routes
-app.use('/api', tenantContextMiddleware);
+// Create a separate API router to ensure API routes are processed first
+const apiRouter = express.Router();
 
-// Mount API routes
-app.use('/api/relationships', relationshipsRouter);
-app.use('/api/dashboard', dashboardRouter);
+// Apply tenant context middleware to all API routes
+apiRouter.use(tenantContextMiddleware);
+
+// Mount API routes on the API router
+apiRouter.use('/relationships', relationshipsRouter);
+apiRouter.use('/dashboard', dashboardRouter);
+
+// Mount the API router with highest priority
+app.use('/api', apiRouter);
 
 // Health endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -153,17 +159,6 @@ app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
   res.json({ success: true, tenantId });
 });
 
-// Dashboard endpoints
-app.get('/api/dashboard/stats', (req: Request, res: Response) => {
-  const mockStats = {
-    totalFunding: 2150000,
-    activeGrants: 12,
-    totalSponsors: 45,
-    relationshipStrength: 87
-  };
-  res.json(mockStats);
-});
-
 // System resource endpoints
 app.get('/api/system/resources', (req: Request, res: Response) => {
   const mockResources = {
@@ -171,46 +166,6 @@ app.get('/api/system/resources', (req: Request, res: Response) => {
     cpu: Math.floor(Math.random() * 30) + 40,
   };
   res.json(mockResources);
-});
-
-// Relationship endpoints
-app.get('/api/relationships', (req: Request, res: Response) => {
-  res.json([]);
-});
-
-app.get('/api/relationships/network-stats', (req: Request, res: Response) => {
-  const mockStats = {
-    totalNodes: 156,
-    totalEdges: 243,
-    avgConnections: 3.2,
-    strongConnections: 89
-  };
-  res.json(mockStats);
-});
-
-app.get('/api/relationships/graph-data', (req: Request, res: Response) => {
-  const mockGraphData = {
-    nodes: [],
-    links: []
-  };
-  res.json(mockGraphData);
-});
-
-app.post('/api/relationships/discover-path', (req: Request, res: Response) => {
-  const { source_id, target_id } = req.body;
-  res.json({
-    paths: [],
-    analysis: {
-      total_paths_found: 0,
-      shortest_path_length: -1,
-      strongest_path_strength: 0,
-      average_confidence: 0
-    }
-  });
-});
-
-app.get('/api/relationships/search', (req: Request, res: Response) => {
-  res.json([]);
 });
 
 // Tenant settings endpoints
@@ -236,51 +191,10 @@ app.get('/api/logout', (req: Request, res: Response) => {
   res.redirect('/');
 });
 
-// Dashboard API mock data
-app.get('/api/dashboard/kpis', (req: Request, res: Response) => {
-  res.json({
-    active_sponsors: 12,
-    total_grants: 8,
-    funding_secured: 2500000,
-    success_rate: 75,
-    relationships_mapped: 156,
-    content_published: 24,
-    trends: {
-      sponsors: 15,
-      grants: -5,
-      funding: 12,
-      success: 3,
-      relationships: 8,
-      content: 20
-    }
-  });
-});
-
-// Relationship network mock data
-app.get('/api/relationships/network', (req: Request, res: Response) => {
-  res.json({
-    nodes: [
-      { id: '1', name: 'Microsoft Foundation', type: 'sponsor', tier: 1, centrality_score: 0.8, influence_score: 9.2, connections: 45 },
-      { id: '2', name: 'Gates Foundation', type: 'sponsor', tier: 1, centrality_score: 0.9, influence_score: 9.8, connections: 52 },
-      { id: '3', name: 'Local Community Center', type: 'organization', tier: 3, centrality_score: 0.4, influence_score: 6.1, connections: 18 }
-    ],
-    edges: [
-      { source: '1', target: '2', strength: 85, type: 'partnership', verified: true, distance: 1 },
-      { source: '2', target: '3', strength: 62, type: 'funding', verified: true, distance: 2 }
-    ],
-    stats: {
-      total_nodes: 45,
-      total_edges: 78,
-      max_degree: 12,
-      avg_clustering: 0.65,
-      network_density: 0.12
-    }
-  });
-});
-
 // Setup server and Vite
 const setupServer = async () => {
   const port = Number(process.env.PORT) || 5000;
+  
   // Emergency memory optimization
   setInterval(() => {
     if (global.gc && process.memoryUsage().heapUsed / process.memoryUsage().heapTotal > 0.85) {
@@ -294,10 +208,11 @@ const setupServer = async () => {
     log("Debug mode active - simplified authentication");
   });
   
-  // Setup Vite with the server instance
+  // Setup Vite with the server instance - but AFTER all API routes are defined
   if (process.env.NODE_ENV === "development") {
-    log("Development mode - setting up Vite");
+    log("Development mode - setting up Vite (after API routes)");
     try {
+      // Vite will be set up after all Express routes to avoid intercepting API calls
       await setupVite(app, server);
     } catch (error) {
       log("Vite setup error (continuing without WebSocket):", error instanceof Error ? error.message : String(error));
