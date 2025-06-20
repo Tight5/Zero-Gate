@@ -21,20 +21,24 @@ class DatabaseManager:
         """Initialize database connections"""
         try:
             # Initialize PostgreSQL connection pool for central data
-            if os.getenv("DATABASE_URL"):
+            database_url = os.getenv("DATABASE_URL")
+            if database_url:
                 self.connection_pool = await asyncpg.create_pool(
-                    os.getenv("DATABASE_URL"),
+                    database_url,
                     min_size=1,
-                    max_size=5
+                    max_size=5,
+                    command_timeout=10
                 )
                 logger.info("PostgreSQL connection pool initialized")
-            
-            # Initialize central schema
-            await self._create_central_schema()
+                # Initialize central schema
+                await self._create_central_schema()
+            else:
+                logger.info("No DATABASE_URL found - continuing in development mode")
             
         except Exception as e:
             logger.error(f"Database initialization failed: {str(e)}")
             # For development, continue without PostgreSQL
+            self.connection_pool = None
             logger.info("Continuing in development mode without PostgreSQL")
     
     async def _create_central_schema(self):
