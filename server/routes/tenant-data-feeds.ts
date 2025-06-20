@@ -13,6 +13,10 @@ router.get('/tenant-data-feeds', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
     
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+    
     const feeds = await db
       .select({
         id: tenantDataFeeds.id,
@@ -71,6 +75,10 @@ router.post('/tenant-data-feeds', async (req, res) => {
 
     const feedData = createSchema.parse(req.body);
 
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     const [newFeed] = await db
       .insert(tenantDataFeeds)
       .values({
@@ -115,6 +123,10 @@ router.put('/tenant-data-feeds/:feedId', async (req, res) => {
 
     const updateData = updateSchema.parse(req.body);
 
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     const [updatedFeed] = await db
       .update(tenantDataFeeds)
       .set({
@@ -147,6 +159,10 @@ router.post('/tenant-data-feeds/:feedId/sync', async (req, res) => {
     const { feedId } = req.params;
     const tenantId = (req as any).tenantId;
 
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     // Get feed configuration
     const [feed] = await db
       .select()
@@ -160,7 +176,7 @@ router.post('/tenant-data-feeds/:feedId/sync', async (req, res) => {
       return res.status(404).json({ error: 'Data feed not found' });
     }
 
-    // Update last sync timestamp
+    // Update last sync timestamp (db is already checked above)
     await db
       .update(tenantDataFeeds)
       .set({

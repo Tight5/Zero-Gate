@@ -262,7 +262,7 @@ router.get('/sponsors/:sponsorId/analytics', async (req, res) => {
       return res.status(404).json({ error: 'Sponsor not found' });
     }
 
-    // Get stakeholder metrics
+    // Get stakeholder metrics (db is already checked above)
     const stakeholderMetrics = await db
       .select({
         totalStakeholders: sql<number>`count(*)`,
@@ -276,7 +276,7 @@ router.get('/sponsors/:sponsorId/analytics', async (req, res) => {
         eq(sponsorStakeholders.tenantId, tenantId)
       ));
 
-    // Get topic insights
+    // Get topic insights (db is already checked above)
     const topicInsights = await db
       .select({
         totalTopics: sql<number>`count(*)`,
