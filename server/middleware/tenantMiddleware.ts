@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 
-// Admin email configuration
-const ADMIN_EMAIL = 'admin@tight5digital.com';
-const TENANT_EMAIL = 'clint.phillips@thecenter.nasdaq.org';
+// NASDAQ Center organization configuration
+const NASDAQ_DOMAIN = 'thecenter.nasdaq.org';
+const DEFAULT_USER_EMAIL = 'clint.phillips@thecenter.nasdaq.org';
 
 // Extended Request interface for tenant context
 interface TenantRequest extends Request {
@@ -45,48 +45,32 @@ const extractUserEmail = (req: TenantRequest): string | null => {
   return null;
 };
 
-// Main tenant context middleware
+// Main tenant context middleware for NASDAQ Center organization
 export const tenantContextMiddleware = (req: TenantRequest, res: Response, next: NextFunction) => {
   try {
     // Extract user email from headers (development mode)
-    const userEmail = req.headers['x-user-email'] as string || 'clint.phillips@thecenter.nasdaq.org';
-    const adminModeHeader = req.headers['x-admin-mode'] as string;
+    const userEmail = req.headers['x-user-email'] as string || DEFAULT_USER_EMAIL;
+    
+    // Validate user is from NASDAQ Center domain
+    if (!userEmail.includes(NASDAQ_DOMAIN)) {
+      return res.status(403).json({
+        error: 'Access denied - only NASDAQ Center users allowed',
+        allowed_domain: NASDAQ_DOMAIN,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     // Set user email context
     req.userEmail = userEmail;
     
-    // Determine admin status and mode
-    const isAdmin = userEmail === ADMIN_EMAIL;
-    const isAdminMode = adminModeHeader === 'true' && isAdmin;
+    // Always assign NASDAQ Center tenant (ID: 1)
+    req.tenantId = '1';
+    req.isAdmin = false;
+    req.isAdminMode = false;
     
-    // Set admin context
-    req.isAdmin = isAdmin;
-    req.isAdminMode = isAdminMode;
-    
-    // Extract tenant ID (skip for admin mode)
-    let tenantId: string | undefined = undefined;
-    if (!isAdminMode) {
-      const extractedTenantId = extractTenantId(req);
-      
-      // Default tenant assignment based on user email
-      if (!extractedTenantId) {
-        if (userEmail.includes('thecenter.nasdaq.org')) {
-          tenantId = '1'; // NASDAQ Center
-        } else if (userEmail.includes('tight5digital.com')) {
-          tenantId = '2'; // Tight5 Digital
-        } else {
-          tenantId = '1'; // Default fallback
-        }
-      } else {
-        tenantId = extractedTenantId;
-      }
-    }
-    
-    req.tenantId = tenantId;
-    
-    // Conditional logging (only for first requests or mode changes)
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-      console.log(`[TenantMiddleware] User: ${userEmail}, Tenant: ${tenantId}, AdminMode: ${isAdminMode}, IsAdmin: ${isAdmin}`);
+    // Minimal development logging
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) {
+      console.log(`[TenantMiddleware] NASDAQ Center user: ${userEmail}`);
     }
     
     next();
