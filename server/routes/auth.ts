@@ -84,7 +84,10 @@ router.get('/user/tenants', async (req: Request, res: Response) => {
     const isAdminMode = req.headers['x-admin-mode'] === 'true';
     const userEmail = req.headers['x-user-email'] || 'clint.phillips@thecenter.nasdaq.org';
     
-    console.log(`[Auth] Loading tenants for ${userEmail}, admin mode: ${isAdminMode}`);
+    // Minimal tenant loading log (3% sample rate)
+    if (Math.random() < 0.03) {
+      console.log(`[Auth] Loading tenants for ${userEmail}, admin: ${isAdminMode}`);
+    }
     
     // Get tenants based on user email
     const userTenants = mockTenants[userEmail as keyof typeof mockTenants] || [];
@@ -113,7 +116,10 @@ router.post('/switch-tenant', async (req: Request, res: Response) => {
     const { tenantId } = req.body;
     const userEmail = req.headers['x-user-email'] || 'clint.phillips@thecenter.nasdaq.org';
     
-    console.log(`[Auth] Switching to tenant ${tenantId} for ${userEmail}`);
+    // Minimal tenant switching log (2% sample rate)
+    if (Math.random() < 0.02) {
+      console.log(`[Auth] Switching to tenant ${tenantId} for ${userEmail}`);
+    }
     
     // Get user's available tenants
     const userTenants = mockTenants[userEmail as keyof typeof mockTenants] || [];
@@ -156,7 +162,10 @@ router.post('/enter-admin-mode', async (req: Request, res: Response) => {
       });
     }
     
-    console.log(`[Auth] Entering admin mode for ${userEmail}`);
+    // Minimal admin mode log (1% sample rate)
+    if (Math.random() < 0.01) {
+      console.log(`[Auth] Admin mode activated for ${userEmail}`);
+    }
     
     res.json({
       success: true,
