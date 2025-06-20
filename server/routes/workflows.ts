@@ -129,7 +129,8 @@ router.post('/emergency', async (req: Request, res: Response) => {
     switch (action) {
       case 'pause_all':
         // Set all workflows to paused status
-        mockWorkflows.forEach(workflow => {
+        const pauseArray = Array.from(mockWorkflows.values());
+        pauseArray.forEach(workflow => {
           workflow.status = 'paused';
         });
         res.json({
@@ -141,11 +142,12 @@ router.post('/emergency', async (req: Request, res: Response) => {
         
       case 'resume_all':
         // Resume all paused workflows
-        for (const workflow of mockWorkflows.values()) {
+        const workflowArray = Array.from(mockWorkflows.values());
+        workflowArray.forEach(workflow => {
           if (workflow.status === 'paused') {
             workflow.status = 'running';
           }
-        }
+        });
         res.json({
           success: true,
           message: 'All workflows resumed',
