@@ -1,13 +1,15 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// Memory compliance configuration per attached asset specifications
+// Emergency memory compliance configuration per attached asset specifications
 const MEMORY_COMPLIANCE_CONFIG = {
-  threshold: 70, // Attached asset specification
-  maxCacheSize: 25, // Reduced from 50 for compliance
-  staleTime: 60000, // 1 minute (reduced from 5 minutes)
-  cacheTime: 120000, // 2 minutes (reduced from 10 minutes)
-  checkInterval: 30000, // Check every 30 seconds
-  maxRetries: 1, // Reduced retries for memory efficiency
+  threshold: 70, // CRITICAL: 70% threshold per File 45 specifications
+  maxCacheSize: 10, // Emergency reduction from 25 to 10
+  staleTime: 30000, // Emergency: 30 seconds (was 1 minute)
+  cacheTime: 60000, // Emergency: 1 minute (was 2 minutes)
+  checkInterval: 15000, // Emergency: Check every 15 seconds (was 30)
+  maxRetries: 0, // Emergency: No retries to prevent memory accumulation
+  emergencyThreshold: 85, // Trigger emergency protocols
+  criticalThreshold: 90, // Trigger critical protocols
 };
 
 async function throwIfResNotOk(res: Response) {
@@ -126,35 +128,46 @@ const memoryComplianceMonitor = setInterval(() => {
     return;
   }
   
-  // Memory threshold compliance
-  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold && now - lastCleanupTime > CLEANUP_COOLDOWN) {
-    // Progressive cleanup based on memory pressure
-    if (memoryUsage > 85) {
-      // Critical: Clear everything
+  // Emergency memory threshold compliance - immediate action required
+  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold) {
+    // Immediate cleanup without cooldown for compliance violations
+    if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.criticalThreshold) {
+      // Critical: Immediate full clear + emergency protocols
       queryClient.clear();
+      queryClient.getMutationCache().clear();
       console.error(`CRITICAL: Full cache clear at ${memoryUsage.toFixed(1)}% memory usage`);
-    } else if (memoryUsage > 75) {
-      // High: Clear old queries
-      queryClient.getQueryCache().clear();
-      console.warn(`HIGH: Query cache cleared at ${memoryUsage.toFixed(1)}% memory usage`);
+      
+      // Emergency garbage collection
+      if (window.gc) {
+        try {
+          window.gc();
+          // Force multiple GC cycles
+          setTimeout(() => window.gc && window.gc(), 100);
+          setTimeout(() => window.gc && window.gc(), 500);
+        } catch (e) {
+          console.warn('GC failed:', e);
+        }
+      }
+      
+    } else if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.emergencyThreshold) {
+      // Emergency: Clear everything immediately
+      queryClient.clear();
+      console.error(`EMERGENCY: Cache cleared at ${memoryUsage.toFixed(1)}% memory usage`);
+      
+      if (window.gc) {
+        window.gc();
+      }
+      
     } else {
-      // Warning: Remove stale queries
-      const queries = queryClient.getQueryCache().getAll();
-      const staleQueries = queries.filter(query => 
-        query.state.dataUpdatedAt < Date.now() - MEMORY_COMPLIANCE_CONFIG.staleTime
-      );
-      staleQueries.forEach(query => {
-        queryClient.getQueryCache().remove(query);
-      });
-      console.warn(`Stale queries removed: ${staleQueries.length} at ${memoryUsage.toFixed(1)}% memory usage`);
+      // Compliance violation: Clear queries immediately
+      queryClient.getQueryCache().clear();
+      console.warn(`COMPLIANCE: Query cache cleared at ${memoryUsage.toFixed(1)}% memory usage - exceeds 70% threshold`);
+      
+      // Reduce cache size limits for compliance
+      MEMORY_COMPLIANCE_CONFIG.maxCacheSize = Math.max(5, MEMORY_COMPLIANCE_CONFIG.maxCacheSize - 1);
     }
     
     lastCleanupTime = now;
-    
-    // Trigger garbage collection if available
-    if (window.gc) {
-      window.gc();
-    }
   }
   
   // Report compliance status every 2 minutes
