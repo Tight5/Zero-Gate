@@ -77,6 +77,10 @@ router.get('/sponsors/:sponsorId/topics', async (req, res) => {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
 
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     const topics = await db
       .select()
       .from(sponsorTopics)
@@ -114,6 +118,10 @@ router.post('/sponsors/:sponsorId/sync-stakeholders', async (req, res) => {
     });
 
     const { stakeholders: stakeholderData } = syncSchema.parse(req.body);
+
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
 
     // Insert or update stakeholders
     const insertedStakeholders = [];
@@ -185,6 +193,10 @@ router.post('/sponsors/:sponsorId/sync-topics', async (req, res) => {
 
     const { topics: topicData } = syncSchema.parse(req.body);
 
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     // Insert or update topics
     const insertedTopics = [];
     for (const topic of topicData) {
@@ -235,6 +247,10 @@ router.get('/sponsors/:sponsorId/analytics', async (req, res) => {
   try {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
+
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
 
     // Get sponsor with stakeholder and topic analytics
     const [sponsor] = await db
