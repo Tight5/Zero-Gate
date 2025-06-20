@@ -115,7 +115,7 @@ export const useUpdateRelationship = () => {
   const { currentTenant } = useTenant();
   
   return useMutation({
-    mutationFn: ({ relationshipId, data }: { relationshipId: string; data: any }) => 
+    mutationFn: ({ relationshipId, data }: { relationshipId: string; data: Partial<RelationshipData> }) => 
       fetch(`/api/relationships/${relationshipId}`, { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +144,12 @@ export const useDeleteRelationship = () => {
   });
 };
 
-export const useRelationshipSearch = (searchTerm: string, options: any = {}) => {
+interface SearchOptions {
+  limit?: number;
+  filters?: any;
+}
+
+export const useRelationshipSearch = (searchTerm: string, options: SearchOptions = {}) => {
   const { currentTenant } = useTenant();
   
   return useQuery({

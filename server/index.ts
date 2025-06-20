@@ -1,6 +1,7 @@
 import express, { type Request, Response } from "express";
 import { setupVite, serveStatic, log } from "./vite";
 import { tenantContextMiddleware } from "./middleware/tenantMiddleware";
+import relationshipsRouter from "./routes/relationships";
 
 // Simple debug server for troubleshooting
 const app = express();
@@ -10,6 +11,9 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 // Apply tenant context middleware to all API routes
 app.use('/api', tenantContextMiddleware);
+
+// Mount relationship routes
+app.use('/api/relationships', relationshipsRouter);
 
 // Health endpoint
 app.get('/health', (req: Request, res: Response) => {
