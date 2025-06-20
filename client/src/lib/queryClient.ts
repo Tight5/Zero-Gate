@@ -69,11 +69,12 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    // Intelligent memory check - only block genuinely problematic requests
-    const memoryUsage = getMemoryUsage();
-    if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.criticalThreshold) {
-      console.warn(`Query temporarily blocked: Critical browser heap usage ${memoryUsage.toFixed(1)}%`);
-      return null; // Only block at critical levels
+    // Resource-aware memory check - only block at critical browser heap levels
+    const memoryStats = getSystemAwareMemoryUsage();
+    const optimization = shouldTriggerMemoryOptimization(memoryStats);
+    if (optimization.optimizationLevel === 'aggressive') {
+      console.warn(`Query temporarily blocked: Critical browser heap usage ${memoryStats.browserHeapUsage.toFixed(1)}%`);
+      return null; // Only block at critical browser heap levels
     }
 
     const res = await fetch(queryKey[0] as string, {
@@ -121,59 +122,58 @@ export const queryClient = new QueryClient({
   },
 });
 
-// Enhanced memory compliance monitoring and cleanup
+// Resource-aware memory monitoring utilizing 62GB system capacity
 let lastCleanupTime = Date.now();
-const CLEANUP_COOLDOWN = 10000; // 10 seconds between cleanups
 
-const memoryComplianceMonitor = setInterval(() => {
-  const memoryUsage = getMemoryUsage();
+const resourceAwareMonitor = setInterval(() => {
+  const memoryStats = getSystemAwareMemoryUsage();
+  const optimization = shouldTriggerMemoryOptimization(memoryStats);
   const cacheSize = queryClient.getQueryCache().size;
   const now = Date.now();
   
-  // Aggressive cache size management
-  if (cacheSize > MEMORY_COMPLIANCE_CONFIG.maxCacheSize) {
+  // Progressive cache management based on actual resource constraints
+  if (cacheSize > RESOURCE_AWARE_CONFIG.maxCacheSize) {
     queryClient.clear();
-    console.warn(`Cache cleared: Size limit exceeded (${cacheSize} > ${MEMORY_COMPLIANCE_CONFIG.maxCacheSize})`);
+    console.log(`Cache cleared: Size limit exceeded (${cacheSize} > ${RESOURCE_AWARE_CONFIG.maxCacheSize})`);
     lastCleanupTime = now;
     return;
   }
   
-  // Intelligent memory management based on actual resource availability
-  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold && now - lastCleanupTime > CLEANUP_COOLDOWN) {
+  // Resource-aware memory management
+  if (optimization.shouldOptimize && now - lastCleanupTime > RESOURCE_AWARE_CONFIG.cleanupCooldown) {
     
-    if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.criticalThreshold) {
-      // Critical: Browser approaching heap limit - immediate action needed
+    if (optimization.optimizationLevel === 'aggressive') {
+      // Critical browser heap usage - immediate cleanup
       queryClient.clear();
-      console.warn(`Browser heap critical: ${memoryUsage.toFixed(1)}% - Cache cleared`);
+      console.warn(`Browser heap critical: ${memoryStats.browserHeapUsage.toFixed(1)}% - Cache cleared`);
       
-      // Gentle garbage collection
+      // Optional garbage collection
       if (window.gc) {
         setTimeout(() => window.gc && window.gc(), 1000);
       }
       
-    } else if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.emergencyThreshold) {
+    } else if (optimization.optimizationLevel === 'moderate') {
       // High usage: Progressive cleanup
       const queries = queryClient.getQueryCache().getAll();
       const oldQueries = queries.filter(query => 
-        query.state.dataUpdatedAt < Date.now() - MEMORY_COMPLIANCE_CONFIG.staleTime
+        query.state.dataUpdatedAt < Date.now() - RESOURCE_AWARE_CONFIG.staleTime
       );
       
       if (oldQueries.length > 0) {
         oldQueries.forEach(query => queryClient.getQueryCache().remove(query));
-        console.log(`Memory optimization: Removed ${oldQueries.length} stale queries at ${memoryUsage.toFixed(1)}%`);
+        console.log(`Memory optimization: Removed ${oldQueries.length} stale queries at ${memoryStats.browserHeapUsage.toFixed(1)}%`);
       } else {
         // No stale queries, reduce cache size
         queryClient.getQueryCache().clear();
-        console.log(`Memory optimization: Cache cleared at ${memoryUsage.toFixed(1)}%`);
+        console.log(`Memory optimization: Cache cleared at ${memoryStats.browserHeapUsage.toFixed(1)}%`);
       }
       
-    } else {
-      // Normal management: Remove only oldest queries
-      const cacheSize = queryClient.getQueryCache().size;
-      if (cacheSize > MEMORY_COMPLIANCE_CONFIG.maxCacheSize) {
+    } else if (optimization.optimizationLevel === 'gentle') {
+      // Gentle management: Remove only oldest queries
+      if (cacheSize > RESOURCE_AWARE_CONFIG.maxCacheSize * 1.5) {
         const queries = queryClient.getQueryCache().getAll()
           .sort((a, b) => a.state.dataUpdatedAt - b.state.dataUpdatedAt)
-          .slice(0, cacheSize - MEMORY_COMPLIANCE_CONFIG.maxCacheSize);
+          .slice(0, Math.floor(cacheSize * 0.3));
         
         queries.forEach(query => queryClient.getQueryCache().remove(query));
         console.log(`Cache optimized: Removed ${queries.length} oldest queries`);
@@ -184,12 +184,11 @@ const memoryComplianceMonitor = setInterval(() => {
   }
   
   // Intelligent resource reporting every 2 minutes
-  if (now % 120000 < MEMORY_COMPLIANCE_CONFIG.checkInterval) {
-    const heapUsage = memoryUsage;
+  if (now % 120000 < RESOURCE_AWARE_CONFIG.checkInterval) {
     const heapMB = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 0;
     const limitMB = performance.memory ? Math.round(performance.memory.jsHeapSizeLimit / 1048576) : 0;
     
-    console.log(`Browser Heap: ${heapUsage.toFixed(1)}% (${heapMB}MB/${limitMB}MB) | Cache: ${cacheSize} queries | System: 62GB available`);
+    console.log(`Browser Heap: ${memoryStats.browserHeapUsage.toFixed(1)}% (${heapMB}MB/${limitMB}MB) | Cache: ${cacheSize} queries | System: 62GB available`);
   }
 }, RESOURCE_AWARE_CONFIG.checkInterval);
 
