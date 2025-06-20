@@ -1,18 +1,33 @@
 {
-  "timestamp": "2025-06-20T00:08:17.455Z",
-  "status": "EMERGENCY_OPTIMIZATION_APPLIED",
-  "optimizations": [
-    "Dashboard refresh intervals optimized in client/src/pages/Dashboard.tsx",
-    "Dashboard refresh intervals optimized in client/src/components/dashboard/KPICards.tsx",
-    "Query client optimized for memory efficiency",
-    "Non-essential features disabled",
-    "Server memory optimization enabled"
+  "timestamp": "2025-06-20T02:34:53.815Z",
+  "emergency_status": "ACTIVE",
+  "memory_target": "85%",
+  "critical_threshold": "90%",
+  "optimizations_applied": [
+    "Dashboard refresh intervals extended to 5-20 minutes",
+    "Query client cache reduced to prevent memory accumulation",
+    "Emergency memory monitoring with automatic GC triggers",
+    "Query client cache times extended to prevent memory leaks",
+    "Automatic cache clearing when size exceeds 50 queries",
+    "Disabled relationship mapping, analytics, Excel processing",
+    "Disabled real-time updates and WebSocket connections",
+    "Disabled background sync and auto-refresh features",
+    "Server middleware limits concurrent requests during high memory",
+    "Automatic garbage collection triggers at 200MB heap usage"
   ],
-  "memoryTarget": "< 85%",
-  "recommendations": [
-    "Monitor memory usage closely",
-    "Consider reducing component complexity",
-    "Implement lazy loading for heavy components",
-    "Use React.memo for expensive renders"
-  ]
+  "immediate_actions": [
+    "Dashboard refresh intervals extended to 5-20 minutes",
+    "Non-essential features disabled (relationship mapping, analytics)",
+    "Query cache aggressively managed with size limits",
+    "Server request concurrency limited during high memory",
+    "Automatic garbage collection triggers implemented"
+  ],
+  "monitoring": {
+    "client_memory_check": "10 second intervals",
+    "server_memory_check": "Per request basis",
+    "cache_cleanup": "60 second intervals",
+    "gc_triggers": "At 200MB+ heap usage"
+  },
+  "expected_memory_reduction": "15-25%",
+  "performance_impact": "Moderate - slower refresh rates, disabled features"
 }

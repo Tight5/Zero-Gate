@@ -39,15 +39,18 @@ def handle_operation(operation: str, data: dict):
             return {
                 'success': True,
                 'message': f'Relationship added between {source} and {target}',
-                'nodes_count': len(agent.relationship_graph.nodes()),
-                'edges_count': len(agent.relationship_graph.edges())
+                'nodes_count': agent.relationship_graph.number_of_nodes(),
+                'edges_count': agent.relationship_graph.number_of_edges()
             }
             
         elif operation == 'find_relationship_path':
-            source = data.get('source')
-            target = data.get('target')
-            tenant_id = data.get('tenant_id')
-            max_depth = data.get('max_depth', 7)
+            source = str(data.get('source', ''))
+            target = str(data.get('target', ''))
+            tenant_id = str(data.get('tenant_id', ''))
+            max_depth = int(data.get('max_depth', 7))
+            
+            if not all([source, target, tenant_id]):
+                return {'success': False, 'error': 'Missing required parameters'}
             
             path = agent.find_relationship_path(
                 source=source,

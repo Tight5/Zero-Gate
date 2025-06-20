@@ -169,7 +169,7 @@ class ProcessingAgent:
                     "to": path[i + 1],
                     "type": rel_type,
                     "strength": strength,
-                    "created_at": edge_data.get('created_at').isoformat() if edge_data.get('created_at') and hasattr(edge_data.get('created_at'), 'isoformat') else str(edge_data.get('created_at', ''))
+                    "created_at": (lambda x: x.isoformat() if hasattr(x, 'isoformat') else str(x) if x else '')(edge_data.get('created_at'))
                 })
         
         avg_strength = sum(strengths) / len(strengths) if strengths else 0
