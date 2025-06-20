@@ -1,6 +1,7 @@
 import express, { type Request, Response } from "express";
 import { setupVite, serveStatic, log } from "./vite";
 import { tenantContextMiddleware } from "./middleware/tenantMiddleware";
+import authRouter from "./routes/auth";
 import relationshipsRouter from "./routes/relationships";
 import dashboardRouter from "./routes/dashboard";
 import tenantsRouter from "./routes/tenants";
@@ -20,6 +21,7 @@ const apiRouter = express.Router();
 apiRouter.use(tenantContextMiddleware);
 
 // Mount API routes on the API router
+apiRouter.use('/auth', authRouter);
 apiRouter.use('/relationships', relationshipsRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/tenants', tenantsRouter);

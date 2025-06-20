@@ -91,8 +91,12 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
   const loadTenants = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+      
+      const userEmail = localStorage.getItem('userEmail') || 'clint.phillips@thecenter.nasdaq.org';
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        'X-User-Email': userEmail,
       };
 
       // Add admin mode header if in admin mode
@@ -100,10 +104,13 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
         headers['X-Admin-Mode'] = 'true';
       }
 
+      console.log(`[TenantContext] Loading tenants for ${userEmail}, admin mode: ${isAdminMode}`);
       const response = await fetch('/api/auth/user/tenants', { headers });
       
       if (response.ok) {
         const data = await response.json();
+        console.log(`[TenantContext] Loaded ${data.tenants?.length || 0} tenants:`, data.tenants);
+        
         setAvailableTenants(data.tenants || []);
         
         // In admin mode, don't automatically set current tenant
@@ -121,21 +128,26 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
           const tenant = tenants.find((t: Tenant) => t.id === savedTenantId);
           if (tenant && tenant.status === 'active') {
             setCurrentTenant(tenant);
+            console.log(`[TenantContext] Set current tenant from storage: ${tenant.name}`);
           } else if (tenants.length > 0) {
             setCurrentTenant(tenants[0]);
             localStorage.setItem('currentTenantId', tenants[0].id);
+            console.log(`[TenantContext] Set current tenant to first available: ${tenants[0].name}`);
           }
         } else if (tenants.length > 0) {
           setCurrentTenant(tenants[0]);
           localStorage.setItem('currentTenantId', tenants[0].id);
+          console.log(`[TenantContext] Set current tenant to first: ${tenants[0].name}`);
         }
       } else {
         console.error('Failed to load tenants:', response.status, response.statusText);
-        setError('Failed to load tenants');
+        const errorText = await response.text();
+        console.error('Response body:', errorText);
+        setError(`Failed to load tenants: ${response.status}`);
       }
     } catch (err) {
       console.error('Error loading tenants:', err);
-      setError('Failed to load tenants');
+      setError('Network error loading tenants');
     } finally {
       setLoading(false);
     }
