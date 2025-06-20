@@ -6,6 +6,14 @@ import { z } from 'zod';
 
 const router = Router();
 
+// Database connection guard
+const checkDbConnection = () => {
+  if (!db) {
+    throw new Error('Database connection not available');
+  }
+  return db;
+};
+
 // Enhanced sponsor endpoints with stakeholder and topic management
 
 // Get all sponsors with stakeholder and topic counts
@@ -13,7 +21,7 @@ router.get('/sponsors', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
     
-    const sponsorsWithMetrics = await db
+    const sponsorsWithMetrics = await checkDbConnection()
       .select({
         id: sponsors.id,
         name: sponsors.name,
@@ -47,7 +55,7 @@ router.get('/sponsors/:sponsorId/stakeholders', async (req, res) => {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
 
-    const stakeholders = await db
+    const stakeholders = await checkDbConnection()
       .select()
       .from(sponsorStakeholders)
       .where(and(
