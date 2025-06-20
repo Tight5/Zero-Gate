@@ -167,7 +167,7 @@ export const CalendarFilters: React.FC<CalendarFiltersProps> = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Members</SelectItem>
-                <SelectItem value="">Unassigned</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
                 {teamMembers.map(member => (
                   <SelectItem key={member} value={member}>
                     {member}
