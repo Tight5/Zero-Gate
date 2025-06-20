@@ -5,6 +5,7 @@ import authRouter from "./routes/auth";
 import relationshipsRouter from "./routes/relationships";
 import dashboardRouter from "./routes/dashboard";
 import tenantsRouter from "./routes/tenants";
+import workflowsRouter from "./routes/workflows";
 import microsoft365DebugRouter from "./routes/microsoft365-debug";
 import microsoft365IntegrationRouter from "./routes/microsoft365-integration";
 
@@ -25,6 +26,7 @@ apiRouter.use('/auth', authRouter);
 apiRouter.use('/relationships', relationshipsRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/tenants', tenantsRouter);
+apiRouter.use('/workflows', workflowsRouter);
 apiRouter.use('/microsoft365', microsoft365DebugRouter);
 apiRouter.use('/integration/microsoft365', microsoft365IntegrationRouter);
 
