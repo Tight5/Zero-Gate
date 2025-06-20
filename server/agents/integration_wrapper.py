@@ -21,7 +21,7 @@ async def execute_integration_command(operation: str, data: Dict[str, Any]) -> D
         agent = get_integration_agent()
         
         if operation == 'extract_organizational_relationships':
-            tenant_id = data.get('tenant_id')
+            tenant_id = data.get('tenant_id') or "default-tenant"
             user_limit = int(data.get('user_limit', 100))
             
             result = await agent.extract_organizational_relationships(
@@ -31,8 +31,8 @@ async def execute_integration_command(operation: str, data: Dict[str, Any]) -> D
             return {'success': True, 'data': result}
             
         elif operation == 'analyze_email_communication_patterns':
-            tenant_id = data.get('tenant_id')
-            user_id = data.get('user_id')
+            tenant_id = data.get('tenant_id') or "default-tenant"
+            user_id = data.get('user_id') or "me"
             days = int(data.get('days', 30))
             
             result = await agent.analyze_email_communication_patterns(
@@ -43,9 +43,9 @@ async def execute_integration_command(operation: str, data: Dict[str, Any]) -> D
             return {'success': True, 'data': result}
             
         elif operation == 'process_excel_file_for_dashboard':
-            file_path = data.get('file_path')
+            file_path = data.get('file_path') or None
             file_content = data.get('file_content')
-            tenant_id = data.get('tenant_id')
+            tenant_id = data.get('tenant_id') or "default-tenant"
             
             # Convert base64 file content if provided
             if file_content and isinstance(file_content, str):
@@ -54,13 +54,13 @@ async def execute_integration_command(operation: str, data: Dict[str, Any]) -> D
             
             result = await agent.process_excel_file_for_dashboard(
                 file_path=file_path,
-                file_content=file_content,
+                file_content=file_content or b'',
                 tenant_id=tenant_id
             )
             return {'success': True, 'data': result}
             
         elif operation == 'get_connection_status':
-            tenant_id = data.get('tenant_id')
+            tenant_id = data.get('tenant_id') or "default-tenant"
             
             result = await agent.get_connection_status(tenant_id=tenant_id)
             return {'success': True, 'data': result}

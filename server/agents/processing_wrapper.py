@@ -90,7 +90,7 @@ def handle_operation(operation: str, data: dict):
             
         elif operation == 'analyze_relationship_strength':
             path = data.get('path', [])
-            tenant_id = data.get('tenant_id')
+            tenant_id = data.get('tenant_id') or "default-tenant"
             
             analysis = agent.analyze_relationship_strength(
                 path=path,
@@ -104,7 +104,7 @@ def handle_operation(operation: str, data: dict):
             
         elif operation == 'calculate_sponsor_metrics':
             sponsor_data = data.get('sponsor_data', {})
-            tenant_id = data.get('tenant_id')
+            tenant_id = data.get('tenant_id') or "default-tenant"
             
             metrics = agent.calculate_sponsor_metrics(
                 sponsor_data=sponsor_data,
@@ -118,14 +118,17 @@ def handle_operation(operation: str, data: dict):
             
         elif operation == 'generate_grant_timeline':
             grant_deadline_str = data.get('grant_deadline')
-            grant_type = data.get('grant_type')
-            tenant_id = data.get('tenant_id')
+            grant_type = data.get('grant_type') or "general"
+            tenant_id = data.get('tenant_id') or "default-tenant"
             
             # Parse ISO datetime string
             try:
-                grant_deadline = datetime.fromisoformat(grant_deadline_str.replace('Z', '+00:00'))
-                # Remove timezone info for processing
-                grant_deadline = grant_deadline.replace(tzinfo=None)
+                if grant_deadline_str:
+                    grant_deadline = datetime.fromisoformat(grant_deadline_str.replace('Z', '+00:00'))
+                    # Remove timezone info for processing
+                    grant_deadline = grant_deadline.replace(tzinfo=None)
+                else:
+                    grant_deadline = datetime.now()
             except Exception as e:
                 return {
                     'success': False,
