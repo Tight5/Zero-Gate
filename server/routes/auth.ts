@@ -78,16 +78,16 @@ const mockTenants = {
   ]
 };
 
-// GET /api/auth/user/tenants - Get user tenants (Single NASDAQ Center tenant)
+// GET /api/auth/user/tenants - Get user tenants based on email and admin mode
 router.get('/user/tenants', async (req: Request, res: Response) => {
   try {
     const isAdminMode = req.headers['x-admin-mode'] === 'true';
     const userEmail = req.headers['x-user-email'] || 'clint.phillips@thecenter.nasdaq.org';
     
-    console.log(`[Auth] Loading NASDAQ Center tenant for ${userEmail}, admin mode: ${isAdminMode}`);
+    console.log(`[Auth] Loading tenants for ${userEmail}, admin mode: ${isAdminMode}`);
     
-    // Always return only the NASDAQ Center tenant
-    const userTenants = [nasdaqCenterTenant];
+    // Get tenants based on user email
+    const userTenants = mockTenants[userEmail as keyof typeof mockTenants] || [];
     
     res.json({
       success: true,
@@ -107,24 +107,36 @@ router.get('/user/tenants', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/auth/switch-tenant - Always return NASDAQ Center tenant
+// POST /api/auth/switch-tenant - Switch to specified tenant
 router.post('/switch-tenant', async (req: Request, res: Response) => {
   try {
+    const { tenantId } = req.body;
     const userEmail = req.headers['x-user-email'] || 'clint.phillips@thecenter.nasdaq.org';
     
-    console.log(`[Auth] Confirming NASDAQ Center tenant for ${userEmail}`);
+    console.log(`[Auth] Switching to tenant ${tenantId} for ${userEmail}`);
     
-    // Always return the NASDAQ Center tenant
+    // Get user's available tenants
+    const userTenants = mockTenants[userEmail as keyof typeof mockTenants] || [];
+    const selectedTenant = userTenants.find(t => t.id === tenantId);
+    
+    if (!selectedTenant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tenant not found or access denied',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     res.json({
       success: true,
-      tenant: nasdaqCenterTenant,
+      tenant: selectedTenant,
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    console.error('Error confirming tenant:', error);
+    console.error('Error switching tenant:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to confirm tenant',
+      error: 'Failed to switch tenant',
       details: error.message,
       timestamp: new Date().toISOString()
     });
