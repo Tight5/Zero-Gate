@@ -58,9 +58,9 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
             <div className="font-bold text-xl">Zero Gate</div>
           </Link>
           
-          {user?.tenantName && (
+          {user?.currentTenantId && (
             <Badge variant="secondary" className="hidden md:inline-flex">
-              {user.tenantName}
+              Tenant Active
             </Badge>
           )}
         </div>

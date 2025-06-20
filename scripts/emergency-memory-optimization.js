@@ -1,177 +1,164 @@
 #!/usr/bin/env node
+
 /**
  * Emergency Memory Optimization Script
  * Implements aggressive memory management for critical situations
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const fs = require('fs').promises;
+const path = require('path');
 
 class EmergencyMemoryOptimizer {
   constructor() {
     this.optimizations = [];
+    this.timestamp = new Date().toISOString();
   }
 
   log(message) {
-    console.log(`[MEMORY-OPT] ${new Date().toISOString()} - ${message}`);
+    console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
   }
 
-  // Reduce dashboard refresh intervals
-  optimizeDashboardRefresh() {
-    const configPath = path.join(__dirname, '../client/src/lib/constants.ts');
-    if (fs.existsSync(configPath)) {
-      let content = fs.readFileSync(configPath, 'utf8');
-      
-      // Increase refresh intervals to reduce memory pressure
-      content = content.replace(/autoRefreshInterval:\s*5000/g, 'autoRefreshInterval: 15000');
-      content = content.replace(/refetchInterval:\s*5000/g, 'refetchInterval: 15000');
-      
-      fs.writeFileSync(configPath, content);
-      this.optimizations.push('Dashboard refresh intervals increased to 15s');
+  async optimizeDashboardRefresh() {
+    this.log('🔧 Optimizing dashboard refresh intervals...');
+    
+    const dashboardFiles = [
+      'client/src/pages/Dashboard.tsx',
+      'client/src/components/dashboard/KPICards.tsx'
+    ];
+
+    for (const file of dashboardFiles) {
+      try {
+        const content = await fs.readFile(file, 'utf8');
+        let optimized = content
+          // Increase refresh intervals dramatically
+          .replace(/refetchInterval:\s*\d+000/g, 'refetchInterval: 300000') // 5 minutes
+          .replace(/staleTime:\s*\d+000/g, 'staleTime: 600000') // 10 minutes
+          .replace(/gcTime:\s*\d+000/g, 'gcTime: 1200000'); // 20 minutes
+
+        await fs.writeFile(file, optimized);
+        this.optimizations.push(`Dashboard refresh intervals optimized in ${file}`);
+      } catch (error) {
+        this.log(`⚠️ Could not optimize ${file}: ${error.message}`);
+      }
     }
   }
 
-  // Optimize query client cache settings
-  optimizeQueryClient() {
-    const queryClientPath = path.join(__dirname, '../client/src/lib/queryClient.ts');
-    if (fs.existsSync(queryClientPath)) {
-      let content = fs.readFileSync(queryClientPath, 'utf8');
+  async optimizeQueryClient() {
+    this.log('🔧 Optimizing React Query client settings...');
+    
+    try {
+      const queryClientFile = 'client/src/lib/queryClient.ts';
+      const content = await fs.readFile(queryClientFile, 'utf8');
       
-      // Reduce cache time and stale time
-      content = content.replace(/cacheTime:\s*1000\s*\*\s*60\s*\*\s*15/g, 'cacheTime: 1000 * 60 * 5'); // 5 min instead of 15
-      content = content.replace(/staleTime:\s*1000\s*\*\s*60\s*\*\s*5/g, 'staleTime: 1000 * 60 * 2'); // 2 min instead of 5
-      
-      fs.writeFileSync(queryClientPath, content);
-      this.optimizations.push('Query cache times reduced for memory conservation');
-    }
-  }
-
-  // Disable non-essential features temporarily
-  disableNonEssentialFeatures() {
-    const configPath = path.join(__dirname, '../client/src/config/features.ts');
-    if (fs.existsSync(configPath)) {
-      let content = fs.readFileSync(configPath, 'utf8');
-      
-      // Disable analytics and debug features
-      content = content.replace(/analytics:\s*true/g, 'analytics: false');
-      content = content.replace(/debug:\s*true/g, 'debug: false');
-      content = content.replace(/resourceMonitoring:\s*true/g, 'resourceMonitoring: false');
-      
-      fs.writeFileSync(configPath, content);
-      this.optimizations.push('Non-essential features disabled');
-    }
-  }
-
-  // Optimize server middleware
-  optimizeServerMiddleware() {
-    const indexPath = path.join(__dirname, '../server/index.ts');
-    if (fs.existsSync(indexPath)) {
-      let content = fs.readFileSync(indexPath, 'utf8');
-      
-      // Add memory pressure monitoring
-      const memoryMiddleware = `
-// Emergency memory optimization middleware
-app.use((req, res, next) => {
-  const usage = process.memoryUsage();
-  const percentage = Math.round((usage.heapUsed / usage.heapTotal) * 100);
-  
-  if (percentage > 95) {
-    // Immediate response for high memory usage
-    if (req.path.includes('/api/dashboard/metrics')) {
-      return res.json({ 
-        memory_critical: true, 
-        memory_percentage: percentage,
-        optimization_active: true 
-      });
-    }
-  }
-  
-  // Force garbage collection every 30 requests when memory is high
-  if (percentage > 90 && Math.random() < 0.033) {
-    setImmediate(() => {
-      if (global.gc) global.gc();
-    });
-  }
-  
-  next();
-});
-`;
-      
-      // Insert before the routes registration
-      content = content.replace(
-        /registerRoutes\(app\)/,
-        `${memoryMiddleware.trim()}\n\n  const httpServer = await registerRoutes(app);`
+      const optimized = content.replace(
+        /staleTime:\s*\d+/g, 'staleTime: 1000 * 60 * 10' // 10 minutes
+      ).replace(
+        /gcTime:\s*\d+/g, 'gcTime: 1000 * 60 * 20' // 20 minutes  
       );
-      
-      fs.writeFileSync(indexPath, content);
-      this.optimizations.push('Emergency memory middleware added');
+
+      await fs.writeFile(queryClientFile, optimized);
+      this.optimizations.push('Query client optimized for memory efficiency');
+    } catch (error) {
+      this.log(`⚠️ Could not optimize query client: ${error.message}`);
     }
   }
 
-  // Generate optimization report
+  async disableNonEssentialFeatures() {
+    this.log('🔧 Disabling non-essential features...');
+    
+    const featureFlags = {
+      relationship_mapping: false,
+      advanced_analytics: false,
+      excel_processing: false,
+      real_time_updates: false
+    };
+
+    try {
+      await fs.writeFile(
+        'client/src/config/emergency-flags.json',
+        JSON.stringify(featureFlags, null, 2)
+      );
+      this.optimizations.push('Non-essential features disabled');
+    } catch (error) {
+      this.log(`⚠️ Could not write feature flags: ${error.message}`);
+    }
+  }
+
+  async optimizeServerMiddleware() {
+    this.log('🔧 Optimizing server middleware...');
+    
+    try {
+      const serverFile = 'server/index.ts';
+      const content = await fs.readFile(serverFile, 'utf8');
+      
+      // Add memory optimization middleware
+      const optimizedContent = content.replace(
+        'app.listen(port',
+        `
+// Emergency memory optimization
+setInterval(() => {
+  if (global.gc && process.memoryUsage().heapUsed / process.memoryUsage().heapTotal > 0.85) {
+    global.gc();
+  }
+}, 5000);
+
+app.listen(port`
+      );
+
+      await fs.writeFile(serverFile, optimizedContent);
+      this.optimizations.push('Server memory optimization enabled');
+    } catch (error) {
+      this.log(`⚠️ Could not optimize server: ${error.message}`);
+    }
+  }
+
   generateReport() {
     const report = {
-      timestamp: new Date().toISOString(),
-      optimizations_applied: this.optimizations,
-      status: 'EMERGENCY_MEMORY_OPTIMIZATION_ACTIVE',
+      timestamp: this.timestamp,
+      status: 'EMERGENCY_OPTIMIZATION_APPLIED',
+      optimizations: this.optimizations,
+      memoryTarget: '< 85%',
       recommendations: [
         'Monitor memory usage closely',
-        'Microsoft integration ready once correct secret provided',
-        'Dashboard functionality maintained with reduced refresh rates',
-        'Consider restarting application after memory stabilizes'
+        'Consider reducing component complexity',
+        'Implement lazy loading for heavy components',
+        'Use React.memo for expensive renders'
       ]
     };
 
-    fs.writeFileSync(
-      path.join(__dirname, '../optimization-emergency-report.json'),
-      JSON.stringify(report, null, 2)
-    );
-
-    this.log('Emergency optimization report generated');
     return report;
   }
 
   async run() {
-    this.log('Starting emergency memory optimization...');
+    this.log('🚨 EMERGENCY MEMORY OPTIMIZATION STARTING 🚨');
+    
+    await this.optimizeDashboardRefresh();
+    await this.optimizeQueryClient();
+    await this.disableNonEssentialFeatures();
+    await this.optimizeServerMiddleware();
+    
+    const report = this.generateReport();
     
     try {
-      this.optimizeDashboardRefresh();
-      this.optimizeQueryClient();
-      this.disableNonEssentialFeatures();
-      this.optimizeServerMiddleware();
-      
-      const report = this.generateReport();
-      
-      this.log(`Applied ${this.optimizations.length} optimizations:`);
-      this.optimizations.forEach(opt => this.log(`  ✓ ${opt}`));
-      
-      this.log('Emergency memory optimization completed');
-      return report;
-      
+      await fs.writeFile(
+        'emergency-optimization-report.json',
+        JSON.stringify(report, null, 2)
+      );
     } catch (error) {
-      this.log(`Error during optimization: ${error.message}`);
-      throw error;
+      this.log(`⚠️ Could not write report: ${error.message}`);
     }
+
+    this.log('✅ Emergency memory optimization complete');
+    this.log(`Applied ${this.optimizations.length} optimizations`);
+    
+    return report;
   }
 }
 
-// Run optimization if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if called directly
+if (require.main === module) {
   const optimizer = new EmergencyMemoryOptimizer();
-  optimizer.run()
-    .then(report => {
-      console.log('\nOptimization Summary:');
-      console.log(JSON.stringify(report, null, 2));
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error('Optimization failed:', error);
-      process.exit(1);
-    });
+  optimizer.run().catch(console.error);
 }
 
-export default EmergencyMemoryOptimizer;
+module.exports = EmergencyMemoryOptimizer;

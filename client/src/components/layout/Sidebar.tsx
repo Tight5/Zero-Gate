@@ -77,23 +77,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
             const isActive = location === item.path || (item.path !== '/' && location.startsWith(item.path));
             
             return (
-              <Link key={item.path} href={item.path}>
-                <Button
-                  variant={isActive ? "secondary" : "ghost"}
-                  size="sm"
-                  className={cn(
-                    "w-full justify-start gap-2 h-10",
-                    isCollapsed && "px-2",
-                    isActive && "bg-secondary"
-                  )}
-                  title={isCollapsed ? item.description : undefined}
-                >
-                  <IconComponent className="h-4 w-4 flex-shrink-0" />
-                  {!isCollapsed && (
-                    <span className="truncate">{item.label}</span>
-                  )}
-                </Button>
-              </Link>
+              <li key={item.path} className="nav-item">
+                <Link href={item.path}>
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    size="sm"
+                    className={cn(
+                      "w-full justify-start gap-2 h-10",
+                      isCollapsed && "px-2",
+                      isActive && "bg-secondary"
+                    )}
+                    title={isCollapsed ? item.description : undefined}
+                  >
+                    <IconComponent className="h-4 w-4 flex-shrink-0" />
+                    {!isCollapsed && (
+                      <span className="truncate">{item.label}</span>
+                    )}
+                  </Button>
+                </Link>
+              </li>
             );
           })}
         </nav>
