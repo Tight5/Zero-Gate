@@ -203,7 +203,11 @@ app.listen(port, "0.0.0.0", () => {
   // Setup Vite with the server instance
   if (process.env.NODE_ENV === "development") {
     log("Development mode - setting up Vite");
-    await setupVite(app, server);
+    try {
+      await setupVite(app, server);
+    } catch (error) {
+      log("Vite setup error (continuing without WebSocket):", error.message);
+    }
   } else {
     log("Production mode - serving static files");
     serveStatic(app);
