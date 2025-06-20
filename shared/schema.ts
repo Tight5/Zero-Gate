@@ -45,8 +45,70 @@ export const tenants = pgTable("tenants", {
   domain: varchar("domain", { length: 255 }).unique(),
   settings: jsonb("settings").default({}),
   planTier: varchar("plan_tier", { length: 50 }).default("basic"),
+  microsoft365TenantId: varchar("microsoft365_tenant_id", { length: 255 }),
+  microsoft365Config: jsonb("microsoft365_config").default({}),
+  agentDiscoveryEnabled: boolean("agent_discovery_enabled").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Data classification for intelligent data management
+export const dataClassification = pgTable("data_classification", {
+  id: serial("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  dataType: varchar("data_type", { length: 50 }).notNull(),
+  sensitivityLevel: varchar("sensitivity_level", { length: 20 }).notNull(), // public, internal, confidential
+  retentionPeriod: integer("retention_period").notNull(), // days
+  accessControl: jsonb("access_control").default({}),
+  encryptionRequired: boolean("encryption_required").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Enhanced sponsor discovery and stakeholder mapping
+export const sponsorDiscovery = pgTable("sponsor_discovery", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  sponsorId: uuid("sponsor_id"),
+  discoveryStatus: varchar("discovery_status", { length: 50 }).default("pending"), // pending, processing, completed, failed
+  microsoft365Data: jsonb("microsoft365_data").default({}),
+  stakeholderPrincipals: jsonb("stakeholder_principals").default([]),
+  emergingTopics: jsonb("emerging_topics").default([]),
+  communicationPatterns: jsonb("communication_patterns").default({}),
+  relationshipStrength: decimal("relationship_strength", { precision: 5, scale: 2 }),
+  lastAnalysisDate: timestamp("last_analysis_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Sponsor organization intelligence
+export const sponsorOrganization = pgTable("sponsor_organization", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sponsorId: uuid("sponsor_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  organizationStructure: jsonb("organization_structure").default({}),
+  keyStakeholders: jsonb("key_stakeholders").default([]),
+  departmentHierarchy: jsonb("department_hierarchy").default({}),
+  decisionMakers: jsonb("decision_makers").default([]),
+  influenceMap: jsonb("influence_map").default({}),
+  collaborationHistory: jsonb("collaboration_history").default([]),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+// Agent task orchestration tracking
+export const agentTasks = pgTable("agent_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  taskType: varchar("task_type", { length: 100 }).notNull(), // sponsor_discovery, stakeholder_analysis, topic_analysis
+  targetId: uuid("target_id"), // sponsor_id, grant_id, etc.
+  status: varchar("status", { length: 50 }).default("queued"), // queued, processing, completed, failed
+  priority: integer("priority").default(5), // 1-10, lower is higher priority
+  agentType: varchar("agent_type", { length: 50 }).notNull(), // orchestration, processing, integration
+  taskData: jsonb("task_data").default({}),
+  results: jsonb("results").default({}),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Tenant data feeds for dynamic integration
@@ -287,18 +349,8 @@ export const onedriveStorage = pgTable('onedrive_storage', {
   accessControl: jsonb('access_control') // Store access control metadata
 });
 
-// Data Classification Schema
-export const dataClassification = pgTable('data_classification', {
-  id: serial('id').primaryKey(),
-  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
-  dataType: text('data_type').notNull(), // 'sponsor_data', 'stakeholder_info', 'analytics'
-  sensitivityLevel: text('sensitivity_level').notNull(), // 'public', 'internal', 'confidential', 'restricted'
-  retentionPeriod: integer('retention_period').notNull(), // Days
-  accessControl: jsonb('access_control'),
-  storageLocation: text('storage_location').notNull().default('postgresql'), // 'postgresql', 'onedrive', 'hybrid'
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
-});
+// Enhanced Data Classification Schema (removing duplicate)
+// Note: dataClassification is already defined above at line 56
 
 export const onedriveStorageRelations = relations(onedriveStorage, ({ one }) => ({
   tenant: one(tenants, {
@@ -395,6 +447,27 @@ export const insertRelationshipSchema = createInsertSchema(relationships).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertSponsorDiscoverySchema = createInsertSchema(sponsorDiscovery).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSponsorOrganizationSchema = createInsertSchema(sponsorOrganization).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export const insertAgentTaskSchema = createInsertSchema(agentTasks).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDataClassificationSchema = createInsertSchema(dataClassification).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertTenantDataFeedSchema = createInsertSchema(tenantDataFeeds).omit({
