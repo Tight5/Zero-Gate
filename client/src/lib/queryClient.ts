@@ -1,16 +1,10 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-
-// Optimized memory compliance configuration balancing performance with resource availability
-const MEMORY_COMPLIANCE_CONFIG = {
-  threshold: 85, // Adjusted from 70% - browser heap != system memory
-  maxCacheSize: 50, // Restored reasonable cache size for 62GB system
-  staleTime: 300000, // 5 minutes - appropriate for our system resources
-  cacheTime: 600000, // 10 minutes - leveraging available memory effectively
-  checkInterval: 60000, // Check every minute - reduces monitoring overhead
-  maxRetries: 2, // Restored retries for better user experience
-  emergencyThreshold: 92, // Browser heap emergency threshold
-  criticalThreshold: 96, // Browser heap critical threshold
-};
+import { 
+  getSystemAwareMemoryUsage, 
+  shouldTriggerMemoryOptimization, 
+  logResourceStatus,
+  RESOURCE_AWARE_CONFIG 
+} from "./resource-aware-memory";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -35,14 +29,26 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Intelligent memory check - only intervene if genuinely problematic
-  const memoryUsage = getMemoryUsage();
-  if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.emergencyThreshold) {
-    console.warn(`High browser heap usage: ${memoryUsage.toFixed(1)}% - optimizing cache`);
-    // Only clear caches during genuine high usage
+  // Resource-aware memory check using system knowledge
+  const memoryStats = getSystemAwareMemoryUsage();
+  const optimization = shouldTriggerMemoryOptimization(memoryStats);
+  
+  if (optimization.shouldOptimize) {
     const cacheSize = queryClient.getQueryCache().size;
-    if (cacheSize > MEMORY_COMPLIANCE_CONFIG.maxCacheSize) {
+    
+    if (optimization.optimizationLevel === 'aggressive' && cacheSize > 10) {
       queryClient.getQueryCache().clear();
+      console.warn(`Aggressive cache optimization: ${optimization.reason}`);
+    } else if (optimization.optimizationLevel === 'moderate' && cacheSize > RESOURCE_AWARE_CONFIG.maxCacheSize) {
+      queryClient.getQueryCache().clear();
+      console.log(`Moderate cache optimization: ${optimization.reason}`);
+    } else if (optimization.optimizationLevel === 'gentle' && cacheSize > RESOURCE_AWARE_CONFIG.maxCacheSize * 1.5) {
+      // Remove oldest queries only
+      const queries = queryClient.getQueryCache().getAll()
+        .sort((a, b) => a.state.dataUpdatedAt - b.state.dataUpdatedAt)
+        .slice(0, Math.floor(cacheSize * 0.3));
+      queries.forEach(query => queryClient.getQueryCache().remove(query));
+      console.log(`Gentle cache optimization: Removed ${queries.length} oldest queries`);
     }
   }
 
@@ -82,7 +88,7 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
-// Memory-compliant QueryClient configuration
+// Resource-aware QueryClient configuration utilizing 62GB system capacity
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -90,17 +96,18 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       
-      // Aggressive memory compliance settings
-      staleTime: MEMORY_COMPLIANCE_CONFIG.staleTime, // 1 minute
-      gcTime: MEMORY_COMPLIANCE_CONFIG.cacheTime, // 2 minutes
+      // Optimized settings for actual system resources
+      staleTime: RESOURCE_AWARE_CONFIG.staleTime, // 5 minutes - restored from emergency 1 minute
+      gcTime: RESOURCE_AWARE_CONFIG.cacheTime, // 10 minutes - utilizing available memory
       
-      // Memory-aware retry logic
+      // Resource-aware retry logic
       retry: (failureCount, error) => {
-        const memoryUsage = getMemoryUsage();
-        if (memoryUsage > MEMORY_COMPLIANCE_CONFIG.threshold) {
-          return false; // No retries during high memory usage
+        const memoryStats = getSystemAwareMemoryUsage();
+        const optimization = shouldTriggerMemoryOptimization(memoryStats);
+        if (optimization.optimizationLevel === 'aggressive') {
+          return false; // No retries during critical browser heap usage
         }
-        return failureCount < MEMORY_COMPLIANCE_CONFIG.maxRetries;
+        return failureCount < RESOURCE_AWARE_CONFIG.maxRetries;
       },
       
       // Network mode optimization
@@ -108,8 +115,8 @@ export const queryClient = new QueryClient({
       refetchOnReconnect: false,
     },
     mutations: {
-      retry: 0, // No mutation retries for memory efficiency
-      gcTime: MEMORY_COMPLIANCE_CONFIG.cacheTime / 2, // 1 minute for mutations
+      retry: 1, // Restored retries for better UX with 62GB system
+      gcTime: RESOURCE_AWARE_CONFIG.cacheTime / 2, // 5 minutes for mutations
     },
   },
 });
@@ -184,7 +191,7 @@ const memoryComplianceMonitor = setInterval(() => {
     
     console.log(`Browser Heap: ${heapUsage.toFixed(1)}% (${heapMB}MB/${limitMB}MB) | Cache: ${cacheSize} queries | System: 62GB available`);
   }
-}, MEMORY_COMPLIANCE_CONFIG.checkInterval);
+}, RESOURCE_AWARE_CONFIG.checkInterval);
 
 // Export cleanup function for manual control
 export const forceMemoryCompliance = () => {
@@ -197,11 +204,13 @@ export const forceMemoryCompliance = () => {
 
 // Export memory status for monitoring
 export const getMemoryStatus = () => {
+  const memoryStats = getSystemAwareMemoryUsage();
   return {
-    usage: getMemoryUsage(),
-    threshold: MEMORY_COMPLIANCE_CONFIG.threshold,
+    usage: memoryStats.browserHeapUsage,
+    browserHeapMB: memoryStats.browserHeapMB,
+    systemMemoryGB: memoryStats.systemMemoryGB,
     cacheSize: queryClient.getQueryCache().size,
-    maxCacheSize: MEMORY_COMPLIANCE_CONFIG.maxCacheSize,
-    compliant: getMemoryUsage() <= MEMORY_COMPLIANCE_CONFIG.threshold
+    maxCacheSize: RESOURCE_AWARE_CONFIG.maxCacheSize,
+    compliant: memoryStats.browserHeapUsage <= RESOURCE_AWARE_CONFIG.normalOperation
   };
 };
