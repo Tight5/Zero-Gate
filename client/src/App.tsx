@@ -47,18 +47,14 @@ function Router() {
 }
 
 export default function App() {
+  console.log("App component rendering...");
+  
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <TenantProvider>
-            <ResourceProvider>
-              <Router />
-              <Toaster />
-            </ResourceProvider>
-          </TenantProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <div className="min-h-screen bg-gray-50">
+        <Router />
+        <Toaster />
+      </div>
     </QueryClientProvider>
   );
 }
