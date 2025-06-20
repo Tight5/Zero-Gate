@@ -5,8 +5,8 @@
  * Implements aggressive memory management for critical situations
  */
 
-const fs = require('fs').promises;
-const path = require('path');
+import { promises as fs } from 'fs';
+import path from 'path';
 
 class EmergencyMemoryOptimizer {
   constructor() {
@@ -156,9 +156,9 @@ app.listen(port`
 }
 
 // Run if called directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const optimizer = new EmergencyMemoryOptimizer();
   optimizer.run().catch(console.error);
 }
 
-module.exports = EmergencyMemoryOptimizer;
+export default EmergencyMemoryOptimizer;

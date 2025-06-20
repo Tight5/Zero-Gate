@@ -187,7 +187,15 @@ app.get('/api/relationships/network', (req: Request, res: Response) => {
 // Setup server and Vite
 const setupServer = async () => {
   const port = Number(process.env.PORT) || 5000;
-  const server = app.listen(port, "0.0.0.0", () => {
+  const server = 
+// Emergency memory optimization
+setInterval(() => {
+  if (global.gc && process.memoryUsage().heapUsed / process.memoryUsage().heapTotal > 0.85) {
+    global.gc();
+  }
+}, 5000);
+
+app.listen(port, "0.0.0.0", () => {
     log(`Express server running on port ${port}`);
     log("Debug mode active - simplified authentication");
   });
