@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   // Test environment configuration
   testEnvironment: 'jsdom',
   
