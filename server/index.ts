@@ -144,28 +144,7 @@ app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
   });
 });
 
-// Tenant endpoints for development
-app.get('/api/auth/user/tenants', (req: Request, res: Response) => {
-  const mockTenants = [
-    {
-      id: '1',
-      name: 'NASDAQ Entrepreneur Center',
-      description: 'Leading technology entrepreneurship hub',
-      role: 'admin',
-      userCount: 245,
-      status: 'active',
-      domain: 'nasdaq-ec.org',
-      lastActivity: '2 hours ago',
-      features: ['Analytics', 'Microsoft 365', 'Advanced Reporting']
-    }
-  ];
-  res.json({ tenants: mockTenants });
-});
-
-app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
-  const { tenantId } = req.body;
-  res.json({ success: true, tenantId });
-});
+// Remove duplicate routes - handled by apiRouter above
 
 // System resource endpoints
 app.get('/api/system/resources', (req: Request, res: Response) => {

@@ -1,0 +1,106 @@
+{
+  "test_execution": {
+    "timestamp": "2025-06-20T19:01:23.673048",
+    "pipeline_version": "1.0.0",
+    "test_suite": "comprehensive-data-pipeline-validation"
+  },
+  "results": {
+    "authentication": {
+      "tenant_mode": {
+        "status": 200,
+        "success": true,
+        "tenant_count": 1,
+        "admin_mode": false
+      },
+      "admin_mode": {
+        "status": 200,
+        "success": true,
+        "tenant_count": 3,
+        "admin_mode": true
+      }
+    },
+    "tenant_data": {
+      "settings": {
+        "microsoft_integration": false,
+        "analytics_enabled": false,
+        "notifications": false,
+        "feature_count": 0
+      }
+    },
+    "admin_data": {},
+    "microsoft365_integration": {},
+    "schema_validation": {
+      "issues": [],
+      "compliant": true
+    },
+    "ui_routing": {
+      "endpoints": {
+        "/": {
+          "status": 200,
+          "accessible": true,
+          "content_type": "text/html; charset=utf-8"
+        },
+        "/dashboard": {
+          "status": 200,
+          "accessible": true,
+          "content_type": "text/html; charset=utf-8"
+        },
+        "/sponsors": {
+          "status": 200,
+          "accessible": true,
+          "content_type": "text/html; charset=utf-8"
+        },
+        "/grants": {
+          "status": 200,
+          "accessible": true,
+          "content_type": "text/html; charset=utf-8"
+        },
+        "/relationships": {
+          "status": 200,
+          "accessible": true,
+          "content_type": "text/html; charset=utf-8"
+        },
+        "/settings": {
+          "status": 200,
+          "accessible": true,
+          "content_type": "text/html; charset=utf-8"
+        }
+      },
+      "accessibility_rate": 100.0
+    },
+    "dashboard_data": {
+      "kpis": {
+        "sponsors_total": 247,
+        "grants_total": 89,
+        "funding_total": 2150000,
+        "relationships_total": 1247,
+        "data_freshness": "2025-06-20T19:01:23.161Z"
+      },
+      "relationships": {
+        "network_density": 0,
+        "total_nodes": 0,
+        "total_edges": 0,
+        "clustering_coefficient": 0
+      }
+    },
+    "pipeline_effectiveness": {
+      "overall_score": 80.0,
+      "metrics": {
+        "authentication_health": 100,
+        "data_pipeline_health": 100,
+        "ui_accessibility": 100.0,
+        "schema_compliance": 100,
+        "admin_capabilities": 0
+      },
+      "grade": "B"
+    }
+  },
+  "summary": {
+    "overall_score": 80.0,
+    "grade": "B",
+    "critical_issues": [],
+    "recommendations": [
+      "Enhance Microsoft 365 integration stability"
+    ]
+  }
+}
