@@ -45,16 +45,18 @@ class IntegrationAgent:
         
         logger.info("IntegrationAgent initialized with Microsoft Graph support")
     
-    def get_access_token(self, tenant_id: str = None) -> Optional[str]:
+    def get_access_token(self, tenant_id: Optional[str] = None) -> Optional[str]:
         """Get or refresh Microsoft Graph access token using MSAL"""
         try:
             # Use environment tenant if not specified
-            if not tenant_id:
-                tenant_id = os.getenv("MICROSOFT_TENANT_ID")
+            effective_tenant_id = tenant_id or os.getenv("MICROSOFT_TENANT_ID")
+            if not effective_tenant_id:
+                logger.error("No tenant ID provided")
+                return None
             
             # Check if we have a valid cached token
-            if tenant_id in self.token_cache:
-                token_info = self.token_cache[tenant_id]
+            if effective_tenant_id in self.token_cache:
+                token_info = self.token_cache[effective_tenant_id]
                 if datetime.now() < token_info["expires_at"] - timedelta(minutes=5):
                     return token_info["access_token"]
             
@@ -62,7 +64,7 @@ class IntegrationAgent:
             client_app = ConfidentialClientApplication(
                 client_id=os.getenv("MICROSOFT_CLIENT_ID"),
                 client_credential=os.getenv("MICROSOFT_CLIENT_SECRET"),
-                authority=f"https://login.microsoftonline.com/{tenant_id}"
+                authority=f"https://login.microsoftonline.com/{effective_tenant_id}"
             )
             
             # Acquire token using client credentials flow
@@ -70,18 +72,21 @@ class IntegrationAgent:
                 scopes=["https://graph.microsoft.com/.default"]
             )
             
-            if "access_token" in result:
+            if result and isinstance(result, dict) and "access_token" in result:
                 # Cache the token
                 expires_in = result.get("expires_in", 3600)
-                self.token_cache[tenant_id] = {
-                    "access_token": result["access_token"],
-                    "expires_at": datetime.now() + timedelta(seconds=expires_in)
-                }
-                
-                logger.info(f"Successfully acquired access token for tenant {tenant_id}")
-                return result["access_token"]
+                if isinstance(expires_in, (int, float)):
+                    self.token_cache[effective_tenant_id] = {
+                        "access_token": result["access_token"],
+                        "expires_at": datetime.now() + timedelta(seconds=float(expires_in))
+                    }
+                    
+                    logger.info(f"Successfully acquired access token for tenant {effective_tenant_id}")
+                    return result["access_token"]
             else:
-                error_desc = result.get("error_description", "Unknown error")
+                error_desc = "Unknown error"
+                if isinstance(result, dict):
+                    error_desc = result.get("error_description", "Unknown error")
                 logger.error(f"Failed to acquire token: {error_desc}")
                 return None
                 
@@ -90,7 +95,7 @@ class IntegrationAgent:
             return None
     
     def make_graph_request(self, endpoint: str, method: str = "GET", 
-                          data: Dict = None, tenant_id: str = None) -> Optional[Dict]:
+                          data: Optional[Dict] = None, tenant_id: Optional[str] = None) -> Optional[Dict]:
         """Make authenticated request to Microsoft Graph API"""
         access_token = self.get_access_token(tenant_id)
         if not access_token:

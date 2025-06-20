@@ -6,10 +6,10 @@
  * email communication analysis, and Excel file processing
  */
 
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-const FormData = require('form-data');
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import FormData from 'form-data';
 
 class IntegrationAgentTester {
   constructor(baseUrl = 'http://localhost:5000') {
@@ -407,7 +407,7 @@ class IntegrationAgentTester {
 }
 
 // Run tests if called directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const tester = new IntegrationAgentTester();
   
   tester.runComprehensiveTest()
@@ -426,4 +426,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = IntegrationAgentTester;
+export default IntegrationAgentTester;
