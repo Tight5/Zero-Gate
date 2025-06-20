@@ -151,21 +151,18 @@ router.get('/health', async (req: Request, res: Response) => {
           };
         } else {
           healthStatus.data_pipeline = {
-            status: 'degraded',
-            can_extract_organizational_data: false
+            status: 'degraded'
           };
         }
       } catch (error) {
         healthStatus.data_pipeline = {
-          status: 'unhealthy',
-          error: 'Data extraction failed'
+          status: 'unhealthy'
         };
       }
     } else {
       const errorData = await tokenResponse.json();
       healthStatus.authentication = {
-        status: 'unhealthy',
-        error: errorData.error_description || errorData.error
+        status: 'unhealthy'
       };
     }
 
@@ -298,9 +295,9 @@ router.get('/data/organizational/:tenantId', async (req: Request, res: Response)
 
     // Analyze user data for organizational insights
     if (users.value) {
-      const departments = {};
-      const locations = {};
-      const managementHierarchy = [];
+      const departments: Record<string, number> = {};
+      const locations: Record<string, number> = {};
+      const managementHierarchy: any[] = [];
 
       users.value.forEach((user: any) => {
         // Department analysis

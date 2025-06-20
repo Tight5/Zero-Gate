@@ -84,8 +84,10 @@ export const tenantContextMiddleware = (req: TenantRequest, res: Response, next:
     
     req.tenantId = tenantId;
     
-    // Development logging
-    console.log(`[TenantMiddleware] User: ${userEmail}, Tenant: ${tenantId}, AdminMode: ${isAdminMode}, IsAdmin: ${isAdmin}`);
+    // Conditional logging (only for first requests or mode changes)
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+      console.log(`[TenantMiddleware] User: ${userEmail}, Tenant: ${tenantId}, AdminMode: ${isAdminMode}, IsAdmin: ${isAdmin}`);
+    }
     
     next();
   } catch (error) {
