@@ -69,6 +69,11 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
 
   // Initialize admin mode from localStorage
   useEffect(() => {
+    // Initialize user email if not set
+    if (!localStorage.getItem('userEmail')) {
+      localStorage.setItem('userEmail', 'clint.phillips@thecenter.nasdaq.org');
+    }
+    
     const savedAdminMode = localStorage.getItem('isAdminMode') === 'true';
     const savedTenantId = localStorage.getItem('selectedTenant');
     
