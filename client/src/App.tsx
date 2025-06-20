@@ -53,10 +53,18 @@ export default function App() {
   
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-gray-50">
-        <Router />
-        <Toaster />
-      </div>
+      <ThemeProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <ResourceProvider>
+              <div className="min-h-screen bg-gray-50">
+                <Router />
+                <Toaster />
+              </div>
+            </ResourceProvider>
+          </TenantProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

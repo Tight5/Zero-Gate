@@ -65,7 +65,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isAuthenticated = !!user && !error;
 
   const contextValue: AuthContextType = {
-    user: user || null,
+    user: (user && typeof user === 'object' && 'id' in user) ? user as User : null,
     isLoading: isLoading && isInitialized,
     isAuthenticated,
     login,

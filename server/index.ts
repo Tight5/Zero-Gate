@@ -206,7 +206,7 @@ const setupServer = async () => {
     try {
       await setupVite(app, server);
     } catch (error) {
-      log("Vite setup error (continuing without WebSocket):", error.message);
+      log("Vite setup error (continuing without WebSocket):", error instanceof Error ? error.message : String(error));
     }
   } else {
     log("Production mode - serving static files");
