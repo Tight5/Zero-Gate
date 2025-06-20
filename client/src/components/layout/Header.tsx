@@ -7,7 +7,9 @@ import {
   Moon as MoonIcon,
   Sun as SunIcon,
   Bell as BellIcon,
-  User as UserIcon
+  User as UserIcon,
+  Building as BuildingIcon,
+  Shield as ShieldIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -19,13 +21,16 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
+import { useTenant } from '../../contexts/TenantContext';
+import AdminModeToggle from '../common/AdminModeToggle';
 
 interface HeaderProps {
   onMenuToggle: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
+const Header: React.FC<HeaderProps> = React.memo(({ onMenuToggle }) => {
   const { user, isAuthenticated } = useAuth();
+  const { currentTenant, isAdminMode, isAdmin } = useTenant();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
@@ -58,14 +63,29 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
             <div className="font-bold text-xl">Zero Gate</div>
           </Link>
           
-          {user?.currentTenantId && (
-            <Badge variant="secondary" className="hidden md:inline-flex">
-              Tenant Active
-            </Badge>
-          )}
+          {/* Tenant/Admin Mode Indicators */}
+          <div className="flex items-center space-x-2 hidden md:flex">
+            {isAdminMode ? (
+              <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300">
+                <ShieldIcon className="w-3 h-3 mr-1" />
+                ADMIN MODE
+              </Badge>
+            ) : currentTenant ? (
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300">
+                <BuildingIcon className="w-3 h-3 mr-1" />
+                {currentTenant.name}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-gray-600">
+                No Tenant Selected
+              </Badge>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-1 items-center justify-end space-x-2">
+          {/* Admin Mode Toggle - only show for admin users */}
+          {isAdmin && <AdminModeToggle />}
           <Button
             variant="ghost"
             size="sm"
@@ -126,6 +146,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
       </div>
     </header>
   );
-};
+});
+
+Header.displayName = 'Header';
 
 export default Header;
