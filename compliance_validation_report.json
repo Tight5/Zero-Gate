@@ -1,0 +1,130 @@
+{
+  "timestamp": "2025-06-20T06:45:12.347778",
+  "overall_compliance_percentage": 86.8,
+  "regression_test_status": true,
+  "infrastructure_compliance": {
+    "file_1_repl_config": {
+      "exists": true,
+      "has_run_command": true,
+      "has_language": false,
+      "compliance": 75,
+      "deviation": "Minor configuration differences"
+    },
+    "file_2_nix_deps": {
+      "exists": false,
+      "compliance": 0,
+      "deviation": "Missing replit.nix file"
+    },
+    "file_3_package_json": {
+      "exists": true,
+      "has_required_scripts": true,
+      "has_required_dependencies": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_4_requirements": {
+      "exists": true,
+      "has_required_dependencies": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_5_main_app": {
+      "exists": true,
+      "is_operational": false,
+      "compliance": 50,
+      "deviation": "FastAPI server not responding"
+    },
+    "file_6_database": {
+      "exists": true,
+      "has_connection_pool": true,
+      "has_async_support": true,
+      "has_tenant_isolation": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_7_resource_monitor": {
+      "exists": true,
+      "has_memory_monitoring": true,
+      "has_feature_toggling": true,
+      "has_thresholds": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_8_tenant_context": {
+      "exists": true,
+      "has_tenant_extraction": true,
+      "has_user_context": true,
+      "has_isolation": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_9_orchestration": {
+      "exists": true,
+      "has_asyncio": true,
+      "has_task_queue": true,
+      "has_workflow": true,
+      "compliance": 100,
+      "deviation": "None"
+    }
+  },
+  "agent_system_compliance": {
+    "file_10_processing": {
+      "exists": true,
+      "has_networkx": true,
+      "has_pathfinding": true,
+      "has_sponsor_metrics": true,
+      "has_timeline_generation": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_11_integration": {
+      "exists": true,
+      "has_msal": false,
+      "has_graph_integration": true,
+      "has_organizational_data": true,
+      "compliance": 90,
+      "deviation": "Integration variations"
+    }
+  },
+  "api_router_compliance": {
+    "file_12_sponsors": {
+      "exists": true,
+      "has_crud_operations": true,
+      "has_metrics_calculation": true,
+      "has_tenant_context": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_13_grants": {
+      "exists": true,
+      "has_crud_operations": true,
+      "has_timeline_endpoint": true,
+      "has_backwards_planning": true,
+      "has_milestone_tracking": true,
+      "compliance": 100,
+      "deviation": "None"
+    },
+    "file_14_relationships": {
+      "exists": true,
+      "has_crud_operations": true,
+      "has_path_discovery": true,
+      "has_seven_degree_support": true,
+      "has_network_analysis": true,
+      "has_influence_analysis": true,
+      "compliance": 100,
+      "deviation": "None"
+    }
+  },
+  "regression_test_results": {
+    "express_backend": true,
+    "react_frontend": true,
+    "database_connection": true,
+    "overall_regression_status": true
+  },
+  "compliance_summary": {
+    "total_components_tested": 14,
+    "components_at_100_percent": 10,
+    "components_above_90_percent": 11,
+    "components_below_90_percent": 3
+  }
+}
