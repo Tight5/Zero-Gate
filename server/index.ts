@@ -24,6 +24,7 @@ apiRouter.use('/relationships', relationshipsRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/tenants', tenantsRouter);
 apiRouter.use('/microsoft365', microsoft365DebugRouter);
+apiRouter.use('/integration/microsoft365', microsoft365IntegrationRouter);
 
 // Mount the API router with highest priority
 app.use('/api', apiRouter);
