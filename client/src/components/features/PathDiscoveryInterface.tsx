@@ -121,8 +121,7 @@ const PathDiscoveryInterface: React.FC = () => {
     refetch 
   } = useRelationshipPath(
     sourceId, 
-    targetId, 
-    { enabled: searchInitiated && sourceId && targetId }
+    targetId
   );
 
   const handleSearch = () => {
@@ -138,14 +137,14 @@ const PathDiscoveryInterface: React.FC = () => {
     setSearchInitiated(false);
   };
 
-  const getQualityColor = (quality: string) => {
-    const colors = {
+  const getQualityColor = (quality: string): "default" | "secondary" | "outline" | "destructive" => {
+    const colors: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
       excellent: 'default',
       good: 'secondary',
       fair: 'outline',
       weak: 'destructive'
     };
-    return colors[quality as keyof typeof colors] || 'outline';
+    return colors[quality] || 'outline';
   };
 
   return (
@@ -225,7 +224,7 @@ const PathDiscoveryInterface: React.FC = () => {
             <div className="space-y-2">
               <h3 className="font-semibold">Search Failed</h3>
               <p>{error.message}</p>
-              {error.status === 404 ? (
+              {(error as any).status === 404 ? (
                 <div className="mt-2">
                   <p>No connection path found between these people. This could mean:</p>
                   <ul className="list-disc list-inside mt-1 space-y-1">
