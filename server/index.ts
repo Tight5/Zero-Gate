@@ -3,6 +3,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { tenantContextMiddleware } from "./middleware/tenantMiddleware";
 import relationshipsRouter from "./routes/relationships";
 import dashboardRouter from "./routes/dashboard";
+import tenantsRouter from "./routes/tenants";
 
 // Create Express app with API-first routing
 const app = express();
@@ -19,6 +20,7 @@ apiRouter.use(tenantContextMiddleware);
 // Mount API routes on the API router
 apiRouter.use('/relationships', relationshipsRouter);
 apiRouter.use('/dashboard', dashboardRouter);
+apiRouter.use('/tenants', tenantsRouter);
 
 // Mount the API router with highest priority
 app.use('/api', apiRouter);
