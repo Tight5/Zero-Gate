@@ -3,7 +3,14 @@ import { useTenant } from '../contexts/TenantContext';
 import { useResource } from '../contexts/ResourceContext';
 import { apiRequest } from '../lib/queryClient';
 
-export const useRelationshipData = (options: any = {}) => {
+interface RelationshipDataOptions {
+  relationshipType?: string;
+  limit?: string;
+  offset?: string;
+  filters?: any;
+}
+
+export const useRelationshipData = (options: RelationshipDataOptions = {}) => {
   const { currentTenant } = useTenant();
   const { isFeatureEnabled } = useResource();
   
@@ -24,7 +31,11 @@ export const useRelationshipData = (options: any = {}) => {
   });
 };
 
-export const useRelationshipPath = (sourceId: string, targetId: string, options: any = {}) => {
+interface PathOptions {
+  maxDepth?: number;
+}
+
+export const useRelationshipPath = (sourceId: string, targetId: string, options: PathOptions = {}) => {
   const { currentTenant } = useTenant();
   const { isFeatureEnabled } = useResource();
   
@@ -72,12 +83,20 @@ export const useGraphData = (includeWeak = false) => {
   });
 };
 
+interface RelationshipData {
+  source_id: string;
+  target_id: string;
+  type: string;
+  strength: number;
+  metadata?: any;
+}
+
 export const useCreateRelationship = () => {
   const queryClient = useQueryClient();
   const { currentTenant } = useTenant();
   
   return useMutation({
-    mutationFn: (relationshipData: any) => 
+    mutationFn: (relationshipData: RelationshipData) => 
       fetch('/api/relationships', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },

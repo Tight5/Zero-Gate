@@ -368,7 +368,7 @@ const HybridRelationshipMap: React.FC<HybridRelationshipMapProps> = ({
       </CardHeader>
 
       <CardContent className="p-0 flex-1">
-        <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'geographic' | 'network' | 'hybrid')} className="h-full flex flex-col">
+        <Tabs value={activeView} onValueChange={(value: string) => setActiveView(value as 'geographic' | 'network' | 'hybrid')} className="h-full flex flex-col">
           <div className="px-6 pb-4">
             <TabsList>
               <TabsTrigger value="geographic" className="flex items-center space-x-2">
