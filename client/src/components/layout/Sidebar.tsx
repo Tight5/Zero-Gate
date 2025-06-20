@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { cn } from '@/lib/utils';
 import { 
   BarChart3 as DashboardIcon,
   Network as RelationshipsIcon,
@@ -10,7 +9,13 @@ import {
   Settings as SettingsIcon,
   PieChart as AnalyticsIcon
 } from 'lucide-react';
-import { useTenant } from '../../contexts/TenantContext';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface SidebarProps {
+  isCollapsed?: boolean;
+}
 
 const navigationItems = [
   {
@@ -47,7 +52,7 @@ const navigationItems = [
     path: '/analytics',
     label: 'Analytics',
     icon: AnalyticsIcon,
-    description: 'Performance insights'
+    description: 'Advanced analytics and insights'
   },
   {
     path: '/settings',
@@ -57,54 +62,43 @@ const navigationItems = [
   }
 ];
 
-interface SidebarProps {
-  isCollapsed: boolean;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
   const [location] = useLocation();
-  const { currentTenant } = useTenant();
-
-  if (!currentTenant) {
-    return null;
-  }
 
   return (
-    <aside className={cn(
-      "flex flex-col h-full bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transition-all duration-300",
+    <div className={cn(
+      "relative flex flex-col bg-background border-r transition-all duration-300",
       isCollapsed ? "w-16" : "w-64"
     )}>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
+      <ScrollArea className="flex-1 py-2">
+        <nav className="space-y-1 px-2">
           {navigationItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = location === item.path || (item.path !== '/' && location.startsWith(item.path));
             
             return (
-              <li key={item.path}>
-                <Link href={item.path}>
-                  <a
-                    className={cn(
-                      "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                      "hover:bg-slate-100 dark:hover:bg-slate-700",
-                      isActive 
-                        ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100" 
-                        : "text-slate-700 dark:text-slate-300"
-                    )}
-                    title={item.description}
-                  >
-                    <IconComponent className={cn("h-5 w-5", isCollapsed ? "" : "mr-3")} />
-                    {!isCollapsed && (
-                      <span>{item.label}</span>
-                    )}
-                  </a>
-                </Link>
-              </li>
+              <Link key={item.path} href={item.path}>
+                <Button
+                  variant={isActive ? "secondary" : "ghost"}
+                  size="sm"
+                  className={cn(
+                    "w-full justify-start gap-2 h-10",
+                    isCollapsed && "px-2",
+                    isActive && "bg-secondary"
+                  )}
+                  title={isCollapsed ? item.description : undefined}
+                >
+                  <IconComponent className="h-4 w-4 flex-shrink-0" />
+                  {!isCollapsed && (
+                    <span className="truncate">{item.label}</span>
+                  )}
+                </Button>
+              </Link>
             );
           })}
-        </ul>
-      </nav>
-    </aside>
+        </nav>
+      </ScrollArea>
+    </div>
   );
 };
 
