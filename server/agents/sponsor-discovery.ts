@@ -123,9 +123,9 @@ export class SponsorDiscoveryAgent {
         .get();
 
       // Extract unique departments
-      const departments = [...new Set(users.value
+      const departments = Array.from(new Set(users.value
         .map((user: any) => user.department)
-        .filter(Boolean))];
+        .filter(Boolean)));
 
       // Build organization structure
       const organizationStructure = this.buildOrganizationStructure(users.value);
