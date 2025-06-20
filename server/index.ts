@@ -8,6 +8,8 @@ import tenantsRouter from "./routes/tenants";
 import workflowsRouter from "./routes/workflows";
 import microsoft365DebugRouter from "./routes/microsoft365-debug";
 import microsoft365IntegrationRouter from "./routes/microsoft365-integration";
+import sponsorsRouter from "./routes/sponsors";
+import tenantDataFeedsRouter from "./routes/tenant-data-feeds";
 
 // Create Express app with API-first routing
 const app = express();
@@ -29,6 +31,8 @@ apiRouter.use('/tenants', tenantsRouter);
 apiRouter.use('/workflows', workflowsRouter);
 apiRouter.use('/microsoft365', microsoft365DebugRouter);
 apiRouter.use('/integration/microsoft365', microsoft365IntegrationRouter);
+apiRouter.use('/', sponsorsRouter);
+apiRouter.use('/', tenantDataFeedsRouter);
 
 // Mount the API router with highest priority
 app.use('/api', apiRouter);
