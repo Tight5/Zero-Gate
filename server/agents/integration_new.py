@@ -1,668 +1,617 @@
 """
-IntegrationAgent: Microsoft Graph integration with MSAL authentication
-Handles organizational data extraction, email pattern analysis, and Excel processing
+Integration Agent for Zero Gate ESO Platform
+Handles Microsoft Graph integration with MSAL authentication, organizational relationship extraction,
+email communication analysis, and Excel file processing for dashboard data
 """
 
+import logging
 import asyncio
 import json
-import logging
+import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple, Set
-from dataclasses import dataclass, asdict
-import requests
-from collections import defaultdict, Counter
-import re
-import msal
+from typing import Dict, List, Any, Optional
 import pandas as pd
 import openpyxl
-from io import BytesIO
-import base64
-import time
+from openpyxl import load_workbook
+import requests
+from msal import ConfidentialClientApplication
+import networkx as nx
+from collections import defaultdict, Counter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-@dataclass
-class MSGraphConfig:
-    client_id: str
-    client_secret: str
-    tenant_id: str
-    authority: str
-    scopes: List[str]
-
-@dataclass
-class OrganizationUser:
-    id: str
-    display_name: str
-    email: str
-    job_title: str
-    department: str
-    manager_id: Optional[str]
-    direct_reports: List[str]
-    office_location: str
-    tenant_context: str
-
-@dataclass
-class EmailCommunication:
-    sender: str
-    recipient: str
-    subject: str
-    timestamp: datetime
-    message_id: str
-    conversation_id: str
-    importance: str
-    categories: List[str]
-    tenant_context: str
-
-@dataclass
-class CommunicationPattern:
-    user_pair: Tuple[str, str]
-    email_count: int
-    frequency_score: float
-    last_communication: datetime
-    communication_strength: float
-    topics: List[str]
-    relationship_type: str
-    tenant_context: str
-
-@dataclass
-class ExcelDataInsight:
-    source_file: str
-    sheet_name: str
-    total_rows: int
-    data_summary: Dict[str, Any]
-    key_metrics: Dict[str, float]
-    processed_at: datetime
-    tenant_context: str
-
-@dataclass
-class OrganizationalRelationship:
-    source_user_id: str
-    target_user_id: str
-    relationship_type: str  # 'manager', 'direct_report', 'peer', 'frequent_collaborator'
-    strength: float
-    context: str
-    discovered_through: str  # 'org_chart', 'email_patterns', 'shared_projects'
-    tenant_context: str
+logger = logging.getLogger("zero-gate.integration")
 
 class IntegrationAgent:
     """
-    Microsoft Graph integration agent for organizational data extraction
-    and communication pattern analysis with MSAL authentication
+    Microsoft Graph Integration Agent with MSAL authentication
+    Provides organizational data extraction, email analysis, and Excel processing
     """
     
-    def __init__(self, config: MSGraphConfig, tenant_id: str):
-        self.config = config
-        self.tenant_id = tenant_id
-        self.access_token = None
-        self.token_expires_at = None
-        self.app = None
+    def __init__(self, resource_monitor=None):
+        self.resource_monitor = resource_monitor
+        self.graph_clients = {}
+        self.token_cache = {}
+        self.base_url = "https://graph.microsoft.com/v1.0"
         
-        # Cache for organizational data
-        self.user_cache = {}
-        self.relationship_cache = {}
-        self.communication_cache = {}
+        # Microsoft Graph scopes for different operations
+        self.scopes = [
+            "https://graph.microsoft.com/User.Read.All",
+            "https://graph.microsoft.com/Directory.Read.All", 
+            "https://graph.microsoft.com/Mail.Read",
+            "https://graph.microsoft.com/Files.Read.All",
+            "https://graph.microsoft.com/People.Read.All"
+        ]
         
-        # Performance settings
-        self.batch_size = 50
-        self.max_retries = 3
-        self.rate_limit_delay = 1.0
-        
-        # Initialize MSAL application
-        self._initialize_msal()
-        
-        logger.info(f"IntegrationAgent initialized for tenant {tenant_id}")
+        logger.info("IntegrationAgent initialized with Microsoft Graph support")
     
-    def _initialize_msal(self) -> None:
-        """Initialize MSAL application for authentication"""
+    def get_access_token(self, tenant_id: str = None) -> Optional[str]:
+        """Get or refresh Microsoft Graph access token using MSAL"""
         try:
-            self.app = msal.ConfidentialClientApplication(
-                client_id=self.config.client_id,
-                client_credential=self.config.client_secret,
-                authority=self.config.authority
+            # Use environment tenant if not specified
+            if not tenant_id:
+                tenant_id = os.getenv("MICROSOFT_TENANT_ID")
+            
+            # Check if we have a valid cached token
+            if tenant_id in self.token_cache:
+                token_info = self.token_cache[tenant_id]
+                if datetime.now() < token_info["expires_at"] - timedelta(minutes=5):
+                    return token_info["access_token"]
+            
+            # Create MSAL client application
+            client_app = ConfidentialClientApplication(
+                client_id=os.getenv("MICROSOFT_CLIENT_ID"),
+                client_credential=os.getenv("MICROSOFT_CLIENT_SECRET"),
+                authority=f"https://login.microsoftonline.com/{tenant_id}"
             )
-            logger.info("MSAL application initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize MSAL application: {e}")
-            raise
-    
-    async def authenticate(self) -> bool:
-        """Authenticate with Microsoft Graph using client credentials flow"""
-        try:
-            # Use client credentials flow for app-only access
-            result = self.app.acquire_token_for_client(scopes=self.config.scopes)
+            
+            # Acquire token using client credentials flow
+            result = client_app.acquire_token_for_client(
+                scopes=["https://graph.microsoft.com/.default"]
+            )
             
             if "access_token" in result:
-                self.access_token = result["access_token"]
-                # Calculate expiration time (typically 3600 seconds)
+                # Cache the token
                 expires_in = result.get("expires_in", 3600)
-                self.token_expires_at = datetime.now() + timedelta(seconds=expires_in - 300)  # 5min buffer
+                self.token_cache[tenant_id] = {
+                    "access_token": result["access_token"],
+                    "expires_at": datetime.now() + timedelta(seconds=expires_in)
+                }
                 
-                logger.info("Successfully authenticated with Microsoft Graph")
-                return True
+                logger.info(f"Successfully acquired access token for tenant {tenant_id}")
+                return result["access_token"]
             else:
-                error = result.get("error_description", "Unknown authentication error")
-                logger.error(f"Authentication failed: {error}")
-                return False
+                error_desc = result.get("error_description", "Unknown error")
+                logger.error(f"Failed to acquire token: {error_desc}")
+                return None
                 
         except Exception as e:
-            logger.error(f"Authentication error: {e}")
-            return False
+            logger.error(f"Error acquiring access token: {str(e)}")
+            return None
     
-    async def _ensure_valid_token(self) -> bool:
-        """Ensure we have a valid access token"""
-        if not self.access_token or (self.token_expires_at and datetime.now() >= self.token_expires_at):
-            return await self.authenticate()
-        return True
-    
-    async def _make_graph_request(self, endpoint: str, method: str = "GET", data: Dict = None) -> Optional[Dict]:
+    def make_graph_request(self, endpoint: str, method: str = "GET", 
+                          data: Dict = None, tenant_id: str = None) -> Optional[Dict]:
         """Make authenticated request to Microsoft Graph API"""
-        if not await self._ensure_valid_token():
+        access_token = self.get_access_token(tenant_id)
+        if not access_token:
             return None
         
         headers = {
-            "Authorization": f"Bearer {self.access_token}",
+            "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
         
-        url = f"https://graph.microsoft.com/v1.0{endpoint}"
+        url = f"{self.base_url}/{endpoint}"
         
-        for attempt in range(self.max_retries):
-            try:
-                if method == "GET":
-                    response = requests.get(url, headers=headers)
-                elif method == "POST":
-                    response = requests.post(url, headers=headers, json=data)
-                else:
-                    raise ValueError(f"Unsupported HTTP method: {method}")
-                
-                if response.status_code == 200:
-                    return response.json()
-                elif response.status_code == 429:  # Rate limited
-                    retry_after = int(response.headers.get("Retry-After", self.rate_limit_delay))
-                    logger.warning(f"Rate limited, waiting {retry_after} seconds")
-                    await asyncio.sleep(retry_after)
-                    continue
-                elif response.status_code == 401:  # Token expired
-                    if await self.authenticate():
-                        headers["Authorization"] = f"Bearer {self.access_token}"
-                        continue
-                    else:
-                        logger.error("Failed to refresh authentication token")
-                        return None
-                else:
-                    logger.error(f"Graph API request failed: {response.status_code} - {response.text}")
-                    return None
-                    
-            except Exception as e:
-                logger.error(f"Request error (attempt {attempt + 1}): {e}")
-                if attempt < self.max_retries - 1:
-                    await asyncio.sleep(self.rate_limit_delay * (attempt + 1))
-                
-        return None
-    
-    async def extract_organizational_users(self) -> List[OrganizationUser]:
-        """Extract all users from the organization"""
         try:
-            users = []
-            next_link = "/users?$select=id,displayName,mail,jobTitle,department,manager,directReports,officeLocation&$top=999"
+            if method == "GET":
+                response = requests.get(url, headers=headers)
+            elif method == "POST":
+                response = requests.post(url, headers=headers, json=data)
+            else:
+                logger.error(f"Unsupported HTTP method: {method}")
+                return None
             
-            while next_link:
-                response = await self._make_graph_request(next_link)
-                if not response:
-                    break
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Graph API request failed: {response.status_code} - {response.text}")
+                return None
                 
-                for user_data in response.get("value", []):
-                    # Get manager information
-                    manager_id = None
-                    if user_data.get("manager"):
-                        manager_response = await self._make_graph_request(f"/users/{user_data['id']}/manager")
-                        if manager_response:
-                            manager_id = manager_response.get("id")
-                    
-                    # Get direct reports
-                    direct_reports = []
-                    reports_response = await self._make_graph_request(f"/users/{user_data['id']}/directReports")
-                    if reports_response:
-                        direct_reports = [report.get("id") for report in reports_response.get("value", [])]
-                    
-                    user = OrganizationUser(
-                        id=user_data.get("id", ""),
-                        display_name=user_data.get("displayName", ""),
-                        email=user_data.get("mail", ""),
-                        job_title=user_data.get("jobTitle", ""),
-                        department=user_data.get("department", ""),
-                        manager_id=manager_id,
-                        direct_reports=direct_reports,
-                        office_location=user_data.get("officeLocation", ""),
-                        tenant_context=self.tenant_id
-                    )
-                    
-                    users.append(user)
-                    self.user_cache[user.id] = user
-                
-                # Check for pagination
-                next_link = response.get("@odata.nextLink")
-                if next_link:
-                    # Extract the endpoint from the full URL
-                    next_link = next_link.replace("https://graph.microsoft.com/v1.0", "")
-                
-                # Rate limiting
-                await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Error making Graph request to {endpoint}: {str(e)}")
+            return None
+    
+    async def extract_organizational_relationships(self, tenant_id: str = None, 
+                                                 user_limit: int = 100) -> Dict[str, Any]:
+        """
+        Extract organizational relationships from Microsoft Graph
+        Returns manager/report hierarchies and collaboration networks
+        """
+        logger.info("Starting organizational relationship extraction")
+        
+        try:
+            # Get all users in the organization
+            users_response = self.make_graph_request(
+                f"users?$select=id,displayName,mail,jobTitle,department,manager&$top={user_limit}",
+                tenant_id=tenant_id
+            )
             
-            logger.info(f"Extracted {len(users)} organizational users")
-            return users
+            if not users_response or "value" not in users_response:
+                return {"status": "error", "message": "Failed to retrieve users"}
+            
+            users = users_response["value"]
+            relationships = []
+            user_mapping = {}
+            
+            # Create user mapping for quick lookup
+            for user in users:
+                user_mapping[user["id"]] = {
+                    "id": user["id"],
+                    "name": user.get("displayName", "Unknown"),
+                    "email": user.get("mail", ""),
+                    "title": user.get("jobTitle", ""),
+                    "department": user.get("department", "")
+                }
+            
+            # Extract manager relationships
+            for user in users:
+                user_id = user["id"]
+                
+                # Get manager information
+                manager_response = self.make_graph_request(
+                    f"users/{user_id}/manager?$select=id,displayName,mail",
+                    tenant_id=tenant_id
+                )
+                
+                if manager_response and "id" in manager_response:
+                    manager_id = manager_response["id"]
+                    
+                    relationships.append({
+                        "from": manager_id,
+                        "to": user_id,
+                        "type": "manager",
+                        "strength": 1.0,
+                        "created_at": datetime.now().isoformat()
+                    })
+                
+                # Get direct reports
+                reports_response = self.make_graph_request(
+                    f"users/{user_id}/directReports?$select=id,displayName,mail",
+                    tenant_id=tenant_id
+                )
+                
+                if reports_response and "value" in reports_response:
+                    for report in reports_response["value"]:
+                        report_id = report["id"]
+                        
+                        relationships.append({
+                            "from": user_id,
+                            "to": report_id,
+                            "type": "direct_report",
+                            "strength": 1.0,
+                            "created_at": datetime.now().isoformat()
+                        })
+            
+            return {
+                "status": "success",
+                "tenant_id": tenant_id,
+                "users": user_mapping,
+                "relationships": relationships,
+                "total_users": len(users),
+                "total_relationships": len(relationships),
+                "extracted_at": datetime.now().isoformat()
+            }
             
         except Exception as e:
-            logger.error(f"Error extracting organizational users: {e}")
-            return []
+            logger.error(f"Error extracting organizational relationships: {str(e)}")
+            return {"status": "error", "message": str(e)}
     
-    async def analyze_email_communication_patterns(self, days_back: int = 30) -> List[CommunicationPattern]:
-        """Analyze email communication patterns for relationship strength"""
+    async def analyze_email_communication_patterns(self, tenant_id: str = None, 
+                                                  user_id: str = None, 
+                                                  days: int = 30) -> Dict[str, Any]:
+        """
+        Analyze email communication patterns to determine relationship strength
+        Returns communication frequency, response patterns, and collaboration scores
+        """
+        logger.info(f"Analyzing email communication patterns for {days} days")
+        
         try:
+            # If no specific user, analyze for current authenticated user
+            if not user_id:
+                me_response = self.make_graph_request("me?$select=id,displayName,mail", tenant_id=tenant_id)
+                if not me_response:
+                    return {"status": "error", "message": "Cannot identify current user"}
+                user_id = me_response["id"]
+            
+            # Calculate date range
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=days_back)
+            start_date = end_date - timedelta(days=days)
             
-            communication_data = defaultdict(list)
-            patterns = []
+            # Get email messages with metadata
+            filter_query = f"receivedDateTime ge {start_date.isoformat()} and receivedDateTime le {end_date.isoformat()}"
             
-            # Get messages for analysis (limited scope due to permissions)
-            users = list(self.user_cache.values())[:10]  # Limit for testing
+            messages_response = self.make_graph_request(
+                f"users/{user_id}/messages?$filter={filter_query}&$select=sender,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,importance&$top=1000",
+                tenant_id=tenant_id
+            )
             
-            for user in users:
-                if not user.email:
-                    continue
-                
-                # Get user's sent emails
-                filter_query = f"sentDateTime ge {start_date.isoformat()}"
-                endpoint = f"/users/{user.id}/mailFolders/sentitems/messages?$filter={filter_query}&$select=id,subject,sentDateTime,toRecipients,importance,categories,conversationId&$top=100"
-                
-                response = await self._make_graph_request(endpoint)
-                if not response:
-                    continue
-                
-                for message in response.get("value", []):
-                    recipients = message.get("toRecipients", [])
-                    for recipient in recipients:
-                        recipient_email = recipient.get("emailAddress", {}).get("address", "")
-                        if recipient_email and recipient_email != user.email:
-                            
-                            communication = EmailCommunication(
-                                sender=user.email,
-                                recipient=recipient_email,
-                                subject=message.get("subject", ""),
-                                timestamp=datetime.fromisoformat(message.get("sentDateTime", "").replace("Z", "+00:00")),
-                                message_id=message.get("id", ""),
-                                conversation_id=message.get("conversationId", ""),
-                                importance=message.get("importance", "normal"),
-                                categories=message.get("categories", []),
-                                tenant_context=self.tenant_id
-                            )
-                            
-                            user_pair = tuple(sorted([user.email, recipient_email]))
-                            communication_data[user_pair].append(communication)
-                
-                # Rate limiting
-                await asyncio.sleep(0.2)
+            if not messages_response or "value" not in messages_response:
+                return {"status": "error", "message": "Failed to retrieve email messages"}
+            
+            messages = messages_response["value"]
             
             # Analyze communication patterns
-            for user_pair, communications in communication_data.items():
-                if len(communications) < 2:  # Skip single communications
-                    continue
-                
-                # Calculate metrics
-                email_count = len(communications)
-                
-                # Calculate frequency score (emails per day)
-                time_span = (end_date - start_date).days
-                frequency_score = email_count / max(time_span, 1)
-                
-                # Get last communication
-                last_communication = max(comm.timestamp for comm in communications)
-                
-                # Calculate communication strength based on frequency and recency
-                recency_factor = max(0.1, 1.0 - (end_date - last_communication).days / days_back)
-                communication_strength = min(1.0, frequency_score * recency_factor * 0.1)
-                
-                # Extract topics from subjects
-                topics = self._extract_topics([comm.subject for comm in communications])
-                
-                # Determine relationship type
-                relationship_type = self._determine_relationship_type(communications, frequency_score)
-                
-                pattern = CommunicationPattern(
-                    user_pair=user_pair,
-                    email_count=email_count,
-                    frequency_score=frequency_score,
-                    last_communication=last_communication,
-                    communication_strength=communication_strength,
-                    topics=topics,
-                    relationship_type=relationship_type,
-                    tenant_context=self.tenant_id
-                )
-                
-                patterns.append(pattern)
-                self.communication_cache[user_pair] = pattern
+            communication_data = defaultdict(lambda: {
+                "email": "",
+                "name": "",
+                "message_count": 0,
+                "sent_count": 0,
+                "received_count": 0,
+                "response_rate": 0.0,
+                "avg_response_time_hours": 0.0,
+                "collaboration_score": 0.0,
+                "importance_high": 0,
+                "has_attachments": 0
+            })
             
-            logger.info(f"Analyzed {len(patterns)} communication patterns")
-            return patterns
-            
-        except Exception as e:
-            logger.error(f"Error analyzing email communication patterns: {e}")
-            return []
-    
-    def _extract_topics(self, subjects: List[str]) -> List[str]:
-        """Extract common topics from email subjects"""
-        # Remove common email prefixes and clean subjects
-        cleaned_subjects = []
-        for subject in subjects:
-            cleaned = re.sub(r'^(RE:|FW:|FWD:)\s*', '', subject, flags=re.IGNORECASE)
-            cleaned = cleaned.strip()
-            if cleaned:
-                cleaned_subjects.append(cleaned.lower())
-        
-        # Extract common words (simple topic extraction)
-        word_counts = Counter()
-        for subject in cleaned_subjects:
-            words = re.findall(r'\b\w{3,}\b', subject)  # Words with 3+ characters
-            word_counts.update(words)
-        
-        # Return top topics, excluding common words
-        common_words = {'meeting', 'call', 'update', 'follow', 'team', 'project', 'please', 'thanks'}
-        topics = [word for word, count in word_counts.most_common(5) if word not in common_words and count > 1]
-        
-        return topics[:3]  # Return top 3 topics
-    
-    def _determine_relationship_type(self, communications: List[EmailCommunication], frequency_score: float) -> str:
-        """Determine relationship type based on communication patterns"""
-        if frequency_score > 1.0:  # More than 1 email per day on average
-            return "frequent_collaborator"
-        elif frequency_score > 0.3:  # More than 2 emails per week
-            return "regular_collaborator"
-        elif frequency_score > 0.1:  # More than 3 emails per month
-            return "occasional_collaborator"
-        else:
-            return "infrequent_contact"
-    
-    async def extract_organizational_relationships(self) -> List[OrganizationalRelationship]:
-        """Extract organizational relationships from org chart and communication patterns"""
-        try:
-            relationships = []
-            
-            # Extract hierarchical relationships from org chart
-            for user in self.user_cache.values():
-                # Manager relationship
-                if user.manager_id:
-                    relationship = OrganizationalRelationship(
-                        source_user_id=user.id,
-                        target_user_id=user.manager_id,
-                        relationship_type="manager",
-                        strength=0.8,  # Strong hierarchical relationship
-                        context=f"{user.display_name} reports to manager",
-                        discovered_through="org_chart",
-                        tenant_context=self.tenant_id
-                    )
-                    relationships.append(relationship)
+            # Process messages
+            for message in messages:
+                # Sender analysis
+                if message.get("sender") and message["sender"].get("emailAddress"):
+                    sender_email = message["sender"]["emailAddress"]["address"]
+                    sender_name = message["sender"]["emailAddress"]["name"]
+                    
+                    communication_data[sender_email]["email"] = sender_email
+                    communication_data[sender_email]["name"] = sender_name
+                    communication_data[sender_email]["received_count"] += 1
+                    communication_data[sender_email]["message_count"] += 1
+                    
+                    # Check importance and attachments
+                    if message.get("importance") == "high":
+                        communication_data[sender_email]["importance_high"] += 1
+                    
+                    if message.get("hasAttachments"):
+                        communication_data[sender_email]["has_attachments"] += 1
                 
-                # Direct report relationships
-                for report_id in user.direct_reports:
-                    relationship = OrganizationalRelationship(
-                        source_user_id=user.id,
-                        target_user_id=report_id,
-                        relationship_type="direct_report",
-                        strength=0.7,  # Strong management relationship
-                        context=f"{user.display_name} manages direct report",
-                        discovered_through="org_chart",
-                        tenant_context=self.tenant_id
-                    )
-                    relationships.append(relationship)
-            
-            # Add peer relationships based on department
-            department_users = defaultdict(list)
-            for user in self.user_cache.values():
-                if user.department:
-                    department_users[user.department].append(user)
-            
-            for department, users in department_users.items():
-                if len(users) > 1:
-                    for i, user1 in enumerate(users):
-                        for user2 in users[i+1:]:
-                            # Skip if already related through hierarchy
-                            if user1.manager_id == user2.id or user2.manager_id == user1.id:
-                                continue
+                # Recipients analysis (for sent emails)
+                for recipient_list in [message.get("toRecipients", []), message.get("ccRecipients", [])]:
+                    for recipient in recipient_list:
+                        if recipient.get("emailAddress"):
+                            recipient_email = recipient["emailAddress"]["address"]
+                            recipient_name = recipient["emailAddress"]["name"]
                             
-                            relationship = OrganizationalRelationship(
-                                source_user_id=user1.id,
-                                target_user_id=user2.id,
-                                relationship_type="peer",
-                                strength=0.3,  # Moderate peer relationship
-                                context=f"Department colleagues in {department}",
-                                discovered_through="org_chart",
-                                tenant_context=self.tenant_id
-                            )
-                            relationships.append(relationship)
+                            communication_data[recipient_email]["email"] = recipient_email
+                            communication_data[recipient_email]["name"] = recipient_name
+                            communication_data[recipient_email]["sent_count"] += 1
+                            communication_data[recipient_email]["message_count"] += 1
             
-            # Enhance with communication-based relationships
-            communication_patterns = list(self.communication_cache.values())
-            for pattern in communication_patterns:
-                # Find user IDs from emails
-                user1_id = self._get_user_id_by_email(pattern.user_pair[0])
-                user2_id = self._get_user_id_by_email(pattern.user_pair[1])
-                
-                if user1_id and user2_id:
-                    relationship = OrganizationalRelationship(
-                        source_user_id=user1_id,
-                        target_user_id=user2_id,
-                        relationship_type=pattern.relationship_type,
-                        strength=pattern.communication_strength,
-                        context=f"Communication pattern: {', '.join(pattern.topics)}",
-                        discovered_through="email_patterns",
-                        tenant_context=self.tenant_id
+            # Calculate collaboration scores
+            total_messages = sum(data["message_count"] for data in communication_data.values())
+            
+            for email, data in communication_data.items():
+                if total_messages > 0:
+                    # Base score on message frequency
+                    frequency_score = min(1.0, data["message_count"] / total_messages * 20)
+                    
+                    # Boost score for bidirectional communication
+                    bidirectional_bonus = 0.0
+                    if data["sent_count"] > 0 and data["received_count"] > 0:
+                        bidirectional_bonus = 0.3
+                    
+                    # Boost for high importance messages
+                    importance_bonus = min(0.2, data["importance_high"] / max(1, data["message_count"]) * 0.5)
+                    
+                    # Boost for attachments (indicates collaboration)
+                    attachment_bonus = min(0.2, data["has_attachments"] / max(1, data["message_count"]) * 0.4)
+                    
+                    data["collaboration_score"] = min(1.0, 
+                        frequency_score + bidirectional_bonus + importance_bonus + attachment_bonus
                     )
-                    relationships.append(relationship)
+                    
+                    # Calculate response rate (simplified)
+                    if data["received_count"] > 0:
+                        data["response_rate"] = min(1.0, data["sent_count"] / data["received_count"])
             
-            logger.info(f"Extracted {len(relationships)} organizational relationships")
-            return relationships
-            
-        except Exception as e:
-            logger.error(f"Error extracting organizational relationships: {e}")
-            return []
-    
-    def _get_user_id_by_email(self, email: str) -> Optional[str]:
-        """Get user ID by email address"""
-        for user in self.user_cache.values():
-            if user.email == email:
-                return user.id
-        return None
-    
-    async def process_excel_file(self, file_content: bytes, filename: str) -> ExcelDataInsight:
-        """Process Excel file and extract insights for dashboard data"""
-        try:
-            # Load Excel file
-            excel_file = BytesIO(file_content)
-            
-            # Try to read with pandas first
-            try:
-                # Read all sheets
-                excel_data = pd.read_excel(excel_file, sheet_name=None, engine='openpyxl')
-            except Exception:
-                # Fallback to openpyxl
-                workbook = openpyxl.load_workbook(excel_file)
-                excel_data = {}
-                for sheet_name in workbook.sheetnames:
-                    sheet = workbook[sheet_name]
-                    data = []
-                    for row in sheet.iter_rows(values_only=True):
-                        data.append(row)
-                    if data:
-                        excel_data[sheet_name] = pd.DataFrame(data[1:], columns=data[0])
-            
-            # Process each sheet and combine insights
-            all_insights = []
-            
-            for sheet_name, df in excel_data.items():
-                if df.empty:
-                    continue
-                
-                # Basic data summary
-                data_summary = {
-                    "columns": list(df.columns),
-                    "data_types": df.dtypes.to_dict() if hasattr(df, 'dtypes') else {},
-                    "null_counts": df.isnull().sum().to_dict() if hasattr(df, 'isnull') else {},
-                    "shape": df.shape if hasattr(df, 'shape') else (0, 0)
-                }
-                
-                # Extract key metrics
-                key_metrics = self._extract_excel_metrics(df, sheet_name)
-                
-                insight = ExcelDataInsight(
-                    source_file=filename,
-                    sheet_name=sheet_name,
-                    total_rows=len(df) if hasattr(df, '__len__') else 0,
-                    data_summary=data_summary,
-                    key_metrics=key_metrics,
-                    processed_at=datetime.now(),
-                    tenant_context=self.tenant_id
-                )
-                
-                all_insights.append(insight)
-            
-            # Return the most significant sheet or first sheet
-            primary_insight = max(all_insights, key=lambda x: x.total_rows) if all_insights else ExcelDataInsight(
-                source_file=filename,
-                sheet_name="Empty",
-                total_rows=0,
-                data_summary={},
-                key_metrics={},
-                processed_at=datetime.now(),
-                tenant_context=self.tenant_id
+            # Convert to regular dict and sort by collaboration score
+            result_data = dict(communication_data)
+            sorted_contacts = sorted(
+                result_data.items(), 
+                key=lambda x: x[1]["collaboration_score"], 
+                reverse=True
             )
             
-            logger.info(f"Processed Excel file {filename} with {len(all_insights)} sheets")
-            return primary_insight
-            
-        except Exception as e:
-            logger.error(f"Error processing Excel file {filename}: {e}")
-            return ExcelDataInsight(
-                source_file=filename,
-                sheet_name="Error",
-                total_rows=0,
-                data_summary={"error": str(e)},
-                key_metrics={},
-                processed_at=datetime.now(),
-                tenant_context=self.tenant_id
-            )
-    
-    def _extract_excel_metrics(self, df: pd.DataFrame, sheet_name: str) -> Dict[str, float]:
-        """Extract key metrics from Excel data"""
-        metrics = {}
-        
-        try:
-            # Identify numeric columns
-            numeric_columns = df.select_dtypes(include=['number']).columns if hasattr(df, 'select_dtypes') else []
-            
-            # Calculate basic statistics for numeric columns
-            for col in numeric_columns:
-                if col in df.columns:
-                    series = df[col].dropna()
-                    if len(series) > 0:
-                        metrics[f"{col}_mean"] = float(series.mean()) if hasattr(series, 'mean') else 0.0
-                        metrics[f"{col}_sum"] = float(series.sum()) if hasattr(series, 'sum') else 0.0
-                        metrics[f"{col}_max"] = float(series.max()) if hasattr(series, 'max') else 0.0
-                        metrics[f"{col}_min"] = float(series.min()) if hasattr(series, 'min') else 0.0
-            
-            # Identify potential key business metrics based on column names
-            key_patterns = {
-                'revenue': r'revenue|sales|income',
-                'cost': r'cost|expense|spend',
-                'quantity': r'quantity|count|number|amount',
-                'date': r'date|time|created|updated'
+            return {
+                "status": "success",
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "analysis_period_days": days,
+                "total_contacts": len(result_data),
+                "total_messages_analyzed": len(messages),
+                "communication_patterns": dict(sorted_contacts[:50]),  # Top 50 contacts
+                "top_collaborators": [
+                    {
+                        "email": email,
+                        "name": data["name"],
+                        "score": data["collaboration_score"],
+                        "message_count": data["message_count"]
+                    }
+                    for email, data in sorted_contacts[:10]  # Top 10
+                ],
+                "analyzed_at": datetime.now().isoformat()
             }
             
-            for metric_type, pattern in key_patterns.items():
-                matching_cols = [col for col in df.columns if re.search(pattern, str(col).lower())]
-                for col in matching_cols:
-                    if col in numeric_columns:
-                        series = df[col].dropna()
-                        if len(series) > 0:
-                            metrics[f"total_{metric_type}"] = float(series.sum())
-                            metrics[f"avg_{metric_type}"] = float(series.mean())
-            
-            # Calculate completion rate (non-null percentage)
-            for col in df.columns:
-                non_null_count = len(df[col].dropna()) if hasattr(df[col], 'dropna') else 0
-                total_count = len(df) if hasattr(df, '__len__') else 0
-                if total_count > 0:
-                    metrics[f"{col}_completion_rate"] = non_null_count / total_count
-            
         except Exception as e:
-            logger.warning(f"Error extracting metrics from Excel sheet {sheet_name}: {e}")
-            metrics["extraction_error"] = 1.0
-        
-        return metrics
+            logger.error(f"Error analyzing communication patterns: {str(e)}")
+            return {"status": "error", "message": str(e)}
     
-    async def get_integration_summary(self) -> Dict[str, Any]:
-        """Get comprehensive integration summary"""
+    async def process_excel_file_for_dashboard(self, file_path: str = None, 
+                                             file_content: bytes = None,
+                                             tenant_id: str = None) -> Dict[str, Any]:
+        """
+        Process Excel file to extract dashboard-relevant data
+        Supports both local files and file content from uploads
+        """
+        logger.info("Processing Excel file for dashboard data extraction")
+        
         try:
-            summary = {
-                "tenant_id": self.tenant_id,
-                "last_updated": datetime.now().isoformat(),
-                "authentication_status": "authenticated" if self.access_token else "not_authenticated",
-                "users_cached": len(self.user_cache),
-                "relationships_cached": len(self.relationship_cache),
-                "communication_patterns": len(self.communication_cache),
-                "capabilities": {
-                    "user_extraction": True,
-                    "email_analysis": True,
-                    "relationship_mapping": True,
-                    "excel_processing": True
+            # Load workbook
+            if file_path:
+                workbook = load_workbook(file_path, data_only=True)
+            elif file_content:
+                from io import BytesIO
+                workbook = load_workbook(BytesIO(file_content), data_only=True)
+            else:
+                return {"status": "error", "message": "No file path or content provided"}
+            
+            dashboard_data = {
+                "worksheets": [],
+                "kpi_data": {},
+                "charts_data": [],
+                "tables": [],
+                "sponsor_data": [],
+                "grant_data": [],
+                "financial_data": []
+            }
+            
+            # Process each worksheet
+            for sheet_name in workbook.sheetnames:
+                worksheet = workbook[sheet_name]
+                sheet_data = {
+                    "name": sheet_name,
+                    "max_row": worksheet.max_row,
+                    "max_column": worksheet.max_column,
+                    "data_extracted": []
+                }
+                
+                # Convert worksheet to pandas DataFrame for easier processing
+                data = []
+                for row in worksheet.iter_rows(values_only=True):
+                    data.append(row)
+                
+                if data:
+                    df = pd.DataFrame(data[1:], columns=data[0])  # First row as headers
+                    
+                    # Detect and extract KPI-like data
+                    kpi_patterns = self._extract_kpi_data(df, sheet_name)
+                    if kpi_patterns:
+                        dashboard_data["kpi_data"][sheet_name] = kpi_patterns
+                    
+                    # Detect sponsor data
+                    sponsor_patterns = self._extract_sponsor_data(df, sheet_name)
+                    if sponsor_patterns:
+                        dashboard_data["sponsor_data"].extend(sponsor_patterns)
+                    
+                    # Detect grant data
+                    grant_patterns = self._extract_grant_data(df, sheet_name)
+                    if grant_patterns:
+                        dashboard_data["grant_data"].extend(grant_patterns)
+                    
+                    # Detect financial data
+                    financial_patterns = self._extract_financial_data(df, sheet_name)
+                    if financial_patterns:
+                        dashboard_data["financial_data"].extend(financial_patterns)
+                    
+                    # Store processed data summary
+                    sheet_data["data_extracted"] = {
+                        "rows": len(df),
+                        "columns": len(df.columns),
+                        "column_names": list(df.columns),
+                        "data_types": df.dtypes.to_dict()
+                    }
+                
+                dashboard_data["worksheets"].append(sheet_data)
+            
+            return {
+                "status": "success",
+                "tenant_id": tenant_id,
+                "file_processed": True,
+                "dashboard_data": dashboard_data,
+                "processed_at": datetime.now().isoformat(),
+                "summary": {
+                    "total_worksheets": len(dashboard_data["worksheets"]),
+                    "kpi_sheets": len(dashboard_data["kpi_data"]),
+                    "sponsor_records": len(dashboard_data["sponsor_data"]),
+                    "grant_records": len(dashboard_data["grant_data"]),
+                    "financial_records": len(dashboard_data["financial_data"])
                 }
             }
             
-            # Add user distribution by department
-            if self.user_cache:
-                department_counts = defaultdict(int)
-                for user in self.user_cache.values():
-                    dept = user.department or "Unknown"
-                    department_counts[dept] += 1
-                summary["department_distribution"] = dict(department_counts)
-            
-            # Add communication statistics
-            if self.communication_cache:
-                patterns = list(self.communication_cache.values())
-                summary["communication_stats"] = {
-                    "total_patterns": len(patterns),
-                    "avg_frequency": sum(p.frequency_score for p in patterns) / len(patterns),
-                    "avg_strength": sum(p.communication_strength for p in patterns) / len(patterns),
-                    "relationship_types": Counter(p.relationship_type for p in patterns)
+        except Exception as e:
+            logger.error(f"Error processing Excel file: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    def _extract_kpi_data(self, df: pd.DataFrame, sheet_name: str) -> Dict[str, Any]:
+        """Extract KPI-like data from DataFrame"""
+        kpi_data = {}
+        
+        # Look for common KPI patterns
+        kpi_keywords = [
+            "total", "count", "sum", "average", "percentage", "rate", "score",
+            "sponsors", "grants", "funding", "applications", "success", "revenue"
+        ]
+        
+        for column in df.columns:
+            if any(keyword in str(column).lower() for keyword in kpi_keywords):
+                # Try to extract numeric values
+                numeric_data = pd.to_numeric(df[column], errors='coerce').dropna()
+                if not numeric_data.empty:
+                    kpi_data[column] = {
+                        "value": numeric_data.iloc[-1] if len(numeric_data) == 1 else numeric_data.sum(),
+                        "data_type": "numeric",
+                        "source_sheet": sheet_name
+                    }
+        
+        return kpi_data
+    
+    def _extract_sponsor_data(self, df: pd.DataFrame, sheet_name: str) -> List[Dict[str, Any]]:
+        """Extract sponsor-related data from DataFrame"""
+        sponsor_data = []
+        
+        # Look for sponsor-related columns
+        sponsor_columns = ["sponsor", "organization", "company", "funder", "donor"]
+        name_columns = ["name", "contact", "person", "representative"]
+        email_columns = ["email", "contact_email", "e-mail"]
+        
+        sponsor_col = None
+        name_col = None
+        email_col = None
+        
+        # Find relevant columns
+        for col in df.columns:
+            col_lower = str(col).lower()
+            if any(keyword in col_lower for keyword in sponsor_columns):
+                sponsor_col = col
+            elif any(keyword in col_lower for keyword in name_columns):
+                name_col = col
+            elif any(keyword in col_lower for keyword in email_columns):
+                email_col = col
+        
+        # Extract data if sponsor column found
+        if sponsor_col:
+            for _, row in df.iterrows():
+                if pd.notna(row[sponsor_col]):
+                    sponsor_record = {
+                        "organization": str(row[sponsor_col]),
+                        "contact_name": str(row[name_col]) if name_col and pd.notna(row[name_col]) else "",
+                        "email": str(row[email_col]) if email_col and pd.notna(row[email_col]) else "",
+                        "source_sheet": sheet_name,
+                        "extracted_at": datetime.now().isoformat()
+                    }
+                    sponsor_data.append(sponsor_record)
+        
+        return sponsor_data
+    
+    def _extract_grant_data(self, df: pd.DataFrame, sheet_name: str) -> List[Dict[str, Any]]:
+        """Extract grant-related data from DataFrame"""
+        grant_data = []
+        
+        # Look for grant-related columns
+        grant_columns = ["grant", "funding", "award", "application", "proposal"]
+        amount_columns = ["amount", "value", "funding", "budget", "total"]
+        date_columns = ["date", "deadline", "due", "submission"]
+        
+        grant_col = None
+        amount_col = None
+        date_col = None
+        
+        # Find relevant columns
+        for col in df.columns:
+            col_lower = str(col).lower()
+            if any(keyword in col_lower for keyword in grant_columns):
+                grant_col = col
+            elif any(keyword in col_lower for keyword in amount_columns):
+                amount_col = col
+            elif any(keyword in col_lower for keyword in date_columns):
+                date_col = col
+        
+        # Extract data if grant column found
+        if grant_col:
+            for _, row in df.iterrows():
+                if pd.notna(row[grant_col]):
+                    grant_record = {
+                        "title": str(row[grant_col]),
+                        "amount": str(row[amount_col]) if amount_col and pd.notna(row[amount_col]) else "",
+                        "deadline": str(row[date_col]) if date_col and pd.notna(row[date_col]) else "",
+                        "source_sheet": sheet_name,
+                        "extracted_at": datetime.now().isoformat()
+                    }
+                    grant_data.append(grant_record)
+        
+        return grant_data
+    
+    def _extract_financial_data(self, df: pd.DataFrame, sheet_name: str) -> List[Dict[str, Any]]:
+        """Extract financial data from DataFrame"""
+        financial_data = []
+        
+        # Look for financial columns
+        financial_keywords = ["revenue", "income", "expense", "cost", "budget", "profit", "loss"]
+        
+        for column in df.columns:
+            if any(keyword in str(column).lower() for keyword in financial_keywords):
+                # Extract numeric financial data
+                numeric_data = pd.to_numeric(df[column], errors='coerce').dropna()
+                if not numeric_data.empty:
+                    financial_record = {
+                        "category": column,
+                        "total": float(numeric_data.sum()),
+                        "average": float(numeric_data.mean()),
+                        "count": int(len(numeric_data)),
+                        "source_sheet": sheet_name,
+                        "extracted_at": datetime.now().isoformat()
+                    }
+                    financial_data.append(financial_record)
+        
+        return financial_data
+    
+    async def get_connection_status(self, tenant_id: str = None) -> Dict[str, Any]:
+        """Check Microsoft Graph connection status and permissions"""
+        try:
+            access_token = self.get_access_token(tenant_id)
+            if not access_token:
+                return {
+                    "status": "disconnected",
+                    "message": "Unable to acquire access token",
+                    "authenticated": False
                 }
             
-            return summary
+            # Test connection with a simple request
+            me_response = self.make_graph_request("me?$select=id,displayName,mail", tenant_id=tenant_id)
             
+            if me_response:
+                return {
+                    "status": "connected",
+                    "authenticated": True,
+                    "user": {
+                        "id": me_response.get("id"),
+                        "name": me_response.get("displayName"),
+                        "email": me_response.get("mail")
+                    },
+                    "tenant_id": tenant_id,
+                    "scopes_available": self.scopes,
+                    "last_checked": datetime.now().isoformat()
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "Failed to connect to Microsoft Graph",
+                    "authenticated": False
+                }
+                
         except Exception as e:
-            logger.error(f"Error generating integration summary: {e}")
-            return {"error": str(e)}
-    
-    async def cleanup(self) -> None:
-        """Clean up resources and cache"""
-        try:
-            self.user_cache.clear()
-            self.relationship_cache.clear()
-            self.communication_cache.clear()
-            self.access_token = None
-            self.token_expires_at = None
-            logger.info("IntegrationAgent cleanup completed")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            logger.error(f"Error checking connection status: {str(e)}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "authenticated": False
+            }
 
-# Export main class and data structures
-__all__ = [
-    'IntegrationAgent',
-    'MSGraphConfig',
-    'OrganizationUser',
-    'EmailCommunication',
-    'CommunicationPattern',
-    'ExcelDataInsight',
-    'OrganizationalRelationship'
-]
+# Global integration agent instance
+integration_agent = None
+
+def get_integration_agent():
+    """Get the global integration agent instance"""
+    global integration_agent
+    if integration_agent is None:
+        integration_agent = IntegrationAgent()
+    return integration_agent

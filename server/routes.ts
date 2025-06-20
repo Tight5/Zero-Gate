@@ -6,6 +6,7 @@ import { registerProcessingRoutes } from "./routes/processing";
 import { initializeWebSocket, getWebSocketManager } from "./websocket";
 import { registerAnalyticsRoutes } from "./routes/analytics";
 import workflowRoutes from "./routes/workflows";
+import integrationRoutes from "./routes/integration";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -227,6 +228,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register workflow orchestration routes
   app.use('/api/workflows', workflowRoutes);
+  
+  // Register Microsoft Graph integration routes
+  app.use('/api/integration', integrationRoutes);
   
   // WebSocket status endpoint
   app.get('/api/websocket/status', isAuthenticated, (req, res) => {

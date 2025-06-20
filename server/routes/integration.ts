@@ -1,413 +1,326 @@
-/**
- * IntegrationAgent API Routes - Microsoft Graph Integration
- * Provides endpoints for organizational data extraction, email analysis, and Excel processing
- */
-
 import { Router } from 'express';
 import { spawn } from 'child_process';
-import { promisify } from 'util';
 import path from 'path';
-import { isAuthenticated } from '../replitAuth';
 import multer from 'multer';
+import fs from 'fs/promises';
+import { isAuthenticated } from '../replitAuth';
 
 const router = Router();
 
 // Configure multer for file uploads
-const upload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept Excel files
+    const allowedMimes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/excel'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype) || file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel files are allowed'));
+    }
+  }
 });
 
-interface IntegrationRequest {
-  action: string;
-  data: any;
-  tenant_id: string;
-  config?: {
-    client_id?: string;
-    client_secret?: string;
-    tenant_id?: string;
-    authority?: string;
-    scopes?: string[];
-  };
-}
-
-interface IntegrationResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
-  processing_time_ms?: number;
-}
-
-/**
- * Execute Python integration agent command
- */
-async function executeIntegrationAgent(request: IntegrationRequest): Promise<IntegrationResponse> {
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-    const pythonScript = path.join(__dirname, '../agents/integration_wrapper.py');
+// Execute Python integration command
+async function executeIntegrationCommand(operation: string, data: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const pythonPath = process.env.PYTHON_PATH || 'python3';
+    const scriptPath = path.join(__dirname, '../agents/integration_wrapper.py');
     
-    const child = spawn('python3', [pythonScript], {
+    const commandData = JSON.stringify({
+      operation,
+      data
+    });
+    
+    const pythonProcess = spawn(pythonPath, [scriptPath], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
-
+    
     let stdout = '';
     let stderr = '';
-
-    child.stdout.on('data', (data) => {
+    
+    pythonProcess.stdout.on('data', (data) => {
       stdout += data.toString();
     });
-
-    child.stderr.on('data', (data) => {
+    
+    pythonProcess.stderr.on('data', (data) => {
       stderr += data.toString();
     });
-
-    child.on('close', (code) => {
-      const processingTime = Date.now() - startTime;
-      
+    
+    pythonProcess.on('close', (code) => {
       if (code === 0) {
         try {
           const result = JSON.parse(stdout);
-          resolve({
-            success: true,
-            data: result,
-            processing_time_ms: processingTime
-          });
+          resolve(result);
         } catch (error) {
-          resolve({
-            success: false,
-            error: `Failed to parse response: ${error}`,
-            processing_time_ms: processingTime
-          });
+          reject(new Error(`Failed to parse Python output: ${error}`));
         }
       } else {
-        resolve({
-          success: false,
-          error: stderr || `Process exited with code ${code}`,
-          processing_time_ms: processingTime
-        });
+        reject(new Error(`Python process failed with code ${code}: ${stderr}`));
       }
     });
-
-    // Send request data to Python process
-    child.stdin.write(JSON.stringify(request) + '\n');
-    child.stdin.end();
+    
+    pythonProcess.on('error', (error) => {
+      reject(new Error(`Failed to start Python process: ${error.message}`));
+    });
+    
+    // Send command data to Python process
+    pythonProcess.stdin.write(commandData);
+    pythonProcess.stdin.end();
   });
 }
 
-/**
- * Initialize Microsoft Graph authentication
- */
-router.post('/auth/initialize', isAuthenticated, async (req, res) => {
+// Get Microsoft Graph connection status
+router.get('/connection-status', isAuthenticated, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    const { client_id, client_secret, ms_tenant_id, authority, scopes } = req.body;
     
-    if (!client_id || !client_secret || !ms_tenant_id) {
-      return res.status(400).json({ 
-        error: 'Microsoft Graph credentials required: client_id, client_secret, ms_tenant_id' 
+    const result = await executeIntegrationCommand('get_connection_status', {
+      tenant_id: tenantId
+    });
+    
+    if (result.success) {
+      res.json(result.data);
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to check connection status',
+        details: result.error 
       });
     }
+  } catch (error) {
+    console.error('Error checking connection status:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
 
-    const integrationRequest: IntegrationRequest = {
-      action: 'initialize_auth',
-      data: {},
+// Test Microsoft Graph authentication
+router.post('/test-auth', isAuthenticated, async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    
+    const result = await executeIntegrationCommand('get_access_token', {
+      tenant_id: tenantId
+    });
+    
+    if (result.success) {
+      res.json({
+        authenticated: result.data.has_token,
+        status: result.data.status,
+        message: result.data.has_token ? 'Successfully authenticated with Microsoft Graph' : 'Authentication failed'
+      });
+    } else {
+      res.status(401).json({ 
+        authenticated: false,
+        error: 'Authentication failed',
+        details: result.error 
+      });
+    }
+  } catch (error) {
+    console.error('Error testing authentication:', error);
+    res.status(500).json({ 
+      authenticated: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Extract organizational relationships
+router.post('/extract-relationships', isAuthenticated, async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    const { user_limit = 100 } = req.body;
+    
+    const result = await executeIntegrationCommand('extract_organizational_relationships', {
       tenant_id: tenantId,
-      config: {
-        client_id,
-        client_secret,
-        tenant_id: ms_tenant_id,
-        authority: authority || `https://login.microsoftonline.com/${ms_tenant_id}`,
-        scopes: scopes || ['https://graph.microsoft.com/.default']
-      }
-    };
-
-    const result = await executeIntegrationAgent(integrationRequest);
+      user_limit: parseInt(user_limit)
+    });
     
     if (result.success) {
-      res.json({
-        success: true,
-        message: 'Microsoft Graph authentication initialized',
-        authenticated: result.data.authenticated,
-        processing_time_ms: result.processing_time_ms
-      });
+      res.json(result.data);
     } else {
-      res.status(500).json({ error: result.error });
+      res.status(500).json({ 
+        error: 'Failed to extract organizational relationships',
+        details: result.error 
+      });
     }
-
   } catch (error) {
-    console.error('Error initializing Microsoft Graph auth:', error);
-    res.status(500).json({ error: 'Failed to initialize Microsoft Graph authentication' });
+    console.error('Error extracting relationships:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
-/**
- * Extract organizational users from Microsoft Graph
- */
-router.post('/extract/users', isAuthenticated, async (req, res) => {
+// Analyze email communication patterns
+router.post('/analyze-communication', isAuthenticated, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    const integrationRequest: IntegrationRequest = {
-      action: 'extract_users',
-      data: req.body,
-      tenant_id: tenantId
-    };
-
-    const result = await executeIntegrationAgent(integrationRequest);
+    const { user_id, days = 30 } = req.body;
+    
+    const result = await executeIntegrationCommand('analyze_email_communication_patterns', {
+      tenant_id: tenantId,
+      user_id,
+      days: parseInt(days)
+    });
     
     if (result.success) {
-      res.json({
-        success: true,
-        users: result.data.users,
-        user_count: result.data.user_count,
-        processing_time_ms: result.processing_time_ms
-      });
+      res.json(result.data);
     } else {
-      res.status(500).json({ error: result.error });
+      res.status(500).json({ 
+        error: 'Failed to analyze communication patterns',
+        details: result.error 
+      });
     }
-
   } catch (error) {
-    console.error('Error extracting organizational users:', error);
-    res.status(500).json({ error: 'Failed to extract organizational users' });
+    console.error('Error analyzing communication:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
-/**
- * Analyze email communication patterns
- */
-router.post('/analyze/email-patterns', isAuthenticated, async (req, res) => {
+// Process Excel file for dashboard data
+router.post('/process-excel', isAuthenticated, upload.single('excel_file'), async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
+    const file = req.file;
+    
+    if (!file) {
+      return res.status(400).json({ error: 'No Excel file uploaded' });
     }
-
-    const { days_back = 30 } = req.body;
-
-    const integrationRequest: IntegrationRequest = {
-      action: 'analyze_email_patterns',
-      data: { days_back },
-      tenant_id: tenantId
-    };
-
-    const result = await executeIntegrationAgent(integrationRequest);
+    
+    // Process the uploaded file
+    const result = await executeIntegrationCommand('process_excel_file_for_dashboard', {
+      tenant_id: tenantId,
+      file_path: file.path
+    });
+    
+    // Clean up uploaded file
+    try {
+      await fs.unlink(file.path);
+    } catch (cleanupError) {
+      console.warn('Failed to cleanup uploaded file:', cleanupError);
+    }
     
     if (result.success) {
-      res.json({
-        success: true,
-        patterns: result.data.patterns,
-        pattern_count: result.data.pattern_count,
-        analysis_summary: result.data.analysis_summary,
-        processing_time_ms: result.processing_time_ms
-      });
+      res.json(result.data);
     } else {
-      res.status(500).json({ error: result.error });
-    }
-
-  } catch (error) {
-    console.error('Error analyzing email patterns:', error);
-    res.status(500).json({ error: 'Failed to analyze email communication patterns' });
-  }
-});
-
-/**
- * Extract organizational relationships
- */
-router.post('/extract/relationships', isAuthenticated, async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    const integrationRequest: IntegrationRequest = {
-      action: 'extract_relationships',
-      data: req.body,
-      tenant_id: tenantId
-    };
-
-    const result = await executeIntegrationAgent(integrationRequest);
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        relationships: result.data.relationships,
-        relationship_count: result.data.relationship_count,
-        relationship_types: result.data.relationship_types,
-        processing_time_ms: result.processing_time_ms
+      res.status(500).json({ 
+        error: 'Failed to process Excel file',
+        details: result.error 
       });
-    } else {
-      res.status(500).json({ error: result.error });
     }
-
-  } catch (error) {
-    console.error('Error extracting organizational relationships:', error);
-    res.status(500).json({ error: 'Failed to extract organizational relationships' });
-  }
-});
-
-/**
- * Process Excel file for dashboard insights
- */
-router.post('/process/excel', isAuthenticated, upload.single('excel_file'), async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'Excel file required' });
-    }
-
-    // Convert file buffer to base64 for Python processing
-    const fileContent = req.file.buffer.toString('base64');
-    
-    const integrationRequest: IntegrationRequest = {
-      action: 'process_excel',
-      data: {
-        file_content: fileContent,
-        filename: req.file.originalname,
-        mimetype: req.file.mimetype
-      },
-      tenant_id: tenantId
-    };
-
-    const result = await executeIntegrationAgent(integrationRequest);
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        insights: result.data.insights,
-        processing_time_ms: result.processing_time_ms
-      });
-    } else {
-      res.status(500).json({ error: result.error });
-    }
-
   } catch (error) {
     console.error('Error processing Excel file:', error);
-    res.status(500).json({ error: 'Failed to process Excel file' });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
-/**
- * Get integration summary and status
- */
-router.get('/summary', isAuthenticated, async (req, res) => {
+// Process Excel file from base64 content
+router.post('/process-excel-content', isAuthenticated, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
+    const { file_content, filename } = req.body;
+    
+    if (!file_content) {
+      return res.status(400).json({ error: 'No file content provided' });
     }
-
-    const integrationRequest: IntegrationRequest = {
-      action: 'get_summary',
-      data: {},
-      tenant_id: tenantId
-    };
-
-    const result = await executeIntegrationAgent(integrationRequest);
+    
+    const result = await executeIntegrationCommand('process_excel_file_for_dashboard', {
+      tenant_id: tenantId,
+      file_content,
+      filename
+    });
     
     if (result.success) {
-      res.json({
-        success: true,
-        summary: result.data,
-        processing_time_ms: result.processing_time_ms
-      });
+      res.json(result.data);
     } else {
-      res.status(500).json({ error: result.error });
+      res.status(500).json({ 
+        error: 'Failed to process Excel content',
+        details: result.error 
+      });
     }
-
   } catch (error) {
-    console.error('Error getting integration summary:', error);
-    res.status(500).json({ error: 'Failed to get integration summary' });
+    console.error('Error processing Excel content:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
-/**
- * Test Microsoft Graph connectivity
- */
-router.post('/test/connectivity', isAuthenticated, async (req, res) => {
+// Get integration agent status and capabilities
+router.get('/status', isAuthenticated, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    const integrationRequest: IntegrationRequest = {
-      action: 'test_connectivity',
-      data: req.body,
-      tenant_id: tenantId
-    };
-
-    const result = await executeIntegrationAgent(integrationRequest);
     
-    if (result.success) {
-      res.json({
-        success: true,
-        connectivity: result.data.connectivity,
-        auth_status: result.data.auth_status,
-        available_endpoints: result.data.available_endpoints,
-        processing_time_ms: result.processing_time_ms
-      });
-    } else {
-      res.status(500).json({ error: result.error });
-    }
-
-  } catch (error) {
-    console.error('Error testing Microsoft Graph connectivity:', error);
-    res.status(500).json({ error: 'Failed to test Microsoft Graph connectivity' });
-  }
-});
-
-/**
- * Sync organizational data to platform
- */
-router.post('/sync/organization', isAuthenticated, async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID required' });
-    }
-
-    const { sync_users = true, sync_relationships = true, analyze_communications = false } = req.body;
-
-    const integrationRequest: IntegrationRequest = {
-      action: 'sync_organization',
-      data: {
-        sync_users,
-        sync_relationships,
-        analyze_communications
+    // Check connection status
+    const connectionResult = await executeIntegrationCommand('get_connection_status', {
+      tenant_id: tenantId
+    });
+    
+    // Check authentication status  
+    const authResult = await executeIntegrationCommand('get_access_token', {
+      tenant_id: tenantId
+    });
+    
+    const status = {
+      integration_agent: 'active',
+      microsoft_graph: {
+        connected: connectionResult.success && connectionResult.data?.authenticated,
+        authenticated: authResult.success && authResult.data?.has_token,
+        status: connectionResult.data?.status || 'unknown',
+        last_checked: new Date().toISOString()
       },
-      tenant_id: tenantId
+      capabilities: {
+        organizational_relationships: true,
+        email_communication_analysis: true,
+        excel_file_processing: true,
+        file_upload_support: true
+      },
+      supported_operations: [
+        'extract_organizational_relationships',
+        'analyze_email_communication_patterns', 
+        'process_excel_file_for_dashboard',
+        'get_connection_status'
+      ]
     };
-
-    const result = await executeIntegrationAgent(integrationRequest);
     
-    if (result.success) {
-      res.json({
-        success: true,
-        sync_results: result.data.sync_results,
-        users_synced: result.data.users_synced,
-        relationships_synced: result.data.relationships_synced,
-        processing_time_ms: result.processing_time_ms
-      });
-    } else {
-      res.status(500).json({ error: result.error });
-    }
-
+    res.json(status);
   } catch (error) {
-    console.error('Error syncing organizational data:', error);
-    res.status(500).json({ error: 'Failed to sync organizational data' });
+    console.error('Error getting integration status:', error);
+    res.status(500).json({ 
+      error: 'Failed to get integration status',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
+});
+
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'integration-agent',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 export default router;

@@ -6,378 +6,424 @@
  * email communication analysis, and Excel file processing
  */
 
-import { spawn } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const FormData = require('form-data');
 
 class IntegrationAgentTester {
-  constructor() {
-    this.baseUrl = 'http://localhost:5000';
-    this.tenantId = 'test-integration-agent';
-    this.testResults = {
-      passed: 0,
-      failed: 0,
-      errors: []
-    };
+  constructor(baseUrl = 'http://localhost:5000') {
+    this.baseUrl = baseUrl;
+    this.authToken = null;
+    this.tenantId = 'dev-tenant-1';
+    this.testResults = [];
   }
 
   log(message, type = 'INFO') {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${type}: ${message}`);
-  }
-
-  async executeIntegrationCommand(action, data) {
-    return new Promise((resolve, reject) => {
-      const pythonScript = path.join(__dirname, '..', 'server', 'agents', 'integration_wrapper.py');
-      const child = spawn('python3', [pythonScript]);
-
-      let stdout = '';
-      let stderr = '';
-
-      child.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      child.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          try {
-            const result = JSON.parse(stdout);
-            resolve(result);
-          } catch (error) {
-            reject(new Error(`Failed to parse response: ${error.message}`));
-          }
-        } else {
-          reject(new Error(stderr || `Process exited with code ${code}`));
-        }
-      });
-
-      // Send request data
-      const request = {
-        action,
-        data: { ...data, tenant_id: this.tenantId },
-        tenant_id: this.tenantId,
-        config: data.config || {
-          client_id: 'test-client-id',
-          client_secret: 'test-client-secret',
-          tenant_id: 'test-ms-tenant-id',
-          authority: 'https://login.microsoftonline.com/test-ms-tenant-id',
-          scopes: ['https://graph.microsoft.com/.default']
-        }
-      };
-
-      child.stdin.write(JSON.stringify(request) + '\n');
-      child.stdin.end();
+    const logMessage = `[${timestamp}] ${type}: ${message}`;
+    console.log(logMessage);
+    
+    this.testResults.push({
+      timestamp,
+      type,
+      message,
+      test: this.currentTest || 'general'
     });
   }
 
-  async testAuthentication() {
-    this.log('Testing Microsoft Graph authentication initialization...');
-    
+  async executeIntegrationCommand(action, data) {
     try {
-      const result = await this.executeIntegrationCommand('initialize_auth', {
-        config: {
-          client_id: 'test-client-id',
-          client_secret: 'test-client-secret',
-          tenant_id: 'test-ms-tenant-id',
-          authority: 'https://login.microsoftonline.com/test-ms-tenant-id',
-          scopes: ['https://graph.microsoft.com/.default']
+      const response = await axios.post(`${this.baseUrl}/api/integration/${action}`, data, {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': this.tenantId,
+          'Authorization': `Bearer ${this.authToken || 'dev-token'}`
         }
       });
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`HTTP ${error.response.status}: ${error.response.data.error || error.response.statusText}`);
+      }
+      throw error;
+    }
+  }
+
+  async testAuthentication() {
+    this.currentTest = 'authentication';
+    this.log('Testing Microsoft Graph authentication...', 'TEST');
+    
+    try {
+      // Test auth endpoint
+      const result = await this.executeIntegrationCommand('test-auth', {});
       
-      if (result.success) {
-        this.log('✅ Authentication initialization test passed');
-        this.testResults.passed++;
+      if (result.authenticated) {
+        this.log('✅ Authentication successful', 'SUCCESS');
+        this.log(`Status: ${result.status}`, 'INFO');
         return true;
       } else {
-        this.log(`⚠️ Authentication test expected to fail with test credentials: ${result.error}`);
-        this.testResults.passed++; // Expected failure with test credentials
-        return true;
+        this.log('❌ Authentication failed', 'ERROR');
+        this.log(`Error: ${result.error}`, 'ERROR');
+        return false;
       }
     } catch (error) {
-      this.log(`❌ Authentication test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`Authentication: ${error.message}`);
+      this.log(`❌ Authentication test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   async testConnectivityCheck() {
-    this.log('Testing Microsoft Graph connectivity check...');
+    this.currentTest = 'connectivity';
+    this.log('Testing Microsoft Graph connectivity...', 'TEST');
     
     try {
-      const result = await this.executeIntegrationCommand('test_connectivity', {});
+      const response = await axios.get(`${this.baseUrl}/api/integration/connection-status`, {
+        headers: {
+          'x-tenant-id': this.tenantId,
+          'Authorization': `Bearer ${this.authToken || 'dev-token'}`
+        }
+      });
       
-      if (result.success || result.error) {
-        this.log('✅ Connectivity check test passed (expected to fail without valid credentials)');
-        this.testResults.passed++;
-        return true;
-      } else {
-        this.log(`❌ Connectivity check test failed unexpectedly`);
-        this.testResults.failed++;
-        this.testResults.errors.push('Connectivity check failed unexpectedly');
-        return false;
-      }
+      const status = response.data;
+      this.log('✅ Connection status retrieved', 'SUCCESS');
+      this.log(`Connected: ${status.authenticated}`, 'INFO');
+      this.log(`Status: ${status.status}`, 'INFO');
+      
+      return status.authenticated;
     } catch (error) {
-      this.log(`❌ Connectivity check test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`Connectivity check: ${error.message}`);
+      this.log(`❌ Connectivity test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   async testUserExtraction() {
-    this.log('Testing organizational user extraction...');
+    this.currentTest = 'user_extraction';
+    this.log('Testing organizational user extraction...', 'TEST');
     
     try {
-      const result = await this.executeIntegrationCommand('extract_users', {});
+      const result = await this.executeIntegrationCommand('extract-relationships', {
+        user_limit: 10
+      });
       
-      if (result.success || (result.error && result.error.includes('not initialized'))) {
-        this.log('✅ User extraction test passed (expected to fail without authentication)');
-        this.testResults.passed++;
-        return true;
+      if (result.status === 'success') {
+        this.log('✅ User extraction successful', 'SUCCESS');
+        this.log(`Total users: ${result.total_users}`, 'INFO');
+        this.log(`Total relationships: ${result.total_relationships}`, 'INFO');
+        
+        // Validate data structure
+        if (result.users && result.relationships) {
+          this.log('✅ Data structure validation passed', 'SUCCESS');
+          return true;
+        } else {
+          this.log('❌ Invalid data structure returned', 'ERROR');
+          return false;
+        }
       } else {
-        this.log(`❌ User extraction test failed: ${result.error}`);
-        this.testResults.failed++;
-        this.testResults.errors.push(`User extraction: ${result.error}`);
+        this.log(`❌ User extraction failed: ${result.message}`, 'ERROR');
         return false;
       }
     } catch (error) {
-      this.log(`❌ User extraction test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`User extraction: ${error.message}`);
+      this.log(`❌ User extraction test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   async testEmailPatternAnalysis() {
-    this.log('Testing email communication pattern analysis...');
+    this.currentTest = 'email_analysis';
+    this.log('Testing email communication pattern analysis...', 'TEST');
     
     try {
-      const result = await this.executeIntegrationCommand('analyze_email_patterns', {
-        days_back: 30
+      const result = await this.executeIntegrationCommand('analyze-communication', {
+        days: 7
       });
       
-      if (result.success || (result.error && result.error.includes('not initialized'))) {
-        this.log('✅ Email pattern analysis test passed (expected to fail without authentication)');
-        this.testResults.passed++;
-        return true;
+      if (result.status === 'success') {
+        this.log('✅ Email analysis successful', 'SUCCESS');
+        this.log(`Analysis period: ${result.analysis_period_days} days`, 'INFO');
+        this.log(`Total contacts: ${result.total_contacts}`, 'INFO');
+        this.log(`Messages analyzed: ${result.total_messages_analyzed}`, 'INFO');
+        
+        // Validate communication patterns
+        if (result.communication_patterns && result.top_collaborators) {
+          this.log('✅ Communication pattern analysis validated', 'SUCCESS');
+          
+          // Log top collaborators
+          if (result.top_collaborators.length > 0) {
+            this.log(`Top collaborator: ${result.top_collaborators[0].name} (score: ${result.top_collaborators[0].score})`, 'INFO');
+          }
+          
+          return true;
+        } else {
+          this.log('❌ Invalid communication pattern data', 'ERROR');
+          return false;
+        }
       } else {
-        this.log(`❌ Email pattern analysis test failed: ${result.error}`);
-        this.testResults.failed++;
-        this.testResults.errors.push(`Email pattern analysis: ${result.error}`);
+        this.log(`❌ Email analysis failed: ${result.message}`, 'ERROR');
         return false;
       }
     } catch (error) {
-      this.log(`❌ Email pattern analysis test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`Email pattern analysis: ${error.message}`);
+      this.log(`❌ Email analysis test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   async testRelationshipExtraction() {
-    this.log('Testing organizational relationship extraction...');
+    this.currentTest = 'relationship_extraction';
+    this.log('Testing organizational relationship extraction...', 'TEST');
     
     try {
-      const result = await this.executeIntegrationCommand('extract_relationships', {});
+      const result = await this.executeIntegrationCommand('extract-relationships', {
+        user_limit: 50
+      });
       
-      if (result.success || (result.error && result.error.includes('not initialized'))) {
-        this.log('✅ Relationship extraction test passed (expected to fail without authentication)');
-        this.testResults.passed++;
+      if (result.status === 'success') {
+        this.log('✅ Relationship extraction successful', 'SUCCESS');
+        
+        // Analyze relationship types
+        const relationshipTypes = {};
+        result.relationships.forEach(rel => {
+          relationshipTypes[rel.type] = (relationshipTypes[rel.type] || 0) + 1;
+        });
+        
+        this.log('Relationship type distribution:', 'INFO');
+        Object.entries(relationshipTypes).forEach(([type, count]) => {
+          this.log(`  ${type}: ${count}`, 'INFO');
+        });
+        
         return true;
       } else {
-        this.log(`❌ Relationship extraction test failed: ${result.error}`);
-        this.testResults.failed++;
-        this.testResults.errors.push(`Relationship extraction: ${result.error}`);
+        this.log(`❌ Relationship extraction failed: ${result.message}`, 'ERROR');
         return false;
       }
     } catch (error) {
-      this.log(`❌ Relationship extraction test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`Relationship extraction: ${error.message}`);
+      this.log(`❌ Relationship extraction test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   async testExcelProcessing() {
-    this.log('Testing Excel file processing...');
+    this.currentTest = 'excel_processing';
+    this.log('Testing Excel file processing...', 'TEST');
     
     try {
-      // Create a simple test Excel file content (base64 encoded)
-      const testExcelContent = this.createTestExcelContent();
+      // Create a test Excel file content
+      const testData = this.createTestExcelContent();
       
-      const result = await this.executeIntegrationCommand('process_excel', {
-        file_content: testExcelContent,
-        filename: 'test_data.xlsx',
-        mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      const result = await this.executeIntegrationCommand('process-excel-content', {
+        file_content: testData,
+        filename: 'test_dashboard_data.xlsx'
       });
       
-      if (result.success) {
-        this.log('✅ Excel processing test passed');
-        this.log(`   Processed file: ${result.insights.source_file}`);
-        this.log(`   Sheet: ${result.insights.sheet_name}`);
-        this.log(`   Rows: ${result.insights.total_rows}`);
-        this.log(`   Metrics count: ${Object.keys(result.insights.key_metrics).length}`);
-        this.testResults.passed++;
+      if (result.status === 'success') {
+        this.log('✅ Excel processing successful', 'SUCCESS');
+        this.log(`Worksheets processed: ${result.summary.total_worksheets}`, 'INFO');
+        this.log(`KPI sheets found: ${result.summary.kpi_sheets}`, 'INFO');
+        this.log(`Sponsor records: ${result.summary.sponsor_records}`, 'INFO');
+        this.log(`Grant records: ${result.summary.grant_records}`, 'INFO');
+        
         return true;
       } else {
-        this.log(`❌ Excel processing test failed: ${result.error}`);
-        this.testResults.failed++;
-        this.testResults.errors.push(`Excel processing: ${result.error}`);
+        this.log(`❌ Excel processing failed: ${result.message}`, 'ERROR');
         return false;
       }
     } catch (error) {
-      this.log(`❌ Excel processing test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`Excel processing: ${error.message}`);
+      this.log(`❌ Excel processing test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   createTestExcelContent() {
-    // Create a simple CSV-like data structure that can be processed
-    const testData = [
-      ['Name', 'Department', 'Revenue', 'Cost', 'Date'],
-      ['John Doe', 'Sales', '50000', '25000', '2025-01-01'],
-      ['Jane Smith', 'Marketing', '75000', '35000', '2025-01-02'],
-      ['Bob Johnson', 'Engineering', '100000', '45000', '2025-01-03'],
-      ['Alice Brown', 'Sales', '60000', '28000', '2025-01-04'],
-      ['Charlie Wilson', 'Marketing', '80000', '38000', '2025-01-05']
-    ];
-    
-    // Convert to a simple format that can be processed
-    // This is a simplified approach - in reality, we'd create actual Excel content
-    const csvContent = testData.map(row => row.join(',')).join('\n');
-    return Buffer.from(csvContent).toString('base64');
+    // Base64 encoded minimal Excel file for testing
+    return 'UEsDBBQAAAAIAMpFZFcAAAAAAAAAAAAAAAALAAAAX3JlbHMvLnJlbHONz8EKwjAMBuB7L3E32x7Ag3jRQ/HiRQpC6xsk7dJmXXu3Hd4fwYsIXkLy/R9JvlWCTLXkIr8CjqJSIYIKNyeA4DWtdEp7kKiqxOLErJYqKQUlOKJSoJJDJTgL/qeJyYL4b5XLGLJSPVDRVEGQTbJ9OwLUCROvGCtx6BJn7IayONb0cOSXU8b6jTKjPUn5AFWJ8ADrjXwsV+BBwwHCpJXHVKVR4FEyb5CnGN/4JrGBaF9xk+2e9w0AAAD//wMAUEsDBBQAAAAIANdFZFcAAAAAAAAAAAAAAAAaAAAAZG9jUHJvcHMvYXBwLnhtbE2OQU7DMBBFr2LNPWPHkqNuh6ZVC6JIaKFs3cl4mizGnokx';
   }
 
   async testIntegrationSummary() {
-    this.log('Testing integration summary retrieval...');
+    this.currentTest = 'integration_summary';
+    this.log('Testing integration agent status summary...', 'TEST');
     
     try {
-      const result = await this.executeIntegrationCommand('get_summary', {});
-      
-      if (result.success || result.error) {
-        this.log('✅ Integration summary test passed');
-        if (result.success) {
-          this.log(`   Tenant ID: ${result.tenant_id}`);
-          this.log(`   Authentication status: ${result.authentication_status}`);
-          this.log(`   Cached users: ${result.users_cached}`);
-          this.log(`   Cached relationships: ${result.relationships_cached}`);
+      const response = await axios.get(`${this.baseUrl}/api/integration/status`, {
+        headers: {
+          'x-tenant-id': this.tenantId,
+          'Authorization': `Bearer ${this.authToken || 'dev-token'}`
         }
-        this.testResults.passed++;
+      });
+      
+      const status = response.data;
+      this.log('✅ Integration status retrieved', 'SUCCESS');
+      this.log(`Agent status: ${status.integration_agent}`, 'INFO');
+      this.log(`Microsoft Graph connected: ${status.microsoft_graph.connected}`, 'INFO');
+      this.log(`Supported operations: ${status.supported_operations.length}`, 'INFO');
+      
+      // Validate capabilities
+      const capabilities = status.capabilities;
+      const expectedCapabilities = [
+        'organizational_relationships',
+        'email_communication_analysis', 
+        'excel_file_processing',
+        'file_upload_support'
+      ];
+      
+      const missingCapabilities = expectedCapabilities.filter(cap => !capabilities[cap]);
+      
+      if (missingCapabilities.length === 0) {
+        this.log('✅ All expected capabilities present', 'SUCCESS');
         return true;
       } else {
-        this.log(`❌ Integration summary test failed unexpectedly`);
-        this.testResults.failed++;
-        this.testResults.errors.push('Integration summary failed unexpectedly');
+        this.log(`❌ Missing capabilities: ${missingCapabilities.join(', ')}`, 'ERROR');
         return false;
       }
     } catch (error) {
-      this.log(`❌ Integration summary test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`Integration summary: ${error.message}`);
+      this.log(`❌ Integration summary test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   async testOrganizationSync() {
-    this.log('Testing organization data sync...');
+    this.currentTest = 'organization_sync';
+    this.log('Testing complete organizational data synchronization...', 'TEST');
     
     try {
-      const result = await this.executeIntegrationCommand('sync_organization', {
-        sync_users: true,
-        sync_relationships: true,
-        analyze_communications: false
+      // Test full organization extraction
+      const orgResult = await this.executeIntegrationCommand('extract-relationships', {
+        user_limit: 100
       });
       
-      if (result.success || (result.error && result.error.includes('not initialized'))) {
-        this.log('✅ Organization sync test passed (expected to fail without authentication)');
-        this.testResults.passed++;
-        return true;
-      } else {
-        this.log(`❌ Organization sync test failed: ${result.error}`);
-        this.testResults.failed++;
-        this.testResults.errors.push(`Organization sync: ${result.error}`);
+      if (orgResult.status !== 'success') {
+        this.log('❌ Organization extraction failed', 'ERROR');
         return false;
       }
+      
+      // Test communication analysis for multiple users
+      const users = Object.keys(orgResult.users).slice(0, 3);
+      let communicationResults = 0;
+      
+      for (const userId of users) {
+        try {
+          const commResult = await this.executeIntegrationCommand('analyze-communication', {
+            user_id: userId,
+            days: 14
+          });
+          
+          if (commResult.status === 'success') {
+            communicationResults++;
+          }
+        } catch (error) {
+          this.log(`Communication analysis failed for user ${userId}: ${error.message}`, 'WARN');
+        }
+      }
+      
+      this.log(`✅ Organization sync completed`, 'SUCCESS');
+      this.log(`Users extracted: ${orgResult.total_users}`, 'INFO');
+      this.log(`Relationships mapped: ${orgResult.total_relationships}`, 'INFO');
+      this.log(`Communication patterns analyzed: ${communicationResults}`, 'INFO');
+      
+      return true;
     } catch (error) {
-      this.log(`❌ Organization sync test error: ${error.message}`);
-      this.testResults.failed++;
-      this.testResults.errors.push(`Organization sync: ${error.message}`);
+      this.log(`❌ Organization sync test failed: ${error.message}`, 'ERROR');
       return false;
     }
   }
 
   async runComprehensiveTest() {
-    this.log('🚀 Starting IntegrationAgent comprehensive test suite...');
-    this.log('='.repeat(60));
+    this.log('Starting comprehensive IntegrationAgent test suite...', 'START');
     
     const tests = [
-      this.testAuthentication,
-      this.testConnectivityCheck,
-      this.testUserExtraction,
-      this.testEmailPatternAnalysis,
-      this.testRelationshipExtraction,
-      this.testExcelProcessing,
-      this.testIntegrationSummary,
-      this.testOrganizationSync
+      { name: 'Authentication', fn: () => this.testAuthentication() },
+      { name: 'Connectivity Check', fn: () => this.testConnectivityCheck() },
+      { name: 'User Extraction', fn: () => this.testUserExtraction() },
+      { name: 'Email Pattern Analysis', fn: () => this.testEmailPatternAnalysis() },
+      { name: 'Relationship Extraction', fn: () => this.testRelationshipExtraction() },
+      { name: 'Excel Processing', fn: () => this.testExcelProcessing() },
+      { name: 'Integration Summary', fn: () => this.testIntegrationSummary() },
+      { name: 'Organization Sync', fn: () => this.testOrganizationSync() }
     ];
-
-    for (const test of tests) {
-      try {
-        await test.call(this);
-        // Small delay between tests
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        this.log(`❌ Test execution error: ${error.message}`);
-        this.testResults.failed++;
-        this.testResults.errors.push(`Test execution: ${error.message}`);
-      }
-    }
-
-    this.log('='.repeat(60));
-    this.log('📊 Test Results Summary:');
-    this.log(`   ✅ Passed: ${this.testResults.passed}`);
-    this.log(`   ❌ Failed: ${this.testResults.failed}`);
-    this.log(`   📈 Success Rate: ${((this.testResults.passed / (this.testResults.passed + this.testResults.failed)) * 100).toFixed(1)}%`);
     
-    if (this.testResults.errors.length > 0) {
-      this.log('\n🔍 Error Details:');
-      this.testResults.errors.forEach((error, index) => {
-        this.log(`   ${index + 1}. ${error}`);
-      });
+    const results = {};
+    let passed = 0;
+    let failed = 0;
+    
+    for (const test of tests) {
+      this.log(`\n--- Running ${test.name} Test ---`, 'TEST');
+      
+      try {
+        const result = await test.fn();
+        results[test.name] = result;
+        
+        if (result) {
+          passed++;
+          this.log(`✅ ${test.name}: PASSED`, 'SUCCESS');
+        } else {
+          failed++;
+          this.log(`❌ ${test.name}: FAILED`, 'ERROR');
+        }
+      } catch (error) {
+        results[test.name] = false;
+        failed++;
+        this.log(`❌ ${test.name}: ERROR - ${error.message}`, 'ERROR');
+      }
+      
+      // Wait between tests
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
-
-    this.log('\n📝 Notes:');
-    this.log('   - Tests are designed to work without actual Microsoft Graph credentials');
-    this.log('   - Authentication and connectivity tests expect failures with test credentials');
-    this.log('   - Excel processing test uses synthetic data to validate core functionality');
-    this.log('   - All core IntegrationAgent methods are validated for proper error handling');
-
-    return this.testResults.failed === 0;
+    
+    // Generate final report
+    this.log('\n=== INTEGRATION AGENT TEST SUMMARY ===', 'SUMMARY');
+    this.log(`Total Tests: ${tests.length}`, 'SUMMARY');
+    this.log(`Passed: ${passed}`, 'SUCCESS');
+    this.log(`Failed: ${failed}`, 'ERROR');
+    this.log(`Success Rate: ${Math.round((passed / tests.length) * 100)}%`, 'SUMMARY');
+    
+    // Detailed results
+    this.log('\n=== DETAILED RESULTS ===', 'SUMMARY');
+    Object.entries(results).forEach(([testName, result]) => {
+      this.log(`${testName}: ${result ? 'PASS' : 'FAIL'}`, result ? 'SUCCESS' : 'ERROR');
+    });
+    
+    // Save test results
+    const reportPath = path.join(process.cwd(), 'integration-agent-test-report.json');
+    fs.writeFileSync(reportPath, JSON.stringify({
+      timestamp: new Date().toISOString(),
+      summary: {
+        total: tests.length,
+        passed,
+        failed,
+        successRate: Math.round((passed / tests.length) * 100)
+      },
+      results,
+      logs: this.testResults
+    }, null, 2));
+    
+    this.log(`\nTest report saved to: ${reportPath}`, 'INFO');
+    
+    return {
+      success: failed === 0,
+      passed,
+      failed,
+      total: tests.length
+    };
   }
 }
 
-// Run the test suite
-const tester = new IntegrationAgentTester();
-tester.runComprehensiveTest().then(success => {
-  if (success) {
-    console.log('\n🎉 All IntegrationAgent tests passed successfully!');
-    process.exit(0);
-  } else {
-    console.log('\n💥 Some IntegrationAgent tests failed. Check logs above.');
-    process.exit(1);
-  }
-}).catch(error => {
-  console.error(`\n💥 Test suite failed with error: ${error.message}`);
-  process.exit(1);
-});
+// Run tests if called directly
+if (require.main === module) {
+  const tester = new IntegrationAgentTester();
+  
+  tester.runComprehensiveTest()
+    .then(result => {
+      if (result.success) {
+        console.log('\n🎉 All IntegrationAgent tests passed!');
+        process.exit(0);
+      } else {
+        console.log(`\n❌ ${result.failed} test(s) failed out of ${result.total}`);
+        process.exit(1);
+      }
+    })
+    .catch(error => {
+      console.error('\n💥 Test suite execution failed:', error);
+      process.exit(1);
+    });
+}
+
+module.exports = IntegrationAgentTester;
