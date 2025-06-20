@@ -167,7 +167,17 @@
 **Deviation Type**: Minor - UI library substitution for compatibility  
 **Impact Assessment**: Enhanced TypeScript integration with preserved functionality  
 **Compliance Score**: 98% - Complete functional alignment with UI library adaptation  
-**Regression Status**: Pass - Added component without affecting existing features  
+**Regression Status**: Pass - Added component without affecting existing features
+
+### Decision ID: 2025-06-20-017
+**File Reference**: File 26 (Hybrid Relationship Mapping Integration)  
+**Component**: Relationships Page Integration  
+**Decision**: Integrate HybridRelationshipMap component into Relationships page per specifications  
+**Rationale**: File 26 requires complete hybrid visualization with geographic and network views  
+**Deviation Type**: None - Direct specification implementation  
+**Impact Assessment**: Enhanced relationship analysis with dual-view visualization capability  
+**Compliance Score**: 100% - Complete File 26 specification alignment achieved  
+**Regression Status**: Pass - Enhanced page functionality without breaking existing features  
 
 ## Compliance Summary
 

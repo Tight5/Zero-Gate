@@ -1,5 +1,5 @@
 import React from 'react';
-import HybridRelationshipMapping from '@/components/relationships/HybridRelationshipMapping';
+import HybridRelationshipMap from '@/components/relationships/HybridRelationshipMap';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Network, Users, TrendingUp, MapPin } from 'lucide-react';
@@ -107,8 +107,14 @@ const Relationships: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Main Visualization Component */}
-      <HybridRelationshipMapping viewMode="hybrid" />
+      {/* Main Visualization Component - File 26 Implementation */}
+      <div className="h-[800px]">
+        <HybridRelationshipMap 
+          viewMode="hybrid"
+          onNodeClick={(node: any) => console.log('Node selected:', node.label)}
+          onLinkClick={(link: any) => console.log('Relationship selected:', link.type)}
+        />
+      </div>
     </div>
   );
 };
