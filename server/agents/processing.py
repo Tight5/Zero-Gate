@@ -24,7 +24,7 @@ class ProcessingAgent:
         
     def add_relationship(self, source: str, target: str, 
                         relationship_type: str, strength: float,
-                        tenant_id: str, metadata: Dict[str, Any] = None):
+                        tenant_id: str, metadata: Optional[Dict[str, Any]] = None):
         """Add a relationship to the graph"""
         if metadata is None:
             metadata = {}
