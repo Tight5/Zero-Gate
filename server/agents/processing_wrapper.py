@@ -172,8 +172,8 @@ def handle_operation(operation: str, data: dict):
             return {
                 'success': True,
                 'status': 'healthy',
-                'nodes_count': len(agent.relationship_graph.nodes()),
-                'edges_count': len(agent.relationship_graph.edges()),
+                'nodes_count': agent.relationship_graph.number_of_nodes() if hasattr(agent.relationship_graph, 'number_of_nodes') else 0,
+                'edges_count': agent.relationship_graph.number_of_edges() if hasattr(agent.relationship_graph, 'number_of_edges') else 0,
                 'landmarks_count': len(agent.landmarks),
                 'timestamp': datetime.now().isoformat()
             }

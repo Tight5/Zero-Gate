@@ -98,7 +98,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         if not all([user_id, email, tenant_id, role]):
             raise HTTPException(status_code=401, detail="Invalid token payload")
         
-        return UserClaims(user_id, email, tenant_id, role)
+        return UserClaims(
+            user_id=str(user_id), 
+            email=str(email), 
+            tenant_id=str(tenant_id), 
+            role=str(role)
+        )
         
     except HTTPException:
         raise

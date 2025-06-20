@@ -1,5 +1,5 @@
-import React from 'react';
-import { useTheme, useAuth, useTenant } from '../hooks/useContexts';
+import React, { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -9,9 +9,50 @@ import { Badge } from '@/components/ui/badge';
 import { Settings as SettingsIcon, User, Building, Palette, Bell, Shield, LogOut } from 'lucide-react';
 
 export default function Settings() {
-  const { user, logout } = useAuth();
-  const { currentTenant, switchTenant, availableTenants } = useTenant();
-  const { theme, setTheme, actualTheme } = useTheme();
+  const { user, isAuthenticated } = useAuth();
+  const [theme, setTheme] = useState('system');
+  const [notifications, setNotifications] = useState(true);
+  
+  // Mock data for development
+  const currentTenant = { 
+    name: 'NASDAQ Center', 
+    id: 'nasdaq-center',
+    domain: 'nasdaq-center.org',
+    features: ['grants', 'relationships', 'analytics', 'content-calendar']
+  };
+  
+  const availableTenants = [
+    { id: 'nasdaq-center', name: 'NASDAQ Center', role: 'admin', domain: 'nasdaq-center.org' },
+    { id: 'tight5-digital', name: 'Tight5 Digital', role: 'owner', domain: 'tight5digital.com' }
+  ];
+  
+  const handleLogout = () => {
+    window.location.href = '/api/logout';
+  };
+
+  const handleSwitchTenant = (tenantId: string) => {
+    console.log('Switching to tenant:', tenantId);
+    // In a real app, this would make an API call
+  };
+
+  const handleThemeChange = (newTheme: string) => {
+    setTheme(newTheme);
+    // Apply theme to document
+    const root = document.documentElement;
+    if (newTheme === 'dark') {
+      root.classList.add('dark');
+    } else if (newTheme === 'light') {
+      root.classList.remove('dark');
+    } else {
+      // System theme
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -43,10 +84,17 @@ export default function Settings() {
                   className="h-16 w-16 rounded-full object-cover"
                 />
               )}
-              <div>
-                <h3 className="font-semibold">{user?.firstName} {user?.lastName}</h3>
-                <p className="text-sm text-muted-foreground">{user?.email}</p>
-                <Badge variant="secondary" className="mt-1">User ID: {user?.id}</Badge>
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold">
+                  {user?.firstName && user?.lastName 
+                    ? `${user.firstName} ${user.lastName}` 
+                    : user?.email || 'User'
+                  }
+                </h3>
+                <p className="text-sm text-muted-foreground">{user?.email || 'No email available'}</p>
+                <Badge variant="outline">
+                  {isAuthenticated ? 'Authenticated' : 'Guest'}
+                </Badge>
               </div>
             </div>
             <Separator />
@@ -55,7 +103,7 @@ export default function Settings() {
                 <p className="font-medium">Account Actions</p>
                 <p className="text-sm text-muted-foreground">Manage your session and account</p>
               </div>
-              <Button onClick={logout} variant="outline" className="flex items-center gap-2">
+              <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2">
                 <LogOut className="h-4 w-4" />
                 Sign Out
               </Button>
@@ -76,19 +124,17 @@ export default function Settings() {
             <div className="space-y-3">
               <div>
                 <Label className="text-sm font-medium">Current Organization</Label>
-                {currentTenant && (
-                  <div className="mt-2 p-3 border rounded-lg">
-                    <h4 className="font-semibold">{currentTenant.name}</h4>
-                    <p className="text-sm text-muted-foreground">{currentTenant.domain}</p>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {currentTenant.settings.features.map((feature) => (
-                        <Badge key={feature} variant="secondary" className="text-xs">
-                          {feature}
-                        </Badge>
-                      ))}
-                    </div>
+                <div className="mt-2 p-3 border rounded-lg">
+                  <h4 className="font-semibold">{currentTenant.name}</h4>
+                  <p className="text-sm text-muted-foreground">{currentTenant.domain}</p>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {currentTenant.features.map((feature) => (
+                      <Badge key={feature} variant="secondary" className="text-xs">
+                        {feature}
+                      </Badge>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
               
               {availableTenants.length > 1 && (
@@ -101,7 +147,7 @@ export default function Settings() {
                         <div
                           key={tenant.id}
                           className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 cursor-pointer"
-                          onClick={() => switchTenant(tenant.id)}
+                          onClick={() => handleSwitchTenant(tenant.id)}
                         >
                           <div>
                             <h5 className="font-medium">{tenant.name}</h5>
@@ -124,115 +170,128 @@ export default function Settings() {
               <Palette className="h-5 w-5" />
               Appearance
             </CardTitle>
-            <CardDescription>Customize the look and feel of your application</CardDescription>
+            <CardDescription>Customize the look and feel of the application</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              <div>
-                <Label className="text-sm font-medium">Theme Preference</Label>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Current theme: {actualTheme} {theme === 'system' && '(following system)'}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant={theme === 'light' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTheme('light')}
-                  >
-                    Light
-                  </Button>
-                  <Button
-                    variant={theme === 'dark' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTheme('dark')}
-                  >
-                    Dark
-                  </Button>
-                  <Button
-                    variant={theme === 'system' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTheme('system')}
-                  >
-                    System
-                  </Button>
-                </div>
+              <Label className="text-sm font-medium">Theme</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={theme === 'light' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleThemeChange('light')}
+                >
+                  Light
+                </Button>
+                <Button
+                  variant={theme === 'dark' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleThemeChange('dark')}
+                >
+                  Dark
+                </Button>
+                <Button
+                  variant={theme === 'system' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleThemeChange('system')}
+                >
+                  System
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Notifications */}
+        {/* Notification Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5" />
               Notifications
             </CardTitle>
-            <CardDescription>Configure how you receive updates and alerts</CardDescription>
+            <CardDescription>Configure your notification preferences</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="email-notifications">Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Receive email updates for important events</p>
-                </div>
-                <Switch id="email-notifications" defaultChecked />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="notifications">Email Notifications</Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive email updates about grants, deadlines, and platform updates
+                </p>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="system-alerts">System Alerts</Label>
-                  <p className="text-sm text-muted-foreground">Get notified about system status changes</p>
-                </div>
-                <Switch id="system-alerts" defaultChecked />
+              <Switch
+                id="notifications"
+                checked={notifications}
+                onCheckedChange={setNotifications}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="push-notifications">Push Notifications</Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive browser notifications for important updates
+                </p>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="grant-updates">Grant Updates</Label>
-                  <p className="text-sm text-muted-foreground">Notifications for grant milestone changes</p>
-                </div>
-                <Switch id="grant-updates" defaultChecked />
+              <Switch id="push-notifications" />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="milestone-alerts">Milestone Alerts</Label>
+                <p className="text-sm text-muted-foreground">
+                  Get notified about upcoming grant milestones and deadlines
+                </p>
               </div>
+              <Switch id="milestone-alerts" defaultChecked />
             </div>
           </CardContent>
         </Card>
 
-        {/* Security */}
+        {/* Security Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               Security & Privacy
             </CardTitle>
-            <CardDescription>Manage your security settings and data privacy</CardDescription>
+            <CardDescription>Manage your security preferences and data privacy</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Session Management</Label>
-                  <p className="text-sm text-muted-foreground">Automatically sign out after inactivity</p>
-                </div>
-                <Badge variant="outline">30 minutes</Badge>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Two-Factor Authentication</Label>
+                <p className="text-sm text-muted-foreground">
+                  Add an extra layer of security to your account
+                </p>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Data Export</Label>
-                  <p className="text-sm text-muted-foreground">Download your account data</p>
-                </div>
-                <Button variant="outline" size="sm">Export Data</Button>
+              <Button variant="outline" size="sm">
+                Configure
+              </Button>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Connected Services</Label>
+                <p className="text-sm text-muted-foreground">
+                  Manage connected Microsoft 365 and other integrations
+                </p>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Activity Log</Label>
-                  <p className="text-sm text-muted-foreground">View your recent account activity</p>
-                </div>
-                <Button variant="outline" size="sm">View Log</Button>
+              <Button variant="outline" size="sm">
+                Manage
+              </Button>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Data Export</Label>
+                <p className="text-sm text-muted-foreground">
+                  Download your data and activity history
+                </p>
               </div>
+              <Button variant="outline" size="sm">
+                Export
+              </Button>
             </div>
           </CardContent>
         </Card>
