@@ -2,23 +2,80 @@ import { Router, Request, Response } from 'express';
 
 const router = Router();
 
-// Single tenant configuration for NASDAQ Center
-const nasdaqCenterTenant = {
-  id: '1',
-  name: 'NASDAQ Center',
-  description: 'The Center for Entrepreneurship at Nasdaq',
-  role: 'owner',
-  userCount: 39,
-  status: 'active',
-  logo: null,
-  domain: 'thecenter.nasdaq.org',
-  lastActivity: '2 hours ago',
-  features: ['microsoft365', 'grants', 'sponsors', 'relationships'],
-  settings: {
-    notifications: true,
-    microsoftIntegration: true,
-    analyticsEnabled: true
-  }
+// Multi-tenant configuration with NASDAQ Center as primary customer
+const mockTenants = {
+  'clint.phillips@thecenter.nasdaq.org': [
+    {
+      id: '1',
+      name: 'NASDAQ Center',
+      description: 'The Center for Entrepreneurship at Nasdaq',
+      role: 'owner',
+      userCount: 39,
+      status: 'active',
+      logo: null,
+      domain: 'thecenter.nasdaq.org',
+      lastActivity: '2 hours ago',
+      features: ['microsoft365', 'grants', 'sponsors', 'relationships'],
+      settings: {
+        notifications: true,
+        microsoftIntegration: true,
+        analyticsEnabled: true
+      }
+    }
+  ],
+  'admin@tight5digital.com': [
+    {
+      id: '1',
+      name: 'NASDAQ Center',
+      description: 'The Center for Entrepreneurship at Nasdaq',
+      role: 'admin',
+      userCount: 39,
+      status: 'active',
+      logo: null,
+      domain: 'thecenter.nasdaq.org',
+      lastActivity: '2 hours ago',
+      features: ['microsoft365', 'grants', 'sponsors', 'relationships'],
+      settings: {
+        notifications: true,
+        microsoftIntegration: true,
+        analyticsEnabled: true
+      }
+    },
+    {
+      id: '2',
+      name: 'Tight5 Digital',
+      description: 'Digital Innovation Agency',
+      role: 'owner',
+      userCount: 8,
+      status: 'active',
+      logo: null,
+      domain: 'tight5digital.com',
+      lastActivity: '1 day ago',
+      features: ['grants', 'sponsors'],
+      settings: {
+        notifications: true,
+        microsoftIntegration: false,
+        analyticsEnabled: true
+      }
+    },
+    {
+      id: '3',
+      name: 'Innovation Hub',
+      description: 'Technology Innovation Center',
+      role: 'viewer',
+      userCount: 12,
+      status: 'active',
+      logo: null,
+      domain: 'innovationhub.org',
+      lastActivity: '3 hours ago',
+      features: ['grants', 'sponsors', 'relationships'],
+      settings: {
+        notifications: false,
+        microsoftIntegration: false,
+        analyticsEnabled: false
+      }
+    }
+  ]
 };
 
 // GET /api/auth/user/tenants - Get user tenants (Single NASDAQ Center tenant)

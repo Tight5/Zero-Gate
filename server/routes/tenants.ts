@@ -9,30 +9,74 @@ interface TenantRequest extends Request {
   userEmail?: string;
 }
 
-// Single NASDAQ Center organization data
-const nasdaqCenterData = {
-  id: "1",
-  name: "NASDAQ Center",
-  description: "The Center for Entrepreneurship at Nasdaq",
-  domain: "thecenter.nasdaq.org",
-  status: "active",
-  userCount: 39,
-  settings: {
-    notifications: true,
-    microsoftIntegration: true,
-    analyticsEnabled: true,
-    features: ["microsoft365", "grants", "sponsors", "relationships"]
+// Mock tenant data with comprehensive admin information
+const mockTenantData = {
+  "1": {
+    id: "1",
+    name: "NASDAQ Center",
+    description: "The Center for Entrepreneurship at Nasdaq",
+    domain: "thecenter.nasdaq.org",
+    status: "active",
+    userCount: 39,
+    settings: {
+      notifications: true,
+      microsoftIntegration: true,
+      analyticsEnabled: true,
+      features: ["microsoft365", "grants", "sponsors", "relationships"]
+    },
+    platformStats: {
+      totalUsers: 39,
+      activeGrants: 12,
+      totalSponsors: 247,
+      totalFunding: 2150000,
+      lastActivity: "2 hours ago"
+    }
   },
-  platformStats: {
-    totalUsers: 39,
-    activeGrants: 12,
-    totalSponsors: 247,
-    totalFunding: 2150000,
-    lastActivity: "2 hours ago"
+  "2": {
+    id: "2",
+    name: "Tight5 Digital",
+    description: "Digital Innovation Agency",
+    domain: "tight5digital.com",
+    status: "active",
+    userCount: 8,
+    settings: {
+      notifications: true,
+      microsoftIntegration: false,
+      analyticsEnabled: true,
+      features: ["grants", "sponsors"]
+    },
+    platformStats: {
+      totalUsers: 8,
+      activeGrants: 5,
+      totalSponsors: 34,
+      totalFunding: 450000,
+      lastActivity: "1 day ago"
+    }
+  },
+  "3": {
+    id: "3",
+    name: "Innovation Hub",
+    description: "Technology Innovation Center",
+    domain: "innovationhub.org",
+    status: "active",
+    userCount: 12,
+    settings: {
+      notifications: false,
+      microsoftIntegration: false,
+      analyticsEnabled: false,
+      features: ["grants", "sponsors", "relationships"]
+    },
+    platformStats: {
+      totalUsers: 12,
+      activeGrants: 3,
+      totalSponsors: 18,
+      totalFunding: 320000,
+      lastActivity: "3 hours ago"
+    }
   }
 };
 
-// GET /api/tenants/admin/overview - Admin overview of NASDAQ Center organization
+// GET /api/tenants/admin/overview - Admin overview of all tenants
 router.get('/admin/overview', (req: TenantRequest, res: Response) => {
   try {
     if (!req.isAdminMode) {
@@ -42,15 +86,14 @@ router.get('/admin/overview', (req: TenantRequest, res: Response) => {
       });
     }
 
-    // Return single NASDAQ Center tenant data
-    const tenants = [nasdaqCenterData];
+    const tenants = Object.values(mockTenantData);
     const platformHealth = {
-      totalTenants: 1,
-      activeTenants: 1,
-      totalUsers: nasdaqCenterData.userCount,
-      totalGrants: nasdaqCenterData.platformStats.activeGrants,
-      totalSponsors: nasdaqCenterData.platformStats.totalSponsors,
-      totalFunding: nasdaqCenterData.platformStats.totalFunding,
+      totalTenants: tenants.length,
+      activeTenants: tenants.filter(t => t.status === 'active').length,
+      totalUsers: tenants.reduce((sum, t) => sum + t.userCount, 0),
+      totalGrants: tenants.reduce((sum, t) => sum + t.platformStats.activeGrants, 0),
+      totalSponsors: tenants.reduce((sum, t) => sum + t.platformStats.totalSponsors, 0),
+      totalFunding: tenants.reduce((sum, t) => sum + t.platformStats.totalFunding, 0),
       averageHealth: 98.5,
       systemLoad: 23.4,
       memoryUsage: 67.8
@@ -91,25 +134,25 @@ router.get('/:tenantId/settings', (req: TenantRequest, res: Response) => {
       });
     }
 
-    // Always return NASDAQ Center tenant data (only valid tenant)
-    if (tenantId !== '1') {
+    const tenant = mockTenantData[tenantId as keyof typeof mockTenantData];
+    if (!tenant) {
       return res.status(404).json({
-        error: 'Tenant not found - only NASDAQ Center is available',
+        error: 'Tenant not found',
         timestamp: new Date().toISOString()
       });
     }
 
     res.json({
       success: true,
-      tenant_id: '1',
-      settings: nasdaqCenterData.settings,
-      platform_stats: nasdaqCenterData.platformStats,
+      tenant_id: tenantId,
+      settings: tenant.settings,
+      platform_stats: tenant.platformStats,
       tenant_info: {
-        name: nasdaqCenterData.name,
-        description: nasdaqCenterData.description,
-        domain: nasdaqCenterData.domain,
-        status: nasdaqCenterData.status,
-        user_count: nasdaqCenterData.userCount
+        name: tenant.name,
+        description: tenant.description,
+        domain: tenant.domain,
+        status: tenant.status,
+        user_count: tenant.userCount
       },
       timestamp: new Date().toISOString()
     });
