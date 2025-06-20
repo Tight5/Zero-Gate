@@ -324,7 +324,7 @@ router.post('/submit/bulk', async (req, res) => {
         results.push({
           workflow_type: workflow.workflow_type,
           success: false,
-          error: error.message
+          error: error instanceof Error ? error.message : 'Unknown error occurred'
         });
       }
     }

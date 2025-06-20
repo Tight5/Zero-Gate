@@ -53,7 +53,7 @@ async def execute_integration_command(operation: str, data: Dict[str, Any]) -> D
                 file_content = base64.b64decode(file_content)
             
             result = await agent.process_excel_file_for_dashboard(
-                file_path=file_path,
+                file_path=str(file_path) if file_path is not None else "",
                 file_content=file_content or b'',
                 tenant_id=tenant_id
             )

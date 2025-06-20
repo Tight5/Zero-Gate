@@ -522,11 +522,11 @@ const ContentCalendar: React.FC = () => {
               date={currentDate}
               onView={setCurrentView}
               onNavigate={setCurrentDate}
-              onSelectEvent={handleSelectEvent}
+              onSelectEvent={(event: any) => handleSelectEvent(event as CalendarEvent)}
               onSelectSlot={handleSelectSlot}
-              onEventDrop={handleEventDrop}
-              onEventResize={handleEventResize}
-              eventPropGetter={eventStyleGetter}
+              onEventDrop={({ event, start }: any) => handleEventDrop({ event: event as CalendarEvent, start: new Date(start) })}
+              onEventResize={({ event, start, end }: any) => handleEventResize({ event: event as CalendarEvent, start: new Date(start), end: new Date(end) })}
+              eventPropGetter={(event: any) => eventStyleGetter(event as CalendarEvent)}
               selectable
               resizable
               popup
