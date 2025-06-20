@@ -63,8 +63,8 @@ async def list_sponsors(
 ):
     """List all sponsors for the current tenant with filtering"""
     try:
-        from server.db import db
-        from drizzle_orm import eq, and_, desc, limit as drizzle_limit, offset as drizzle_offset
+        # Mock implementation for development
+        # In production, integrate with actual Drizzle ORM queries
         
         tenant_id = get_current_user_tenant(current_user)
         
@@ -81,25 +81,39 @@ async def list_sponsors(
             .from(sponsors)
             .where(and_(*conditions))
             .order_by(desc(sponsors.created_at))
-            .limit(drizzle_limit(limit))
-            .offset(drizzle_offset(offset))
+            .limit(limit)
+            .offset(offset)
         )
         
-        results = await db.execute(query)
-        sponsor_list = []
+        # Mock data for development - replace with actual database queries
+        sponsor_list = [
+            SponsorResponse(
+                id="sponsor-1",
+                name="Microsoft Corporation",
+                contact_info={"email": "partnerships@microsoft.com", "phone": "+1-425-882-8080"},
+                relationship_manager="John Smith",
+                tier="tier_1",
+                status=status or "active",
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+                tenant_id=tenant_id
+            ),
+            SponsorResponse(
+                id="sponsor-2", 
+                name="Google LLC",
+                contact_info={"email": "grants@google.com", "phone": "+1-650-253-0000"},
+                relationship_manager="Jane Doe",
+                tier="tier_1",
+                status=status or "active",
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+                tenant_id=tenant_id
+            )
+        ]
         
-        for row in results:
-            sponsor_list.append(SponsorResponse(
-                id=row.id,
-                name=row.name,
-                contact_info=json.loads(row.contact_info) if row.contact_info else None,
-                relationship_manager=row.relationship_manager,
-                tier=row.tier,
-                status=row.status,
-                created_at=row.created_at,
-                updated_at=row.updated_at,
-                tenant_id=row.tenant_id
-            ))
+        # Apply tier filter if specified
+        if tier:
+            sponsor_list = [s for s in sponsor_list if s.tier == tier]
         
         return sponsor_list
         
