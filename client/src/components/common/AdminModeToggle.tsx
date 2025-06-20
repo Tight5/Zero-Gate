@@ -1,35 +1,47 @@
 import React, { useState } from 'react';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Shield, ShieldOff, AlertTriangle } from 'lucide-react';
-import { useTenant } from '../../contexts/TenantContext';
-import { useToast } from '../../hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { ShieldIcon, BuildingIcon } from 'lucide-react';
+import { useTenant } from '@/contexts/TenantContext';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const AdminModeToggle: React.FC = React.memo(() => {
-  const { isAdmin, isAdminMode, toggleAdminMode, loading } = useTenant();
-  const { toast } = useToast();
+  const { isAdminMode, isAdmin, toggleAdminMode } = useTenant();
   const [isToggling, setIsToggling] = useState(false);
+  const { toast } = useToast();
 
-  if (!isAdmin) return null;
+  // Only show for admin users
+  if (!isAdmin) {
+    return null;
+  }
 
   const handleToggle = async () => {
+    if (isToggling) return;
+    
+    setIsToggling(true);
     try {
-      setIsToggling(true);
       await toggleAdminMode();
       
       toast({
-        title: isAdminMode ? "Exited Admin Mode" : "Entered Admin Mode",
-        description: isAdminMode ? 
-          "Switched back to tenant mode" : 
-          "Now viewing platform as administrator",
-        variant: isAdminMode ? "default" : "destructive"
+        title: isAdminMode ? 'Admin Mode Deactivated' : 'Admin Mode Activated',
+        description: isAdminMode 
+          ? 'Switched back to tenant mode' 
+          : 'You now have admin access to all tenants',
+        variant: isAdminMode ? 'default' : 'destructive',
       });
     } catch (error) {
       console.error('Failed to toggle admin mode:', error);
       toast({
-        title: "Failed to toggle admin mode",
-        description: "Please try again or contact support",
-        variant: "destructive"
+        title: 'Mode Switch Failed',
+        description: error instanceof Error ? error.message : 'Failed to switch mode',
+        variant: 'destructive',
       });
     } finally {
       setIsToggling(false);
@@ -37,41 +49,50 @@ const AdminModeToggle: React.FC = React.memo(() => {
   };
 
   return (
-    <div className="admin-mode-toggle flex items-center gap-2">
-      <Button 
-        variant={isAdminMode ? "destructive" : "outline"}
-        size="sm"
-        onClick={handleToggle}
-        disabled={loading || isToggling}
-        className={`transition-all duration-200 ${
-          isAdminMode 
-            ? 'bg-red-600 hover:bg-red-700 text-white border-red-600' 
-            : 'border-orange-500 text-orange-600 hover:bg-orange-50'
-        }`}
-      >
-        {isAdminMode ? (
-          <>
-            <ShieldOff className="w-4 h-4 mr-2" />
-            Exit Admin Mode
-          </>
-        ) : (
-          <>
-            <Shield className="w-4 h-4 mr-2" />
-            Enter Admin Mode
-          </>
-        )}
-      </Button>
-      
-      {isAdminMode && (
-        <Badge 
-          variant="destructive" 
-          className="bg-red-100 text-red-800 border-red-300 animate-pulse"
-        >
-          <AlertTriangle className="w-3 h-3 mr-1" />
-          ADMIN MODE
-        </Badge>
-      )}
-    </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center space-x-2 px-3 py-2 rounded-lg border bg-background/50">
+            <div className="flex items-center space-x-2">
+              {isAdminMode ? (
+                <ShieldIcon className="w-4 h-4 text-red-600" />
+              ) : (
+                <BuildingIcon className="w-4 h-4 text-blue-600" />
+              )}
+              
+              <Label 
+                htmlFor="admin-mode-toggle"
+                className="text-sm font-medium cursor-pointer select-none"
+              >
+                {isAdminMode ? 'Admin' : 'Tenant'}
+              </Label>
+              
+              <Switch
+                id="admin-mode-toggle"
+                checked={isAdminMode}
+                onCheckedChange={handleToggle}
+                disabled={isToggling}
+                className="data-[state=checked]:bg-red-600"
+              />
+            </div>
+          </div>
+        </TooltipTrigger>
+        
+        <TooltipContent side="bottom" className="max-w-xs">
+          <div className="text-center">
+            <p className="font-medium">
+              {isAdminMode ? 'Admin Mode Active' : 'Tenant Mode Active'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isAdminMode 
+                ? 'Access all tenants and admin functions. Click to return to tenant mode.'
+                : 'Working within selected tenant. Click to enter admin mode for full access.'
+              }
+            </p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 });
 

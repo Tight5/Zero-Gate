@@ -194,15 +194,54 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
       setLoading(true);
       const newAdminMode = !isAdminMode;
       
-      setIsAdminMode(newAdminMode);
-      localStorage.setItem('isAdminMode', newAdminMode.toString());
-      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'X-User-Email': localStorage.getItem('userEmail') || 'admin@tight5digital.com',
+      };
+
       if (newAdminMode) {
-        // Entering admin mode - clear current tenant
+        // Entering admin mode
+        headers['X-Admin-Mode'] = 'true';
+        
+        const response = await fetch('/api/auth/enter-admin-mode', {
+          method: 'POST',
+          headers,
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to enter admin mode');
+        }
+        
+        setIsAdminMode(true);
+        localStorage.setItem('isAdminMode', 'true');
+        
+        // Store current tenant before entering admin mode
+        if (currentTenant) {
+          localStorage.setItem('selectedTenant', currentTenant.id);
+        }
+        
+        // Clear current tenant in admin mode
         setCurrentTenant(null);
         localStorage.removeItem('currentTenantId');
       } else {
-        // Exiting admin mode - restore previous tenant or set first available
+        // Exiting admin mode
+        headers['X-Admin-Mode'] = 'false';
+        
+        const response = await fetch('/api/auth/exit-admin-mode', {
+          method: 'POST',
+          headers,
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to exit admin mode');
+        }
+        
+        setIsAdminMode(false);
+        localStorage.setItem('isAdminMode', 'false');
+        
+        // Restore previous tenant or set first available
         const savedTenantId = localStorage.getItem('selectedTenant');
         if (savedTenantId && availableTenants.length > 0) {
           const tenant = availableTenants.find(t => t.id === savedTenantId);
@@ -225,7 +264,7 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, isAdminMode, availableTenants, loadTenants]);
+  }, [isAdmin, isAdminMode, availableTenants, loadTenants, currentTenant]);
 
   const enterAdminMode = useCallback(async () => {
     if (!isAdmin) {

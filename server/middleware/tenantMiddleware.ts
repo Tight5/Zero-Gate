@@ -67,10 +67,10 @@ export const tenantContextMiddleware = (req: TenantRequest, res: Response, next:
     }
     
     // Set context on request object
-    req.tenantId = tenantId || undefined;
+    req.tenantId = tenantId ?? undefined;
     req.isAdminMode = isAdmin && isAdminModeHeader;
     req.isAdmin = isAdmin;
-    req.userEmail = userEmail || undefined;
+    req.userEmail = userEmail ?? undefined;
     
     // Add response headers to indicate current context
     res.setHeader('X-Current-Tenant', req.tenantId || 'none');

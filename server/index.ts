@@ -1,11 +1,15 @@
 import express, { type Request, Response } from "express";
 import { setupVite, serveStatic, log } from "./vite";
+import { tenantContextMiddleware } from "./middleware/tenantMiddleware";
 
 // Simple debug server for troubleshooting
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// Apply tenant context middleware to all API routes
+app.use('/api', tenantContextMiddleware);
 
 // Health endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -26,14 +30,77 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Simple auth endpoint for development
 app.get('/api/auth/user', (req: Request, res: Response) => {
+  const tenantReq = req as any;
+  const userEmail = tenantReq.userEmail || 'clint.phillips@thecenter.nasdaq.org';
+  
   const user = {
     id: 'dev-user-123',
-    email: 'admin@nasdaq-ec.org',
-    firstName: 'Admin',
-    lastName: 'User',
-    profileImageUrl: null
+    email: userEmail,
+    firstName: userEmail === 'admin@tight5digital.com' ? 'Admin' : 'Clint',
+    lastName: userEmail === 'admin@tight5digital.com' ? 'User' : 'Phillips',
+    profileImageUrl: null,
+    isAdmin: tenantReq.isAdmin,
+    currentTenantId: tenantReq.tenantId
   };
   res.json(user);
+});
+
+// Admin mode switching endpoints
+app.post('/api/auth/enter-admin-mode', (req: Request, res: Response) => {
+  const tenantReq = req as any;
+  
+  if (!tenantReq.isAdmin) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Only admin users can enter admin mode'
+    });
+  }
+  
+  res.json({
+    success: true,
+    message: 'Admin mode activated',
+    isAdminMode: true,
+    availableTenants: 'all'
+  });
+});
+
+app.post('/api/auth/exit-admin-mode', (req: Request, res: Response) => {
+  const tenantReq = req as any;
+  
+  res.json({
+    success: true,
+    message: 'Admin mode deactivated',
+    isAdminMode: false,
+    currentTenant: tenantReq.tenantId
+  });
+});
+
+// Switch tenant endpoint
+app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
+  const { tenantId } = req.body;
+  const tenantReq = req as any;
+  
+  if (!tenantId) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Tenant ID required'
+    });
+  }
+  
+  // Verify admin can switch to any tenant, regular users need validation
+  if (!tenantReq.isAdminMode && tenantReq.userEmail !== 'clint.phillips@thecenter.nasdaq.org') {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Unauthorized tenant access'
+    });
+  }
+  
+  res.json({
+    success: true,
+    message: 'Tenant switched successfully',
+    tenantId: tenantId,
+    isAdminMode: tenantReq.isAdminMode
+  });
 });
 
 // Tenant endpoints for development
