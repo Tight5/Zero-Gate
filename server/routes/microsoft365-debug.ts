@@ -407,9 +407,9 @@ router.get('/health', async (req: Request, res: Response) => {
             const response = await fetch(`${GRAPH_BASE_URL}${test.endpoint}`, {
               headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-            healthChecks.permissions[test.key] = response.ok;
+            (healthChecks.permissions as any)[test.key] = response.ok;
           } catch {
-            healthChecks.permissions[test.key] = false;
+            (healthChecks.permissions as any)[test.key] = false;
           }
         }
       } catch (error) {

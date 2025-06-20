@@ -5,6 +5,7 @@ import relationshipsRouter from "./routes/relationships";
 import dashboardRouter from "./routes/dashboard";
 import tenantsRouter from "./routes/tenants";
 import microsoft365DebugRouter from "./routes/microsoft365-debug";
+import microsoft365IntegrationRouter from "./routes/microsoft365-integration";
 
 // Create Express app with API-first routing
 const app = express();
