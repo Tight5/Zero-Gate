@@ -1,0 +1,186 @@
+"""
+Database management for Zero Gate ESO Platform
+Optimized for Replit environment with tenant isolation
+"""
+import os
+import sqlite3
+import logging
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+import asyncpg
+import json
+
+logger = logging.getLogger("zero-gate.database")
+
+class DatabaseManager:
+    def __init__(self):
+        self.connection_pool = None
+        self.tenant_databases = {}
+        
+    async def initialize(self):
+        """Initialize database connections"""
+        try:
+            # Initialize PostgreSQL connection pool for central data
+            if os.getenv("DATABASE_URL"):
+                self.connection_pool = await asyncpg.create_pool(
+                    os.getenv("DATABASE_URL"),
+                    min_size=1,
+                    max_size=5
+                )
+                logger.info("PostgreSQL connection pool initialized")
+            
+            # Initialize central schema
+            await self._create_central_schema()
+            
+        except Exception as e:
+            logger.error(f"Database initialization failed: {str(e)}")
+            # For development, continue without PostgreSQL
+            logger.info("Continuing in development mode without PostgreSQL")
+    
+    async def _create_central_schema(self):
+        """Create central database schema for tenant management"""
+        if not self.connection_pool:
+            return
+            
+        async with self.connection_pool.acquire() as conn:
+            # Tenants table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS tenants (
+                    tenant_id UUID PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    slug VARCHAR(100) UNIQUE NOT NULL,
+                    settings JSONB DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            # User-tenant relationships
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_tenants (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL,
+                    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id),
+                    role VARCHAR(50) NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(user_id, tenant_id)
+                )
+            """)
+            
+            logger.info("Central database schema created")
+    
+    def get_tenant_database(self, tenant_id: str) -> sqlite3.Connection:
+        """Get or create SQLite database for specific tenant"""
+        if tenant_id not in self.tenant_databases:
+            db_path = f"storage/tenant_{tenant_id}.db"
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            
+            # Create tenant-specific schema
+            self._create_tenant_schema(conn)
+            self.tenant_databases[tenant_id] = conn
+        
+        return self.tenant_databases[tenant_id]
+    
+    def _create_tenant_schema(self, conn: sqlite3.Connection):
+        """Create schema for tenant-specific database"""
+        cursor = conn.cursor()
+        
+        # Sponsors table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sponsors (
+                sponsor_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                contact_info TEXT,
+                relationship_manager TEXT,
+                status TEXT DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Grants table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS grants (
+                grant_id TEXT PRIMARY KEY,
+                sponsor_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                amount REAL,
+                submission_deadline DATE,
+                status TEXT DEFAULT 'planning',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (sponsor_id) REFERENCES sponsors (sponsor_id)
+            )
+        """)
+        
+        # Grant milestones table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS grant_milestones (
+                milestone_id TEXT PRIMARY KEY,
+                grant_id TEXT NOT NULL,
+                milestone_date DATE NOT NULL,
+                title TEXT NOT NULL,
+                tasks TEXT,
+                status TEXT DEFAULT 'pending',
+                FOREIGN KEY (grant_id) REFERENCES grants (grant_id)
+            )
+        """)
+        
+        # Relationships table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS relationships (
+                relationship_id TEXT PRIMARY KEY,
+                source_person TEXT NOT NULL,
+                target_person TEXT NOT NULL,
+                relationship_type TEXT NOT NULL,
+                strength REAL DEFAULT 0.5,
+                metadata TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Content calendar table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS content_calendar (
+                content_id TEXT PRIMARY KEY,
+                grant_id TEXT,
+                title TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                scheduled_date DATE NOT NULL,
+                status TEXT DEFAULT 'planned',
+                channel TEXT,
+                FOREIGN KEY (grant_id) REFERENCES grants (grant_id)
+            )
+        """)
+        
+        conn.commit()
+        logger.info("Tenant database schema created")
+    
+    async def get_tenant_info(self, tenant_id: str) -> Optional[Dict[str, Any]]:
+        """Get tenant information from central database"""
+        if not self.connection_pool:
+            return None
+            
+        async with self.connection_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM tenants WHERE tenant_id = $1",
+                tenant_id
+            )
+            
+            if row:
+                return dict(row)
+            return None
+    
+    async def close(self):
+        """Close all database connections"""
+        # Close tenant databases
+        for conn in self.tenant_databases.values():
+            conn.close()
+        
+        # Close connection pool
+        if self.connection_pool:
+            await self.connection_pool.close()
+        
+        logger.info("Database connections closed")
