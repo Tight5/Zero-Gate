@@ -1,548 +1,552 @@
 """
-Backend Test Suite - Path Discovery
-Tests seven-degree path discovery, relationship algorithms, and network analysis
+Comprehensive pytest suite for path discovery testing
+Tests seven-degree path discovery, relationship strength analysis, and network algorithms
 Based on attached asset specifications for Zero Gate ESO Platform
 """
 
 import pytest
 import asyncio
-import json
-import uuid
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Set, Tuple
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 import networkx as nx
+from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi import HTTPException
 
-# Import our FastAPI app and dependencies
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'server'))
+# Import platform modules
+from server.auth.jwt_auth import create_access_token, verify_token
+from server.agents.processing import ProcessingAgent
 
-try:
-    from fastapi_app import app
-    from auth.jwt_auth import create_access_token
-    from api.models import RelationshipCreate, SponsorCreate
-except ImportError:
-    # Mock for testing when modules are not available
-    from unittest.mock import MagicMock
-    app = MagicMock()
-    def create_access_token(data):
-        return "mock_token_for_testing"
-    RelationshipCreate = SponsorCreate = dict
 
 class TestPathDiscovery:
-    """Comprehensive path discovery and relationship analysis test suite"""
+    """Test suite for seven-degree path discovery and relationship analysis"""
     
-    @pytest.fixture(scope="class")
-    def test_client(self):
-        """Create test client for FastAPI app"""
-        return TestClient(app)
-    
-    @pytest.fixture(scope="class")
-    def test_tenant_setup(self):
-        """Setup test tenant and authentication"""
-        tenant_id = str(uuid.uuid4())
-        user_email = "path.tester@test.com"
-        
-        # Create JWT token
-        token = create_access_token({
-            'sub': user_email,
-            'tenant_id': tenant_id,
-            'role': 'admin',
-            'exp': datetime.utcnow() + timedelta(hours=1)
-        })
-        
+    @pytest.fixture
+    def test_tenants(self):
+        """Create test tenant configurations"""
         return {
-            'tenant_id': tenant_id,
-            'token': token,
-            'user_email': user_email
+            "nasdaq-center": {
+                "tenant_id": "nasdaq-center",
+                "name": "NASDAQ Entrepreneurial Center",
+                "users": [
+                    {"user_id": "user1", "email": "clint.phillips@thecenter.nasdaq.org", "role": "admin"}
+                ]
+            },
+            "tight5-digital": {
+                "tenant_id": "tight5-digital",
+                "name": "Tight5 Digital",
+                "users": [
+                    {"user_id": "user2", "email": "admin@tight5digital.com", "role": "admin"}
+                ]
+            }
         }
     
     @pytest.fixture
-    def relationship_network_data(self):
-        """Create comprehensive relationship network for testing"""
+    def test_network_data(self):
+        """Create comprehensive test network data for path discovery"""
         return {
-            'nodes': [
-                # Core ESO entities
-                {'id': 'eso_central', 'name': 'Central ESO Hub', 'type': 'organization', 'tier': 'A'},
-                {'id': 'sponsor_a', 'name': 'Foundation Alpha', 'type': 'sponsor', 'tier': 'A'},
-                {'id': 'sponsor_b', 'name': 'Foundation Beta', 'type': 'sponsor', 'tier': 'B'},
-                {'id': 'sponsor_c', 'name': 'Foundation Gamma', 'type': 'sponsor', 'tier': 'C'},
-                
-                # Intermediary organizations
-                {'id': 'org_1', 'name': 'Community Partners Inc', 'type': 'organization', 'tier': 'B'},
-                {'id': 'org_2', 'name': 'Regional Development Council', 'type': 'organization', 'tier': 'B'},
-                {'id': 'org_3', 'name': 'Innovation Hub Network', 'type': 'organization', 'tier': 'C'},
-                
-                # Individual contacts
-                {'id': 'contact_1', 'name': 'Alice Johnson', 'type': 'individual', 'tier': 'A'},
-                {'id': 'contact_2', 'name': 'Bob Smith', 'type': 'individual', 'tier': 'B'},
-                {'id': 'contact_3', 'name': 'Carol Davis', 'type': 'individual', 'tier': 'B'},
-                {'id': 'contact_4', 'name': 'David Wilson', 'type': 'individual', 'tier': 'C'},
-                {'id': 'contact_5', 'name': 'Eva Brown', 'type': 'individual', 'tier': 'C'},
-                
-                # Target entities
-                {'id': 'target_sponsor', 'name': 'Target Foundation', 'type': 'sponsor', 'tier': 'A'},
-                {'id': 'target_individual', 'name': 'Dr. Sarah Miller', 'type': 'individual', 'tier': 'A'},
+            "nasdaq-center": {
+                "nodes": [
+                    {"id": "person1", "name": "John Smith", "role": "CEO", "organization": "TechCorp"},
+                    {"id": "person2", "name": "Sarah Johnson", "role": "CTO", "organization": "Innovation Labs"},
+                    {"id": "person3", "name": "Mike Chen", "role": "Director", "organization": "StartupHub"},
+                    {"id": "person4", "name": "Lisa Wang", "role": "VP", "organization": "VentureCapital"},
+                    {"id": "person5", "name": "David Brown", "role": "Manager", "organization": "TechCorp"},
+                    {"id": "person6", "name": "Emily Davis", "role": "Founder", "organization": "NextGen"},
+                    {"id": "person7", "name": "Robert Miller", "role": "Advisor", "organization": "Advisory Corp"}
+                ],
+                "relationships": [
+                    {"from": "person1", "to": "person2", "strength": 0.8, "type": "colleague", "context": "worked together at TechCorp"},
+                    {"from": "person2", "to": "person3", "strength": 0.6, "type": "professional", "context": "conference connection"},
+                    {"from": "person3", "to": "person4", "strength": 0.9, "type": "business_partner", "context": "investment deal"},
+                    {"from": "person4", "to": "person5", "strength": 0.7, "type": "mentor", "context": "advisory relationship"},
+                    {"from": "person1", "to": "person5", "strength": 0.9, "type": "colleague", "context": "same company"},
+                    {"from": "person5", "to": "person6", "strength": 0.5, "type": "acquaintance", "context": "networking event"},
+                    {"from": "person6", "to": "person7", "strength": 0.8, "type": "advisor", "context": "startup advisory"},
+                    {"from": "person2", "to": "person7", "strength": 0.4, "type": "acquaintance", "context": "mutual connection"}
+                ]
+            },
+            "tight5-digital": {
+                "nodes": [
+                    {"id": "person8", "name": "Alex Turner", "role": "CEO", "organization": "Digital Corp"},
+                    {"id": "person9", "name": "Maria Rodriguez", "role": "CTO", "organization": "Tech Solutions"},
+                    {"id": "person10", "name": "James Wilson", "role": "Director", "organization": "Digital Corp"}
+                ],
+                "relationships": [
+                    {"from": "person8", "to": "person9", "strength": 0.7, "type": "colleague", "context": "partnership"},
+                    {"from": "person9", "to": "person10", "strength": 0.6, "type": "professional", "context": "collaboration"}
+                ]
+            }
+        }
+    
+    @pytest.fixture
+    def auth_tokens(self, test_tenants):
+        """Generate authentication tokens for testing"""
+        tokens = {}
+        for tenant_id, tenant_data in test_tenants.items():
+            tokens[tenant_id] = {}
+            for user in tenant_data["users"]:
+                token = create_access_token(
+                    user_id=user["user_id"],
+                    email=user["email"],
+                    tenant_id=tenant_id,
+                    role=user["role"]
+                )
+                tokens[tenant_id][user["user_id"]] = token
+        return tokens
+    
+    @pytest.mark.asyncio
+    async def test_direct_connection_discovery(self, test_network_data):
+        """Test discovery of direct (1-degree) connections"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
+        
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
+            
+            # Test direct connection between person1 and person2
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person2",
+                tenant_id="nasdaq-center"
+            )
+            
+            # Verify direct connection
+            assert path_result["path_found"] is True
+            assert path_result["path_length"] == 1
+            assert path_result["path"] == ["person1", "person2"]
+            assert path_result["path_quality"] in ["excellent", "good"]
+            
+            # Verify relationship analysis
+            analysis = path_result["relationship_analysis"]
+            assert analysis["average_strength"] == 0.8
+            assert analysis["minimum_strength"] == 0.8
+            assert "colleague" in analysis["relationship_types"]
+    
+    @pytest.mark.asyncio
+    async def test_multi_degree_path_discovery(self, test_network_data):
+        """Test discovery of multi-degree paths (2-7 degrees)"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
+        
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
+            
+            # Test 3-degree path: person1 -> person2 -> person3 -> person4
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person4",
+                tenant_id="nasdaq-center"
+            )
+            
+            # Verify multi-degree connection
+            assert path_result["path_found"] is True
+            assert 2 <= path_result["path_length"] <= 3
+            assert path_result["path"][0] == "person1"
+            assert path_result["path"][-1] == "person4"
+            
+            # Verify path quality calculation
+            analysis = path_result["relationship_analysis"]
+            assert 0.0 < analysis["average_strength"] <= 1.0
+            assert 0.0 < analysis["minimum_strength"] <= 1.0
+            assert analysis["minimum_strength"] <= analysis["average_strength"]
+    
+    @pytest.mark.asyncio
+    async def test_no_path_found_scenario(self, test_network_data):
+        """Test scenario where no path exists between nodes"""
+        agent = ProcessingAgent()
+        
+        # Create isolated network data
+        isolated_network = {
+            "nodes": [
+                {"id": "isolated1", "name": "Isolated Person 1"},
+                {"id": "isolated2", "name": "Isolated Person 2"}
             ],
-            'relationships': [
-                # Direct connections from ESO
-                {'source': 'eso_central', 'target': 'sponsor_a', 'type': 'partnership', 'strength': 0.9, 'weight': 1},
-                {'source': 'eso_central', 'target': 'contact_1', 'type': 'collaboration', 'strength': 0.8, 'weight': 1},
-                {'source': 'eso_central', 'target': 'org_1', 'type': 'partnership', 'strength': 0.7, 'weight': 1},
-                
-                # Sponsor connections
-                {'source': 'sponsor_a', 'target': 'contact_1', 'type': 'advisory', 'strength': 0.9, 'weight': 1},
-                {'source': 'sponsor_a', 'target': 'org_2', 'type': 'funding', 'strength': 0.8, 'weight': 1},
-                {'source': 'sponsor_b', 'target': 'contact_2', 'type': 'advisory', 'strength': 0.7, 'weight': 1},
-                {'source': 'sponsor_c', 'target': 'org_3', 'type': 'partnership', 'strength': 0.6, 'weight': 1},
-                
-                # Organization intermediary connections
-                {'source': 'org_1', 'target': 'contact_2', 'type': 'collaboration', 'strength': 0.8, 'weight': 1},
-                {'source': 'org_1', 'target': 'contact_3', 'type': 'referral', 'strength': 0.6, 'weight': 1},
-                {'source': 'org_2', 'target': 'target_sponsor', 'type': 'partnership', 'strength': 0.7, 'weight': 1},
-                {'source': 'org_2', 'target': 'contact_3', 'type': 'collaboration', 'strength': 0.5, 'weight': 1},
-                {'source': 'org_3', 'target': 'contact_4', 'type': 'referral', 'strength': 0.4, 'weight': 1},
-                
-                # Individual connections
-                {'source': 'contact_1', 'target': 'target_individual', 'type': 'advisory', 'strength': 0.9, 'weight': 1},
-                {'source': 'contact_1', 'target': 'contact_2', 'type': 'referral', 'strength': 0.7, 'weight': 1},
-                {'source': 'contact_2', 'target': 'contact_3', 'type': 'collaboration', 'strength': 0.6, 'weight': 1},
-                {'source': 'contact_3', 'target': 'target_sponsor', 'type': 'advisory', 'strength': 0.8, 'weight': 1},
-                {'source': 'contact_3', 'target': 'contact_4', 'type': 'referral', 'strength': 0.5, 'weight': 1},
-                {'source': 'contact_4', 'target': 'contact_5', 'type': 'collaboration', 'strength': 0.4, 'weight': 1},
-                {'source': 'contact_5', 'target': 'target_individual', 'type': 'referral', 'strength': 0.3, 'weight': 1},
-                
-                # Additional complex paths
-                {'source': 'sponsor_b', 'target': 'org_1', 'type': 'funding', 'strength': 0.6, 'weight': 1},
-                {'source': 'contact_2', 'target': 'target_sponsor', 'type': 'referral', 'strength': 0.5, 'weight': 1},
+            "relationships": []  # No connections
+        }
+        
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = isolated_network
+            
+            path_result = await agent.discover_relationship_path(
+                source_id="isolated1",
+                target_id="isolated2",
+                tenant_id="nasdaq-center"
+            )
+            
+            # Verify no path found
+            assert path_result["path_found"] is False
+            assert path_result["path_length"] == 0
+            assert path_result["path"] == []
+            assert path_result["error_reason"] in ["no_path_exists", "nodes_not_connected"]
+    
+    @pytest.mark.asyncio
+    async def test_seven_degree_limit_enforcement(self, test_network_data):
+        """Test that path discovery respects seven-degree separation limit"""
+        agent = ProcessingAgent()
+        
+        # Create long chain network (8+ degrees)
+        long_chain_network = {
+            "nodes": [{"id": f"person{i}", "name": f"Person {i}"} for i in range(10)],
+            "relationships": [
+                {"from": f"person{i}", "to": f"person{i+1}", "strength": 0.5, "type": "acquaintance"}
+                for i in range(9)
             ]
         }
-    
-    @pytest.fixture
-    def setup_network(self, test_client, test_tenant_setup, relationship_network_data):
-        """Setup the relationship network in the database"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
         
-        created_entities = {'sponsors': [], 'relationships': []}
-        
-        # Create sponsor entities first
-        sponsors = [node for node in relationship_network_data['nodes'] if node['type'] == 'sponsor']
-        for sponsor in sponsors:
-            sponsor_data = {
-                'name': sponsor['name'],
-                'organization': sponsor['name'],
-                'contact_email': f"{sponsor['id'].replace('_', '.')}@test.com",
-                'relationship_manager': 'test.manager@test.com',
-                'tier': sponsor['tier'],
-                'status': 'active'
-            }
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = long_chain_network
             
-            response = test_client.post(
-                "/api/v2/sponsors",
-                headers={
-                    'Authorization': f'Bearer {token}',
-                    'X-Tenant-ID': tenant_id,
-                    'Content-Type': 'application/json'
-                },
-                json=sponsor_data
+            # Test path discovery beyond 7 degrees
+            path_result = await agent.discover_relationship_path(
+                source_id="person0",
+                target_id="person9",  # 9 degrees away
+                tenant_id="nasdaq-center",
+                max_degrees=7
             )
             
-            if response.status_code == 201:
-                created_entities['sponsors'].append(response.json())
+            # Should either find path within 7 degrees or return no path
+            if path_result["path_found"]:
+                assert path_result["path_length"] <= 7
+            else:
+                assert path_result["error_reason"] == "path_exceeds_max_degrees"
+    
+    @pytest.mark.asyncio
+    async def test_path_quality_assessment(self, test_network_data):
+        """Test path quality assessment based on relationship strengths"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
         
-        # Create relationships
-        for rel in relationship_network_data['relationships']:
-            relationship_data = {
-                'source_entity': rel['source'],
-                'target_entity': rel['target'],
-                'relationship_type': rel['type'],
-                'strength': rel['strength'],
-                'status': 'active',
-                'notes': f"Test relationship between {rel['source']} and {rel['target']}"
-            }
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
             
-            response = test_client.post(
-                "/api/v2/relationships",
-                headers={
-                    'Authorization': f'Bearer {token}',
-                    'X-Tenant-ID': tenant_id,
-                    'Content-Type': 'application/json'
-                },
-                json=relationship_data
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person3",
+                tenant_id="nasdaq-center"
             )
             
-            if response.status_code == 201:
-                created_entities['relationships'].append(response.json())
-        
-        return created_entities
+            if path_result["path_found"]:
+                analysis = path_result["relationship_analysis"]
+                
+                # Test quality categorization
+                avg_strength = analysis["average_strength"]
+                quality = path_result["path_quality"]
+                
+                if avg_strength >= 0.8:
+                    assert quality == "excellent"
+                elif avg_strength >= 0.6:
+                    assert quality == "good"
+                elif avg_strength >= 0.4:
+                    assert quality == "fair"
+                else:
+                    assert quality == "weak"
+                
+                # Test weakest link identification
+                assert "minimum_strength" in analysis
+                assert analysis["minimum_strength"] <= avg_strength
     
-    def test_direct_path_discovery(self, test_client, test_tenant_setup, setup_network):
-        """Test discovery of direct paths (1-degree connections)"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
+    @pytest.mark.asyncio
+    async def test_algorithm_comparison(self, test_network_data):
+        """Test comparison between different pathfinding algorithms (BFS, DFS, Dijkstra)"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
         
-        # Test direct path from ESO to Sponsor A
-        response = test_client.post(
-            "/api/v2/relationships/path-discovery",
-            headers={
-                'Authorization': f'Bearer {token}',
-                'X-Tenant-ID': tenant_id,
-                'Content-Type': 'application/json'
-            },
-            json={
-                'source': 'eso_central',
-                'target': 'sponsor_a',
-                'max_degrees': 7,
-                'algorithm': 'bfs'
-            }
-        )
-        
-        assert response.status_code == 200
-        path_result = response.json()
-        
-        # Verify direct path structure
-        assert 'paths' in path_result
-        assert len(path_result['paths']) > 0
-        
-        # Check for direct path
-        direct_path = next((p for p in path_result['paths'] if len(p['path']) == 2), None)
-        assert direct_path is not None, "Should find direct path"
-        assert direct_path['path'] == ['eso_central', 'sponsor_a']
-        assert direct_path['distance'] == 1
-        assert direct_path['path_type'] == 'direct'
-        assert direct_path['confidence'] > 0.8  # High confidence for direct connection
-    
-    def test_multi_degree_path_discovery(self, test_client, test_tenant_setup, setup_network):
-        """Test discovery of multi-degree paths (2-7 degrees)"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
-        
-        # Test path from ESO to target sponsor (should be 3-4 degrees)
-        response = test_client.post(
-            "/api/v2/relationships/path-discovery",
-            headers={
-                'Authorization': f'Bearer {token}',
-                'X-Tenant-ID': tenant_id,
-                'Content-Type': 'application/json'
-            },
-            json={
-                'source': 'eso_central',
-                'target': 'target_sponsor',
-                'max_degrees': 7,
-                'algorithm': 'bfs'
-            }
-        )
-        
-        assert response.status_code == 200
-        path_result = response.json()
-        
-        # Should find multiple paths
-        assert len(path_result['paths']) > 0
-        
-        # Check path through org_2
-        expected_path_1 = ['eso_central', 'sponsor_a', 'org_2', 'target_sponsor']
-        path_1 = next((p for p in path_result['paths'] if p['path'] == expected_path_1), None)
-        
-        if path_1:
-            assert path_1['distance'] == 3
-            assert path_1['path_type'] == 'multi-hop'
-            assert len(path_1['intermediaries']) == 2  # sponsor_a and org_2
-        
-        # Check alternative path through contact_3
-        potential_path_2 = next((p for p in path_result['paths'] if 'contact_3' in p['path']), None)
-        if potential_path_2:
-            assert potential_path_2['distance'] <= 7
-            assert len(potential_path_2['intermediaries']) >= 1
-    
-    def test_seven_degree_limit_enforcement(self, test_client, test_tenant_setup, setup_network):
-        """Test that path discovery respects 7-degree limit"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
-        
-        # Test with max_degrees set to different values
-        for max_degrees in [1, 3, 5, 7]:
-            response = test_client.post(
-                "/api/v2/relationships/path-discovery",
-                headers={
-                    'Authorization': f'Bearer {token}',
-                    'X-Tenant-ID': tenant_id,
-                    'Content-Type': 'application/json'
-                },
-                json={
-                    'source': 'eso_central',
-                    'target': 'target_individual',
-                    'max_degrees': max_degrees,
-                    'algorithm': 'bfs'
-                }
-            )
-            
-            assert response.status_code == 200
-            path_result = response.json()
-            
-            # All returned paths should respect the degree limit
-            for path in path_result['paths']:
-                assert path['distance'] <= max_degrees, (
-                    f"Path distance {path['distance']} exceeds limit {max_degrees}"
-                )
-    
-    def test_path_confidence_scoring(self, test_client, test_tenant_setup, setup_network):
-        """Test path confidence scoring based on relationship strength"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
-        
-        response = test_client.post(
-            "/api/v2/relationships/path-discovery",
-            headers={
-                'Authorization': f'Bearer {token}',
-                'X-Tenant-ID': tenant_id,
-                'Content-Type': 'application/json'
-            },
-            json={
-                'source': 'eso_central',
-                'target': 'target_individual',
-                'max_degrees': 7,
-                'algorithm': 'bfs',
-                'include_confidence': True
-            }
-        )
-        
-        assert response.status_code == 200
-        path_result = response.json()
-        
-        # Should have paths with confidence scores
-        assert len(path_result['paths']) > 0
-        
-        for path in path_result['paths']:
-            # Confidence should be between 0 and 1
-            assert 0 <= path['confidence'] <= 1
-            
-            # Shorter, stronger paths should have higher confidence
-            # Direct paths should have highest confidence
-            if path['distance'] == 1:
-                assert path['confidence'] > 0.7
-            
-            # Paths with high-tier intermediaries should have higher confidence
-            if any(tier in str(path.get('intermediaries', [])) for tier in ['A', 'sponsor']):
-                assert path['confidence'] > 0.3
-    
-    def test_algorithm_comparison(self, test_client, test_tenant_setup, setup_network):
-        """Test different pathfinding algorithms (BFS, DFS, Dijkstra)"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
-        
-        algorithms = ['bfs', 'dfs', 'dijkstra']
+        algorithms = ["bfs", "dfs", "dijkstra"]
         results = {}
         
-        for algorithm in algorithms:
-            response = test_client.post(
-                "/api/v2/relationships/path-discovery",
-                headers={
-                    'Authorization': f'Bearer {token}',
-                    'X-Tenant-ID': tenant_id,
-                    'Content-Type': 'application/json'
-                },
-                json={
-                    'source': 'eso_central',
-                    'target': 'target_sponsor',
-                    'max_degrees': 7,
-                    'algorithm': algorithm
-                }
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
+            
+            for algorithm in algorithms:
+                path_result = await agent.discover_relationship_path(
+                    source_id="person1",
+                    target_id="person6",
+                    tenant_id="nasdaq-center",
+                    algorithm=algorithm
+                )
+                results[algorithm] = path_result
+            
+            # All algorithms should find a path if one exists
+            paths_found = [r["path_found"] for r in results.values()]
+            assert all(paths_found) or not any(paths_found)  # All or none
+            
+            if all(paths_found):
+                # BFS should find shortest path
+                bfs_length = results["bfs"]["path_length"]
+                
+                # Dijkstra should find optimal path based on weights
+                dijkstra_strength = results["dijkstra"]["relationship_analysis"]["average_strength"]
+                
+                # Verify algorithmic properties
+                assert bfs_length >= 1
+                assert 0.0 < dijkstra_strength <= 1.0
+    
+    @pytest.mark.asyncio
+    async def test_landmark_optimization(self, test_network_data):
+        """Test landmark-based distance estimation optimization"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
+        
+        with patch.object(agent, '_get_network_data') as mock_get_network, \
+             patch.object(agent, '_identify_landmark_nodes') as mock_landmarks:
+            
+            mock_get_network.return_value = network_data
+            mock_landmarks.return_value = ["person2", "person4"]  # High-centrality nodes
+            
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person7",
+                tenant_id="nasdaq-center",
+                use_landmarks=True
             )
             
-            assert response.status_code == 200
-            results[algorithm] = response.json()
-        
-        # All algorithms should find at least one path
-        for algorithm, result in results.items():
-            assert len(result['paths']) > 0, f"{algorithm} should find paths"
-        
-        # BFS should find shortest path
-        bfs_shortest = min(results['bfs']['paths'], key=lambda p: p['distance'])
-        
-        # Dijkstra should find optimal weighted path
-        dijkstra_optimal = min(results['dijkstra']['paths'], key=lambda p: p.get('weight', float('inf')))
-        
-        # Both should be reasonable
-        assert bfs_shortest['distance'] <= 7
-        assert dijkstra_optimal['distance'] <= 7
+            # Verify landmark optimization was used
+            mock_landmarks.assert_called_once()
+            
+            if path_result["path_found"]:
+                assert "landmark_optimization" in path_result
+                assert path_result["landmark_optimization"]["used"] is True
+                assert "computation_time_saved" in path_result["landmark_optimization"]
     
-    def test_path_filtering_by_relationship_type(self, test_client, test_tenant_setup, setup_network):
-        """Test filtering paths by relationship types"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
+    @pytest.mark.asyncio
+    async def test_tenant_isolation_in_path_discovery(self, test_network_data, auth_tokens):
+        """Test that path discovery respects tenant boundaries"""
+        agent = ProcessingAgent()
         
-        # Test filtering for only 'partnership' relationships
-        response = test_client.post(
-            "/api/v2/relationships/path-discovery",
-            headers={
-                'Authorization': f'Bearer {token}',
-                'X-Tenant-ID': tenant_id,
-                'Content-Type': 'application/json'
-            },
-            json={
-                'source': 'eso_central',
-                'target': 'target_sponsor',
-                'max_degrees': 7,
-                'algorithm': 'bfs',
-                'allowed_relationship_types': ['partnership', 'funding']
-            }
-        )
+        nasdaq_network = test_network_data["nasdaq-center"]
+        tight5_network = test_network_data["tight5-digital"]
         
-        assert response.status_code == 200
-        path_result = response.json()
-        
-        # Verify path metadata includes relationship types used
-        for path in path_result['paths']:
-            if 'relationship_types' in path:
-                for rel_type in path['relationship_types']:
-                    assert rel_type in ['partnership', 'funding']
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            # Test nasdaq-center path discovery
+            mock_get_network.return_value = nasdaq_network
+            nasdaq_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person3",
+                tenant_id="nasdaq-center"
+            )
+            
+            # Test tight5-digital path discovery
+            mock_get_network.return_value = tight5_network
+            tight5_result = await agent.discover_relationship_path(
+                source_id="person8",
+                target_id="person9",
+                tenant_id="tight5-digital"
+            )
+            
+            # Verify tenant isolation
+            if nasdaq_result["path_found"]:
+                nasdaq_persons = set()
+                for person in nasdaq_result["path"]:
+                    nasdaq_persons.add(person)
+                
+                # NASDAQ persons should not appear in Tight5 network
+                tight5_persons = {node["id"] for node in tight5_network["nodes"]}
+                assert nasdaq_persons.isdisjoint(tight5_persons)
+            
+            # Test cross-tenant access failure
+            mock_get_network.return_value = None  # Simulate tenant isolation
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await agent.discover_relationship_path(
+                    source_id="person1",  # NASDAQ person
+                    target_id="person8",  # Tight5 person  
+                    tenant_id="nasdaq-center"
+                )
+            
+            assert exc_info.value.status_code == 404
     
-    def test_network_centrality_analysis(self, test_client, test_tenant_setup, setup_network):
-        """Test network centrality and key connector identification"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
+    @pytest.mark.asyncio
+    async def test_introduction_template_generation(self, test_network_data):
+        """Test generation of introduction templates for discovered paths"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
         
-        # Get network analysis
-        response = test_client.get(
-            "/api/v2/relationships/network-analysis",
-            headers={
-                'Authorization': f'Bearer {token}',
-                'X-Tenant-ID': tenant_id
-            }
-        )
-        
-        assert response.status_code == 200
-        analysis = response.json()
-        
-        # Should include centrality metrics
-        assert 'centrality' in analysis
-        assert 'key_connectors' in analysis
-        assert 'network_density' in analysis
-        
-        # Key connectors should be identified
-        key_connectors = analysis['key_connectors']
-        assert len(key_connectors) > 0
-        
-        # ESO central should likely be a key connector
-        connector_names = [conn['entity'] for conn in key_connectors]
-        # Allow flexibility in how entities are identified
-        assert any('eso' in name.lower() or 'central' in name.lower() for name in connector_names)
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
+            
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person4",
+                tenant_id="nasdaq-center",
+                include_introduction_template=True
+            )
+            
+            if path_result["path_found"] and len(path_result["path"]) >= 3:
+                # Should include introduction template
+                assert "introduction_template" in path_result
+                template = path_result["introduction_template"]
+                
+                # Template should include key elements
+                assert "template_text" in template
+                assert "recommended_approach" in template
+                
+                # Template should reference the intermediate connection
+                intermediate_person = path_result["path"][1]
+                assert intermediate_person in template["template_text"]
+                
+                # Should include relationship context
+                assert "relationship_context" in template
     
-    def test_path_discovery_performance(self, test_client, test_tenant_setup, setup_network):
-        """Test path discovery performance with timing"""
-        import time
+    @pytest.mark.asyncio
+    async def test_network_statistics_calculation(self, test_network_data):
+        """Test calculation of network statistics during path discovery"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
         
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
+            
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person7",
+                tenant_id="nasdaq-center",
+                include_network_stats=True
+            )
+            
+            # Should include network statistics
+            assert "network_statistics" in path_result
+            stats = path_result["network_statistics"]
+            
+            # Basic network metrics
+            assert "total_nodes" in stats
+            assert "total_edges" in stats
+            assert "network_density" in stats
+            assert "average_clustering" in stats
+            
+            # Path-specific metrics
+            assert "centrality_scores" in stats
+            assert "shortest_path_lengths" in stats
+            
+            # Verify statistical validity
+            assert stats["total_nodes"] == len(network_data["nodes"])
+            assert stats["total_edges"] == len(network_data["relationships"])
+            assert 0.0 <= stats["network_density"] <= 1.0
+    
+    @pytest.mark.asyncio
+    async def test_confidence_scoring(self, test_network_data):
+        """Test confidence scoring for discovered paths"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
         
-        # Test multiple path discoveries for performance
-        start_time = time.time()
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
+            
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person6",
+                tenant_id="nasdaq-center"
+            )
+            
+            if path_result["path_found"]:
+                # Should include confidence scoring
+                assert "confidence_score" in path_result
+                confidence = path_result["confidence_score"]
+                
+                # Confidence should be between 0 and 1
+                assert 0.0 <= confidence <= 1.0
+                
+                # Confidence factors
+                assert "confidence_factors" in path_result
+                factors = path_result["confidence_factors"]
+                
+                expected_factors = [
+                    "relationship_strength",
+                    "path_length", 
+                    "data_completeness",
+                    "relationship_recency"
+                ]
+                
+                for factor in expected_factors:
+                    if factor in factors:
+                        assert 0.0 <= factors[factor] <= 1.0
+    
+    @pytest.mark.asyncio
+    async def test_path_risk_assessment(self, test_network_data):
+        """Test risk assessment for relationship paths"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
         
-        test_pairs = [
-            ('eso_central', 'target_sponsor'),
-            ('eso_central', 'target_individual'),
-            ('sponsor_a', 'target_sponsor'),
-            ('contact_1', 'target_individual'),
-            ('org_1', 'target_sponsor')
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
+            
+            path_result = await agent.discover_relationship_path(
+                source_id="person1",
+                target_id="person7",
+                tenant_id="nasdaq-center",
+                include_risk_assessment=True
+            )
+            
+            if path_result["path_found"]:
+                # Should include risk assessment
+                assert "risk_assessment" in path_result
+                risk = path_result["risk_assessment"]
+                
+                # Risk categories
+                assert "overall_risk" in risk
+                assert risk["overall_risk"] in ["low", "medium", "high"]
+                
+                # Risk factors
+                assert "risk_factors" in risk
+                factors = risk["risk_factors"]
+                
+                potential_risks = [
+                    "weak_connections",
+                    "relationship_gaps", 
+                    "outdated_connections",
+                    "competitive_conflicts"
+                ]
+                
+                # Should identify specific risks
+                for risk_factor in factors:
+                    assert "factor" in risk_factor
+                    assert "severity" in risk_factor
+                    assert risk_factor["severity"] in ["low", "medium", "high"]
+    
+    @pytest.mark.asyncio
+    async def test_concurrent_path_discovery(self, test_network_data):
+        """Test concurrent path discovery operations"""
+        agent = ProcessingAgent()
+        network_data = test_network_data["nasdaq-center"]
+        
+        # Test multiple concurrent path discoveries
+        path_queries = [
+            ("person1", "person3"),
+            ("person2", "person5"),
+            ("person4", "person7"),
+            ("person1", "person6")
         ]
         
-        successful_requests = 0
-        
-        for source, target in test_pairs:
-            response = test_client.post(
-                "/api/v2/relationships/path-discovery",
-                headers={
-                    'Authorization': f'Bearer {token}',
-                    'X-Tenant-ID': tenant_id,
-                    'Content-Type': 'application/json'
-                },
-                json={
-                    'source': source,
-                    'target': target,
-                    'max_degrees': 7,
-                    'algorithm': 'bfs'
-                }
-            )
+        with patch.object(agent, '_get_network_data') as mock_get_network:
+            mock_get_network.return_value = network_data
             
-            if response.status_code == 200:
-                successful_requests += 1
-        
-        end_time = time.time()
-        total_time = end_time - start_time
-        avg_time = total_time / len(test_pairs)
-        
-        # Performance should be reasonable
-        assert avg_time < 1.0, f"Path discovery too slow: {avg_time:.3f}s average"
-        assert successful_requests > 0, "Should have successful path discoveries"
-        
-        print(f"Path discovery performance: {avg_time:.3f}s average per request")
-    
-    def test_no_path_exists_handling(self, test_client, test_tenant_setup, setup_network):
-        """Test handling when no path exists between entities"""
-        tenant_id = test_tenant_setup['tenant_id']
-        token = test_tenant_setup['token']
-        
-        # Try to find path to non-existent entity
-        response = test_client.post(
-            "/api/v2/relationships/path-discovery",
-            headers={
-                'Authorization': f'Bearer {token}',
-                'X-Tenant-ID': tenant_id,
-                'Content-Type': 'application/json'
-            },
-            json={
-                'source': 'eso_central',
-                'target': 'non_existent_entity',
-                'max_degrees': 7,
-                'algorithm': 'bfs'
-            }
-        )
-        
-        # Should handle gracefully
-        assert response.status_code in [200, 404]
-        
-        if response.status_code == 200:
-            path_result = response.json()
-            assert len(path_result['paths']) == 0
-            assert 'message' in path_result
-            assert 'no path' in path_result['message'].lower()
-    
-    def test_path_discovery_with_tenant_isolation(self, test_client, test_tenant_setup, setup_network):
-        """Test that path discovery respects tenant boundaries"""
-        # Create second tenant
-        tenant_2_id = str(uuid.uuid4())
-        token_2 = create_access_token({
-            'sub': 'path.tester2@test.com',
-            'tenant_id': tenant_2_id,
-            'role': 'admin',
-            'exp': datetime.utcnow() + timedelta(hours=1)
-        })
-        
-        # Try path discovery with tenant 2 token (should not see tenant 1 data)
-        response = test_client.post(
-            "/api/v2/relationships/path-discovery",
-            headers={
-                'Authorization': f'Bearer {token_2}',
-                'X-Tenant-ID': tenant_2_id,
-                'Content-Type': 'application/json'
-            },
-            json={
-                'source': 'eso_central',
-                'target': 'target_sponsor',
-                'max_degrees': 7,
-                'algorithm': 'bfs'
-            }
-        )
-        
-        # Should either return empty results or 404
-        assert response.status_code in [200, 404]
-        
-        if response.status_code == 200:
-            path_result = response.json()
-            assert len(path_result['paths']) == 0  # No paths in empty tenant
+            # Run concurrent path discoveries
+            tasks = [
+                agent.discover_relationship_path(
+                    source_id=source,
+                    target_id=target,
+                    tenant_id="nasdaq-center"
+                )
+                for source, target in path_queries
+            ]
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Verify all operations completed
+            assert len(results) == len(path_queries)
+            
+            # Check that no exceptions occurred
+            for result in results:
+                assert not isinstance(result, Exception)
+                assert "path_found" in result
+            
+            # Verify results are independent
+            unique_paths = set()
+            for result in results:
+                if result["path_found"]:
+                    path_tuple = tuple(result["path"])
+                    unique_paths.add(path_tuple)
+            
+            # Should have multiple unique paths
+            assert len(unique_paths) >= 1
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
