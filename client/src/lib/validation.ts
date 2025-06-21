@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { useState, useCallback } from 'react';
 
 // Common validation patterns
 export const validationPatterns = {
