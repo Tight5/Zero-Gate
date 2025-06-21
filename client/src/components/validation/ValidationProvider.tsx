@@ -49,7 +49,7 @@ export const ValidationProvider: React.FC<ValidationProviderProps> = ({ children
       console.error('Form validation error:', error);
       return {
         isValid: false,
-        errors: { general: 'Validation system error' },
+        errors: { general: { isValid: false, message: 'Validation system error', type: 'error' as const, code: 'SYSTEM_ERROR', suggestions: [] } },
         warnings: {},
         fieldStates: {},
         overallScore: 0,
