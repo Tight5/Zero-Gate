@@ -23,7 +23,11 @@ class ResourceMonitor:
             "advanced_analytics": True,
             "relationship_mapping": True,
             "excel_dashboard": True,
-            "content_generation": True
+            "content_generation": True,
+            "excel_processing": True,
+            "real_time_updates": True,
+            "background_sync": True,
+            "detailed_logging": True
         }
         self.running = False
         self.thread = None
@@ -112,3 +116,56 @@ class ResourceMonitor:
         """Force a feature to be enabled or disabled"""
         self.feature_flags[feature] = enabled
         logger.info(f"Feature {feature} {'enabled' if enabled else 'disabled'} manually")
+    
+    def get_memory_usage(self) -> float:
+        """Get current memory usage as percentage (0.0 to 1.0)"""
+        try:
+            memory_percent = psutil.virtual_memory().percent
+            return memory_percent / 100.0  # Convert to 0.0-1.0 range
+        except Exception as e:
+            logger.error(f"Error getting memory usage: {str(e)}")
+            return 0.0
+    
+    def disable_feature(self, feature: str):
+        """Disable a specific feature"""
+        if feature in self.feature_flags:
+            self.feature_flags[feature] = False
+            logger.info(f"Feature disabled: {feature}")
+        else:
+            logger.warning(f"Unknown feature: {feature}")
+    
+    def enable_feature(self, feature: str):
+        """Enable a specific feature"""
+        if feature in self.feature_flags:
+            self.feature_flags[feature] = True
+            logger.info(f"Feature enabled: {feature}")
+        else:
+            logger.warning(f"Unknown feature: {feature}")
+    
+    def get_memory_info(self) -> Dict[str, Any]:
+        """Get detailed memory information"""
+        try:
+            memory = psutil.virtual_memory()
+            return {
+                "total": memory.total,
+                "available": memory.available,
+                "percent": memory.percent,
+                "used": memory.used,
+                "free": memory.free,
+                "buffers": getattr(memory, 'buffers', 0),
+                "cached": getattr(memory, 'cached', 0)
+            }
+        except Exception as e:
+            logger.error(f"Error getting memory info: {str(e)}")
+            return {}
+    
+    def trigger_garbage_collection(self):
+        """Manually trigger garbage collection"""
+        try:
+            import gc
+            collected = gc.collect()
+            logger.info(f"Garbage collection completed - collected {collected} objects")
+            return collected
+        except Exception as e:
+            logger.error(f"Garbage collection failed: {str(e)}")
+            return 0
