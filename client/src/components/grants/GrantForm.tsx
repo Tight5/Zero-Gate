@@ -1,7 +1,7 @@
 /**
  * Grant Form Wizard Component
  * Multi-step form for creating and editing grants with backwards planning
- * Based on attached asset specifications
+ * Fixed TypeScript implementation with validation schema compliance
  */
 
 import React, { useState, useEffect } from 'react';

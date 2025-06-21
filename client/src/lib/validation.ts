@@ -164,6 +164,75 @@ export const grantFormStepSchemas = {
         message: 'You must confirm the data accuracy'
       }),
   }),
+  
+  complete: z.object({
+    title: z.string()
+      .min(1, errorMessages.required('Grant title'))
+      .max(255, errorMessages.maxLength('Grant title', 255))
+      .regex(validationPatterns.text, errorMessages.invalidCharacters('Grant title')),
+    organization: z.string()
+      .min(1, errorMessages.required('Organization'))
+      .max(255, errorMessages.maxLength('Organization', 255))
+      .regex(validationPatterns.orgName, errorMessages.invalidCharacters('Organization')),
+    amount: z.number({
+      invalid_type_error: 'Amount must be a number'
+    }).min(0, 'Amount must be positive').optional(),
+    submissionDeadline: z.date({
+      required_error: errorMessages.required('Submission deadline'),
+      invalid_type_error: 'Please enter a valid date'
+    }),
+    category: z.enum(['research', 'education', 'community', 'technology', 'healthcare', 'environment', 'arts', 'other'], {
+      errorMap: () => ({ message: 'Please select a valid category' })
+    }),
+    status: z.enum(['draft', 'planning', 'in_progress'], {
+      errorMap: () => ({ message: 'Please select a valid status' })
+    }).default('draft'),
+    description: z.string()
+      .min(50, errorMessages.minLength('Description', 50))
+      .max(5000, errorMessages.maxLength('Description', 5000)),
+    objectives: z.array(z.string().min(1, 'Objective is required'))
+      .min(1, 'At least one objective is required'),
+    methodology: z.string()
+      .min(20, errorMessages.minLength('Methodology', 20))
+      .max(2000, errorMessages.maxLength('Methodology', 2000)),
+    budget: z.record(z.any()).optional(),
+    timeline: z.string()
+      .min(20, errorMessages.minLength('Timeline', 20))
+      .max(2000, errorMessages.maxLength('Timeline', 2000)),
+    teamMembers: z.array(z.object({
+      name: z.string().min(1, 'Name is required'),
+      role: z.string().min(1, 'Role is required'),
+      email: z.string().email('Invalid email address')
+    })).optional(),
+    requiredDocuments: z.array(z.object({
+      name: z.string().min(1, 'Document name is required'),
+      type: z.string().min(1, 'Document type is required'),
+      required: z.boolean()
+    })).optional(),
+    milestones: z.array(z.object({
+      title: z.string()
+        .min(1, errorMessages.required('Milestone title'))
+        .max(255, errorMessages.maxLength('Milestone title', 255)),
+      description: z.string()
+        .max(1000, errorMessages.maxLength('Description', 1000))
+        .optional(),
+      milestoneDate: z.date({
+        required_error: errorMessages.required('Milestone date'),
+        invalid_type_error: 'Please enter a valid date'
+      }),
+      status: z.enum(['pending', 'in_progress', 'completed'], {
+        errorMap: () => ({ message: 'Please select a valid status' })
+      }).default('pending'),
+    })).min(1, 'At least one milestone is required'),
+    termsAccepted: z.boolean()
+      .refine((val) => val === true, {
+        message: 'You must accept the terms and conditions'
+      }),
+    dataAccuracy: z.boolean()
+      .refine((val) => val === true, {
+        message: 'You must confirm the data accuracy'
+      }),
+  })
 };
 
 // Content Calendar Form Schema
