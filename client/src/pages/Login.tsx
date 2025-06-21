@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,18 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Eye, EyeOff, Mail, Lock, Building2, AlertCircle, Monitor, Loader2, LogIn, Shield, Users, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
-
-const loginSchema = z.object({
-  email: z.string()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address'),
-  password: z.string()
-    .min(6, 'Password must be at least 6 characters')
-    .max(100, 'Password is too long'),
-  rememberMe: z.boolean().default(false)
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
+import { loginFormSchema, type LoginFormData } from '@/lib/validation';
 
 export default function Login() {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -40,7 +28,7 @@ export default function Login() {
     setValue,
     watch
   } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(loginFormSchema),
     defaultValues: {
       email: '',
       password: '',

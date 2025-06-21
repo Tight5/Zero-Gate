@@ -4,8 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { insertSponsorSchema } from "@shared/schema";
-import { z } from "zod";
+import { sponsorFormSchema, type SponsorFormData } from "@/lib/validation";
+import { useState } from "react";
 
 import {
   Form,
@@ -14,6 +14,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,13 +26,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const sponsorFormSchema = insertSponsorSchema.extend({
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  phone: z.string().optional(),
-});
-
-type SponsorFormData = z.infer<typeof sponsorFormSchema>;
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { X, Plus, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface SponsorFormProps {
   sponsor?: any;
@@ -42,20 +40,27 @@ interface SponsorFormProps {
 export default function SponsorForm({ sponsor, onSuccess, tenantId }: SponsorFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [tags, setTags] = useState<string[]>(sponsor?.tags || []);
+  const [newTag, setNewTag] = useState("");
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const form = useForm<SponsorFormData>({
     resolver: zodResolver(sponsorFormSchema),
+    mode: "onChange", // Enable real-time validation
     defaultValues: {
-      tenantId,
       name: sponsor?.name || "",
-      type: sponsor?.type || "",
+      organization: sponsor?.organization || "",
+      type: sponsor?.type || "foundation",
       relationshipManager: sponsor?.relationshipManager || "",
-      relationshipStrength: sponsor?.relationshipStrength || 1,
+      relationshipStrength: sponsor?.relationshipStrength || 5,
       notes: sponsor?.notes || "",
       email: sponsor?.contactInfo?.email || "",
       phone: sponsor?.contactInfo?.phone || "",
+      tags: sponsor?.tags || [],
     },
   });
+
+  const watchedValues = form.watch();
 
   const createMutation = useMutation({
     mutationFn: async (data: SponsorFormData) => {
