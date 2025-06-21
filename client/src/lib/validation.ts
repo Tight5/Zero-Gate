@@ -13,6 +13,8 @@ export const validationPatterns = {
   domain: /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
   alphaNumeric: /^[a-zA-Z0-9\s&.,'-]+$/,
   personName: /^[a-zA-Z\s'-]+$/,
+  text: /^[a-zA-Z0-9\s\-_.,!?()&]+$/,
+  orgName: /^[a-zA-Z0-9\s\-_.,&()]+$/,
   uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
 };
 

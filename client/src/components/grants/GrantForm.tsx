@@ -44,7 +44,7 @@ import {
   type GrantMilestonesData,
   type GrantReviewData
 } from '@/lib/validation';
-import { generateCompatibleMilestones, validateMilestoneData } from '@/utils/grantFormHelpers';
+
 
 // Combined form data type from comprehensive validation schemas
 type FormData = GrantBasicInfoData & GrantDetailsData & GrantMilestonesData & GrantReviewData;
