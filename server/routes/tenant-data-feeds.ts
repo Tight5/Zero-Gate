@@ -9,7 +9,7 @@ const router = Router();
 // Enhanced tenant data feeds management for dynamic integration
 
 // Get all data feeds for tenant
-router.get('/tenant-data-feeds', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
     
@@ -55,7 +55,7 @@ router.get('/tenant-data-feeds', async (req, res) => {
 });
 
 // Create new data feed configuration
-router.post('/tenant-data-feeds', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
     
@@ -102,7 +102,7 @@ router.post('/tenant-data-feeds', async (req, res) => {
 });
 
 // Update data feed configuration
-router.put('/tenant-data-feeds/:feedId', async (req, res) => {
+router.put('/:feedId', async (req, res) => {
   try {
     const { feedId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -154,7 +154,7 @@ router.put('/tenant-data-feeds/:feedId', async (req, res) => {
 });
 
 // Trigger manual sync for data feed
-router.post('/tenant-data-feeds/:feedId/sync', async (req, res) => {
+router.post('/:feedId/sync', async (req, res) => {
   try {
     const { feedId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -224,7 +224,7 @@ router.post('/tenant-data-feeds/:feedId/sync', async (req, res) => {
 });
 
 // Get data feed health and metrics
-router.get('/tenant-data-feeds/:feedId/health', async (req, res) => {
+router.get('/:feedId/health', async (req, res) => {
   try {
     const { feedId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -306,7 +306,7 @@ router.get('/tenant-data-feeds/:feedId/health', async (req, res) => {
 });
 
 // Get aggregated data feeds analytics for tenant
-router.get('/tenant-data-feeds/analytics', async (req, res) => {
+router.get('/analytics', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
 
