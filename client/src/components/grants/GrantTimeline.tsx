@@ -210,6 +210,18 @@ export const GrantTimeline: React.FC<GrantTimelineProps> = ({
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
+                {timelineMetrics.completedMilestones}/{timelineMetrics.totalMilestones}
+              </div>
+              <div className="text-sm text-gray-600">Milestones</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {timelineMetrics.completedTasks}/{timelineMetrics.totalTasks}
+              </div>
+              <div className="text-sm text-gray-600">Tasks</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">
                 {timelineMetrics.overdueMilestones}
               </div>
               <div className="text-sm text-gray-600">Overdue</div>

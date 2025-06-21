@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import HybridRelationshipMap from '@/components/relationships/HybridRelationshipMap';
-import PathDiscoveryInterface from '@/components/features/PathDiscoveryInterface';
+import PathDiscoveryInterface from '@/components/relationships/PathDiscoveryInterface';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
