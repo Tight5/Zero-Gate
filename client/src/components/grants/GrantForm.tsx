@@ -1,41 +1,37 @@
 /**
  * Grant Form Wizard Component
- * Multi-step form for creating and editing grants with backwards planning
- * Fixed TypeScript implementation with validation schema compliance
+ * TypeScript-safe implementation with validation schema compliance
+ * Aligned with attached asset specifications (File 38)
  */
 
 import React, { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Save, 
-  Calendar as CalendarIcon,
-  DollarSign,
-  FileText,
-  Users,
+  CalendarIcon, 
+  CheckCircle, 
+  Clock, 
+  DollarSign, 
+  FileText, 
   Target,
-  Clock,
-  CheckCircle,
-  AlertCircle,
   Plus,
-  X
+  Trash2,
+  Save,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
-import { format, addDays, subDays } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { 
   grantFormStepSchemas, 
@@ -45,8 +41,6 @@ import {
   type GrantReviewData
 } from '@/lib/validation';
 
-
-// Combined form data type from comprehensive validation schemas
 type FormData = GrantBasicInfoData & GrantDetailsData & GrantMilestonesData & GrantReviewData;
 
 interface GrantFormProps {
@@ -57,25 +51,6 @@ interface GrantFormProps {
   mode?: 'create' | 'edit';
 }
 
-const FORM_STEPS = [
-  { id: 1, title: 'Basic Information', icon: FileText },
-  { id: 2, title: 'Grant Details', icon: Users },
-  { id: 3, title: 'Milestones & Timeline', icon: Target },
-  { id: 4, title: 'Review & Submit', icon: CheckCircle }
-];
-
-const GRANT_CATEGORIES = [
-  'Research & Development',
-  'Education',
-  'Healthcare',
-  'Technology',
-  'Environment',
-  'Social Impact',
-  'Arts & Culture',
-  'Infrastructure',
-  'Other'
-];
-
 export const GrantForm: React.FC<GrantFormProps> = ({
   initialData,
   onSubmit,
@@ -84,79 +59,68 @@ export const GrantForm: React.FC<GrantFormProps> = ({
   mode = 'create'
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState<Partial<FormData>>(initialData || {});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isValidating, setIsValidating] = useState(false);
+  const [stepValidation, setStepValidation] = useState<Record<number, boolean>>({});
 
   const form = useForm<FormData>({
-    defaultValues: formData,
+    resolver: zodResolver(grantFormStepSchemas.complete),
+    defaultValues: {
+      title: '',
+      organization: '',
+      amount: 0,
+      submissionDeadline: new Date(),
+      category: 'technology',
+      status: 'draft',
+      description: '',
+      objectives: '',
+      methodology: '',
+      budget: '',
+      timeline: '',
+      teamMembers: [],
+      requiredDocuments: [],
+      milestones: [],
+      termsAccepted: false,
+      dataAccuracy: false,
+      ...initialData
+    },
     mode: 'onChange'
   });
 
-  const { control, handleSubmit, watch, setValue, trigger, formState } = form;
+  const { watch, setValue } = form;
   const watchedValues = watch();
 
-  // Auto-save draft every 30 seconds
+  // Generate auto-milestones when submission deadline changes
   useEffect(() => {
-    if (onSaveDraft && mode === 'create') {
-      const interval = setInterval(() => {
-        const currentData = { ...formData, ...watchedValues };
-        onSaveDraft(currentData);
-      }, 30000);
-      
-      return () => clearInterval(interval);
+    if (watchedValues.submissionDeadline && (!watchedValues.milestones || watchedValues.milestones.length === 0)) {
+      generateAutoMilestones(new Date(watchedValues.submissionDeadline));
     }
-  }, [formData, watchedValues, onSaveDraft, mode]);
+  }, [watchedValues.submissionDeadline]);
 
-  // Generate automatic milestones based on submission deadline
   const generateAutoMilestones = (submissionDate: Date) => {
     const milestones = [
       {
-        title: 'Initial Research & Planning',
-        description: 'Complete background research and develop project plan',
-        dueDate: subDays(submissionDate, 90),
-        type: '90-day' as const,
-        priority: 'high' as const,
-        tasks: [
-          { title: 'Literature review', description: '', estimatedHours: 20 },
-          { title: 'Stakeholder analysis', description: '', estimatedHours: 10 },
-          { title: 'Project scope definition', description: '', estimatedHours: 8 }
-        ]
+        title: 'Research & Planning Phase',
+        description: 'Complete initial research, stakeholder analysis, and project planning',
+        milestoneDate: subDays(submissionDate, 90),
+        status: 'pending' as const
       },
       {
         title: 'Proposal Development',
         description: 'Draft main proposal sections and methodology',
-        dueDate: subDays(submissionDate, 60),
-        type: '60-day' as const,
-        priority: 'high' as const,
-        tasks: [
-          { title: 'Write methodology section', description: '', estimatedHours: 15 },
-          { title: 'Develop budget breakdown', description: '', estimatedHours: 12 },
-          { title: 'Create project timeline', description: '', estimatedHours: 8 }
-        ]
+        milestoneDate: subDays(submissionDate, 60),
+        status: 'pending' as const
       },
       {
         title: 'Final Review & Submission Prep',
         description: 'Complete final review, gather documents, and prepare submission',
-        dueDate: subDays(submissionDate, 30),
-        type: '30-day' as const,
-        priority: 'critical' as const,
-        tasks: [
-          { title: 'Internal review and revision', description: '', estimatedHours: 20 },
-          { title: 'Gather supporting documents', description: '', estimatedHours: 8 },
-          { title: 'Format and proofread', description: '', estimatedHours: 12 }
-        ]
+        milestoneDate: subDays(submissionDate, 30),
+        status: 'pending' as const
       },
       {
         title: 'Grant Submission',
         description: 'Submit complete grant application',
-        dueDate: submissionDate,
-        type: 'submission' as const,
-        priority: 'critical' as const,
-        tasks: [
-          { title: 'Final submission check', description: '', estimatedHours: 2 },
-          { title: 'Submit application', description: '', estimatedHours: 1 },
-          { title: 'Confirmation follow-up', description: '', estimatedHours: 1 }
-        ]
+        milestoneDate: submissionDate,
+        status: 'pending' as const
       }
     ];
     
@@ -183,7 +147,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({
         schema = grantFormStepSchemas.details;
         dataToValidate = {
           description: watchedValues.description,
-          objectives: watchedValues.objectives,
+          objectives: watchedValues.objectives?.[0] || '',
           methodology: watchedValues.methodology,
           budget: watchedValues.budget,
           timeline: watchedValues.timeline,
@@ -209,34 +173,28 @@ export const GrantForm: React.FC<GrantFormProps> = ({
     }
     
     try {
-      schema.parse(dataToValidate);
+      setIsValidating(true);
+      await schema.parseAsync(dataToValidate);
+      setStepValidation(prev => ({ ...prev, [currentStep]: true }));
       return true;
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const newErrors: Record<string, string> = {};
-        error.errors.forEach(err => {
-          if (err.path) {
-            newErrors[err.path.join('.')] = err.message;
-          }
-        });
-        setErrors(newErrors);
-      }
+      setStepValidation(prev => ({ ...prev, [currentStep]: false }));
       return false;
+    } finally {
+      setIsValidating(false);
     }
   };
 
-  const handleNext = async () => {
+  const nextStep = async () => {
     const isValid = await validateCurrentStep();
     if (isValid && currentStep < 4) {
       setCurrentStep(currentStep + 1);
-      setErrors({});
     }
   };
 
-  const handlePrevious = () => {
+  const prevStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
-      setErrors({});
     }
   };
 
@@ -244,489 +202,521 @@ export const GrantForm: React.FC<GrantFormProps> = ({
     onSubmit(data);
   };
 
-  const progress = (currentStep / FORM_STEPS.length) * 100;
+  const addObjective = () => {
+    const objectives = form.getValues('objectives') || [];
+    form.setValue('objectives', [...objectives, '']);
+  };
+
+  const removeObjective = (index: number) => {
+    const objectives = form.getValues('objectives') || [];
+    form.setValue('objectives', objectives.filter((_, i) => i !== index));
+  };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Progress Header */}
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            {mode === 'edit' ? 'Edit Grant Application' : 'New Grant Application'}
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Complete all steps to submit your grant application
+          </p>
+        </div>
+        {onSaveDraft && (
+          <Button variant="outline" onClick={() => onSaveDraft(form.getValues())}>
+            <Save className="w-4 h-4 mr-2" />
+            Save Draft
+          </Button>
+        )}
+      </div>
+
+      {/* Progress Steps */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-2xl font-bold">
-                {mode === 'create' ? 'Create New Grant' : 'Edit Grant'}
-              </h1>
-              <p className="text-gray-600">
-                Step {currentStep} of {FORM_STEPS.length}: {FORM_STEPS[currentStep - 1].title}
-              </p>
-            </div>
-            <Badge variant="outline">
-              {Math.round(progress)}% Complete
-            </Badge>
-          </div>
-          <Progress value={progress} className="w-full" />
-          
-          {/* Step Indicators */}
-          <div className="flex justify-between mt-4">
-            {FORM_STEPS.map((step) => {
-              const Icon = step.icon;
-              const isActive = currentStep === step.id;
-              const isCompleted = currentStep > step.id;
-              
-              return (
-                <div key={step.id} className="flex flex-col items-center">
-                  <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center border-2",
-                    isActive ? "bg-blue-500 border-blue-500 text-white" :
-                    isCompleted ? "bg-green-500 border-green-500 text-white" :
-                    "bg-gray-100 border-gray-300 text-gray-500"
-                  )}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <span className={cn(
-                    "text-xs mt-1 text-center",
-                    isActive ? "text-blue-600 font-medium" :
-                    isCompleted ? "text-green-600" :
-                    "text-gray-500"
-                  )}>
-                    {step.title}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <CardTitle className="flex items-center justify-between">
+            <span>Application Progress</span>
+            <Badge variant="outline">{currentStep}/4</Badge>
+          </CardTitle>
+          <Progress value={(currentStep / 4) * 100} className="w-full" />
         </CardHeader>
+        <CardContent>
+          <div className="flex justify-between items-center">
+            {[
+              { step: 1, title: 'Basic Info', icon: FileText },
+              { step: 2, title: 'Details', icon: Target },
+              { step: 3, title: 'Milestones', icon: Clock },
+              { step: 4, title: 'Review', icon: CheckCircle }
+            ].map(({ step, title, icon: Icon }) => (
+              <div key={step} className="flex flex-col items-center space-y-2">
+                <div className={cn(
+                  "flex items-center justify-center w-10 h-10 rounded-full border-2",
+                  step === currentStep ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" :
+                  stepValidation[step] ? "border-green-500 bg-green-50 dark:bg-green-900/20" :
+                  "border-gray-300 bg-white dark:bg-gray-800"
+                )}>
+                  {stepValidation[step] ? (
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <Icon className={cn(
+                      "w-5 h-5",
+                      step === currentStep ? "text-blue-500" : "text-gray-400"
+                    )} />
+                  )}
+                </div>
+                <span className={cn(
+                  "text-sm font-medium",
+                  step === currentStep ? "text-blue-600 dark:text-blue-400" :
+                  stepValidation[step] ? "text-green-600 dark:text-green-400" :
+                  "text-gray-500 dark:text-gray-400"
+                )}>
+                  {title}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
       </Card>
 
-      {/* Form Steps */}
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-        
-        {/* Step 1: Basic Information */}
-        {currentStep === 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Basic Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="title">Grant Title *</Label>
-                  <Controller
-                    name="title"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        placeholder="Enter grant title"
-                        className={errors.title ? 'border-red-500' : ''}
-                      />
-                    )}
-                  />
-                  {errors.title && (
-                    <p className="text-sm text-red-500 mt-1">{errors.title}</p>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+          
+          {/* Step 1: Basic Information */}
+          {currentStep === 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <FileText className="w-5 h-5" />
+                  <span>Basic Information</span>
+                </CardTitle>
+                <CardDescription>
+                  Enter the fundamental details of your grant application
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Grant Title *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter grant title" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </div>
-                
-                <div>
-                  <Label htmlFor="organization">Organization *</Label>
-                  <Controller
-                    name="organization"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        placeholder="Grant organization"
-                        className={errors.organization ? 'border-red-500' : ''}
-                      />
-                    )}
-                  />
-                  {errors.organization && (
-                    <p className="text-sm text-red-500 mt-1">{errors.organization}</p>
+                />
+
+                <FormField
+                  control={form.control}
+                  name="organization"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organization *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter organization name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="amount">Grant Amount ($) *</Label>
-                  <Controller
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
                     name="amount"
-                    control={control}
                     render={({ field }) => (
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          {...field}
-                          type="number"
-                          placeholder="0"
-                          className={`pl-10 ${errors.amount ? 'border-red-500' : ''}`}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </div>
+                      <FormItem>
+                        <FormLabel>Grant Amount *</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <DollarSign className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                            <Input 
+                              type="number" 
+                              placeholder="0" 
+                              className="pl-10"
+                              {...field}
+                              onChange={(e) => field.onChange(Number(e.target.value))}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
                   />
-                  {errors.amount && (
-                    <p className="text-sm text-red-500 mt-1">{errors.amount}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <Label htmlFor="category">Category *</Label>
-                  <Controller
+
+                  <FormField
+                    control={form.control}
                     name="category"
-                    control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger className={errors.category ? 'border-red-500' : ''}>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {GRANT_CATEGORIES.map(category => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormItem>
+                        <FormLabel>Category *</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="technology">Technology</SelectItem>
+                            <SelectItem value="research">Research</SelectItem>
+                            <SelectItem value="education">Education</SelectItem>
+                            <SelectItem value="healthcare">Healthcare</SelectItem>
+                            <SelectItem value="environment">Environment</SelectItem>
+                            <SelectItem value="arts">Arts & Culture</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
                     )}
                   />
-                  {errors.category && (
-                    <p className="text-sm text-red-500 mt-1">{errors.category}</p>
-                  )}
                 </div>
-                
-                <div>
-                  <Label htmlFor="submissionDeadline">Submission Deadline *</Label>
-                  <Controller
-                    name="submissionDeadline"
-                    control={control}
-                    render={({ field }) => (
+
+                <FormField
+                  control={form.control}
+                  name="submissionDeadline"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Submission Deadline *</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !field.value && "text-muted-foreground",
-                              errors.submissionDeadline ? 'border-red-500' : ''
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? format(field.value, "PPP") : "Pick a date"}
-                          </Button>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
+                        <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
                             selected={field.value}
-                            onSelect={(date) => {
-                              field.onChange(date);
-                              if (date) {
-                                generateAutoMilestones(date);
-                              }
-                            }}
-                            disabled={(date) => date < new Date()}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date < new Date() || date < new Date("1900-01-01")
+                            }
                             initialFocus
                           />
                         </PopoverContent>
                       </Popover>
-                    )}
-                  />
-                  {errors.submissionDeadline && (
-                    <p className="text-sm text-red-500 mt-1">{errors.submissionDeadline}</p>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                />
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Step 2: Grant Details */}
-        {currentStep === 2 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Grant Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="description">Project Description *</Label>
-                <Controller
+          {/* Step 2: Details */}
+          {currentStep === 2 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Target className="w-5 h-5" />
+                  <span>Project Details</span>
+                </CardTitle>
+                <CardDescription>
+                  Provide detailed information about your project
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <FormField
+                  control={form.control}
                   name="description"
-                  control={control}
                   render={({ field }) => (
-                    <Textarea
-                      {...field}
-                      placeholder="Provide a detailed description of your project..."
-                      rows={4}
-                      className={errors.description ? 'border-red-500' : ''}
-                    />
+                    <FormItem>
+                      <FormLabel>Project Description *</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Describe your project in detail..."
+                          className="min-h-32"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
-                {errors.description && (
-                  <p className="text-sm text-red-500 mt-1">{errors.description}</p>
-                )}
-              </div>
-              
-              <div>
-                <Label htmlFor="objectives">Project Objectives *</Label>
-                <Controller
-                  name="objectives"
-                  control={control}
-                  render={({ field }) => (
-                    <Textarea
-                      {...field}
-                      placeholder="List the main objectives and expected outcomes..."
-                      rows={3}
-                      className={errors.objectives ? 'border-red-500' : ''}
-                    />
-                  )}
-                />
-                {errors.objectives && (
-                  <p className="text-sm text-red-500 mt-1">{errors.objectives}</p>
-                )}
-              </div>
-              
-              <div>
-                <Label htmlFor="methodology">Methodology *</Label>
-                <Controller
-                  name="methodology"
-                  control={control}
-                  render={({ field }) => (
-                    <Textarea
-                      {...field}
-                      placeholder="Describe your approach and methodology..."
-                      rows={3}
-                      className={errors.methodology ? 'border-red-500' : ''}
-                    />
-                  )}
-                />
-                {errors.methodology && (
-                  <p className="text-sm text-red-500 mt-1">{errors.methodology}</p>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="budget">Budget Breakdown *</Label>
-                  <Controller
-                    name="budget"
-                    control={control}
-                    render={({ field }) => (
-                      <Textarea
-                        {...field}
-                        placeholder="Personnel: $XX,XXX&#10;Equipment: $XX,XXX&#10;Materials: $XX,XXX"
-                        rows={4}
-                        className={errors.budget ? 'border-red-500' : ''}
-                      />
-                    )}
-                  />
-                  {errors.budget && (
-                    <p className="text-sm text-red-500 mt-1">{errors.budget}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <Label htmlFor="timeline">Project Timeline *</Label>
-                  <Controller
-                    name="timeline"
-                    control={control}
-                    render={({ field }) => (
-                      <Textarea
-                        {...field}
-                        placeholder="Month 1-3: Initial research&#10;Month 4-6: Development&#10;Month 7-12: Implementation"
-                        rows={4}
-                        className={errors.timeline ? 'border-red-500' : ''}
-                      />
-                    )}
-                  />
-                  {errors.timeline && (
-                    <p className="text-sm text-red-500 mt-1">{errors.timeline}</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Step 3: Milestones & Timeline */}
-        {currentStep === 3 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="w-5 h-5" />
-                Milestones & Timeline
-              </CardTitle>
-              <p className="text-sm text-gray-600">
-                Auto-generated milestones based on your submission deadline. You can modify as needed.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {watchedValues.milestones?.map((milestone, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-semibold">{milestone.title}</h3>
-                        <p className="text-sm text-gray-600">{milestone.description}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge variant="outline">{milestone.type}</Badge>
-                        <Badge variant={
-                          milestone.priority === 'critical' ? 'destructive' :
-                          milestone.priority === 'high' ? 'destructive' :
-                          milestone.priority === 'medium' ? 'default' : 'secondary'
-                        }>
-                          {milestone.priority}
-                        </Badge>
-                      </div>
+                <div>
+                  <FormLabel>Project Objectives</FormLabel>
+                  <FormDescription className="mb-3">
+                    Add specific, measurable objectives for your project
+                  </FormDescription>
+                  {(form.getValues('objectives') || []).map((_, index) => (
+                    <div key={index} className="flex items-center space-x-2 mb-2">
+                      <FormField
+                        control={form.control}
+                        name={`objectives.${index}`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input placeholder={`Objective ${index + 1}`} {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeObjective(index)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <div className="text-sm text-gray-500 mb-3">
-                      Due: {format(milestone.dueDate, 'PPP')}
-                    </div>
-                    {milestone.tasks && milestone.tasks.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-sm mb-2">Tasks ({milestone.tasks.length})</h4>
-                        <div className="space-y-1">
-                          {milestone.tasks.map((task, taskIndex) => (
-                            <div key={taskIndex} className="text-sm text-gray-600 pl-4">
-                              • {task.title} ({task.estimatedHours}h)
-                            </div>
-                          ))}
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addObjective}
+                    className="mt-2"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Objective
+                  </Button>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="methodology"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Methodology</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Describe your approach and methodology..."
+                          className="min-h-24"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="timeline"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Timeline</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Outline your project timeline..."
+                          className="min-h-20"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 3: Milestones */}
+          {currentStep === 3 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Clock className="w-5 h-5" />
+                  <span>Project Milestones</span>
+                </CardTitle>
+                <CardDescription>
+                  Review and customize your project milestones
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {watchedValues.submissionDeadline && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      Milestones are automatically generated based on your submission deadline of{' '}
+                      <strong>{format(new Date(watchedValues.submissionDeadline), 'PPP')}</strong>
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => generateAutoMilestones(new Date(watchedValues.submissionDeadline))}
+                      className="mt-2"
+                    >
+                      Regenerate Milestones
+                    </Button>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {(watchedValues.milestones || []).map((milestone, index) => (
+                    <Card key={index} className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            {milestone.title}
+                          </h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {milestone.description}
+                          </p>
+                          <div className="flex items-center mt-2 space-x-4">
+                            <Badge variant="outline">
+                              Due: {format(new Date(milestone.milestoneDate), 'PPP')}
+                            </Badge>
+                            <Badge variant={
+                              milestone.status === 'completed' ? 'default' :
+                              milestone.status === 'in_progress' ? 'secondary' : 'outline'
+                            }>
+                              {milestone.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Step 4: Review & Submit */}
-        {currentStep === 4 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" />
-                Review & Submit
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold mb-2">Grant Summary</h3>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Title:</strong> {watchedValues.title}</div>
-                    <div><strong>Organization:</strong> {watchedValues.organization}</div>
-                    <div><strong>Amount:</strong> ${watchedValues.amount?.toLocaleString()}</div>
-                    <div><strong>Category:</strong> {watchedValues.category}</div>
-                    <div><strong>Deadline:</strong> {watchedValues.submissionDeadline ? format(watchedValues.submissionDeadline, 'PPP') : 'Not set'}</div>
+          {/* Step 4: Review */}
+          {currentStep === 4 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Review & Submit</span>
+                </CardTitle>
+                <CardDescription>
+                  Review your application and confirm submission
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Application Summary */}
+                <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-3">
+                  <h4 className="font-medium text-gray-900 dark:text-white">Application Summary</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">Title:</span> {watchedValues.title}
+                    </div>
+                    <div>
+                      <span className="font-medium">Organization:</span> {watchedValues.organization}
+                    </div>
+                    <div>
+                      <span className="font-medium">Amount:</span> ${watchedValues.amount?.toLocaleString()}
+                    </div>
+                    <div>
+                      <span className="font-medium">Category:</span> {watchedValues.category}
+                    </div>
+                    <div>
+                      <span className="font-medium">Deadline:</span>{' '}
+                      {watchedValues.submissionDeadline ? format(new Date(watchedValues.submissionDeadline), 'PPP') : 'Not set'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Milestones:</span> {watchedValues.milestones?.length || 0}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Milestones</h3>
-                  <div className="space-y-1 text-sm">
-                    {watchedValues.milestones?.map((milestone, index) => (
-                      <div key={index} className="flex justify-between">
-                        <span>{milestone.title}</span>
-                        <span className="text-gray-500">{format(milestone.dueDate, 'MMM dd')}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Confirmation Checkboxes */}
-              <div className="space-y-3 pt-4 border-t">
-                <div className="flex items-start space-x-2">
-                  <Controller
-                    name="dataAccuracy"
-                    control={control}
-                    render={({ field }) => (
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    )}
-                  />
-                  <div className="text-sm">
-                    <Label>I confirm that all information provided is accurate and complete</Label>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-2">
-                  <Controller
+
+                {/* Confirmation Checkboxes */}
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
                     name="termsAccepted"
-                    control={control}
                     render={({ field }) => (
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            I accept the terms and conditions *
+                          </FormLabel>
+                          <FormDescription>
+                            By checking this box, you agree to the grant application terms and conditions.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
                     )}
                   />
-                  <div className="text-sm">
-                    <Label>I agree to the terms and conditions</Label>
-                  </div>
-                </div>
-                
-                {(errors.dataAccuracy || errors.termsAccepted) && (
-                  <div className="text-sm text-red-500">
-                    Please confirm all required items above
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Navigation */}
-        <div className="flex justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={currentStep === 1}
-          >
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Previous
-          </Button>
-          
-          <div className="flex gap-2">
-            {onSaveDraft && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onSaveDraft({ ...formData, ...watchedValues })}
-                disabled={isLoading}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save Draft
-              </Button>
-            )}
-            
-            {currentStep < 4 ? (
-              <Button type="button" onClick={handleNext}>
-                Next
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            ) : (
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Submitting...' : 'Submit Grant'}
-              </Button>
-            )}
+                  <FormField
+                    control={form.control}
+                    name="dataAccuracy"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            I confirm the accuracy of all provided information *
+                          </FormLabel>
+                          <FormDescription>
+                            All information provided in this application is accurate and complete to the best of my knowledge.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={prevStep}
+              disabled={currentStep === 1}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Previous
+            </Button>
+
+            <div className="flex space-x-2">
+              {currentStep < 4 ? (
+                <Button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={isValidating}
+                >
+                  {isValidating ? 'Validating...' : 'Next'}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  disabled={isLoading || !watchedValues.termsAccepted || !watchedValues.dataAccuracy}
+                >
+                  {isLoading ? 'Submitting...' : 'Submit Application'}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </Form>
     </div>
   );
 };
-
-export default GrantForm;

@@ -171,11 +171,11 @@ export const grantFormStepSchemas = {
     title: z.string()
       .min(1, errorMessages.required('Grant title'))
       .max(255, errorMessages.maxLength('Grant title', 255))
-      .regex(validationPatterns.text, errorMessages.invalidCharacters('Grant title')),
+      .regex(validationPatterns.alphaNumeric, errorMessages.invalidCharacters('Grant title')),
     organization: z.string()
       .min(1, errorMessages.required('Organization'))
       .max(255, errorMessages.maxLength('Organization', 255))
-      .regex(validationPatterns.orgName, errorMessages.invalidCharacters('Organization')),
+      .regex(validationPatterns.alphaNumeric, errorMessages.invalidCharacters('Organization')),
     amount: z.number({
       invalid_type_error: 'Amount must be a number'
     }).min(0, 'Amount must be positive').optional(),
