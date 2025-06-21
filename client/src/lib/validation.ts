@@ -392,6 +392,39 @@ export type PasswordResetFormData = z.infer<typeof passwordResetFormSchema>;
 export type ChangePasswordFormData = z.infer<typeof changePasswordFormSchema>;
 export type SearchFormData = z.infer<typeof searchFormSchema>;
 
+// Enhanced validation hooks with real-time feedback
+export const useAdvancedFieldValidation = (schema?: z.ZodSchema) => {
+  const [validationState, setValidationState] = useState({
+    isValid: true,
+    hasError: false,
+    hasWarning: false,
+    message: ''
+  });
+
+  const validateField = useCallback(async (value: any) => {
+    if (!schema) {
+      setValidationState({ isValid: true, hasError: false, hasWarning: false, message: '' });
+      return { isValid: true, error: null };
+    }
+
+    try {
+      await schema.parseAsync(value);
+      setValidationState({ isValid: true, hasError: false, hasWarning: false, message: 'Valid' });
+      return { isValid: true, error: null };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const message = error.errors[0]?.message || 'Invalid value';
+        setValidationState({ isValid: false, hasError: true, hasWarning: false, message });
+        return { isValid: false, error: message };
+      }
+      setValidationState({ isValid: false, hasError: true, hasWarning: false, message: 'Validation failed' });
+      return { isValid: false, error: 'Validation failed' };
+    }
+  }, [schema]);
+
+  return { validateField, validationState };
+};
+
 // Validation helper functions
 export const validateField = (schema: z.ZodSchema, value: any) => {
   try {
@@ -422,10 +455,7 @@ export const validateForm = (schema: z.ZodSchema, data: any) => {
   }
 };
 
-// Form validation hooks for real-time validation
-export const useFieldValidation = (schema: z.ZodSchema) => {
-  return (value: any) => validateField(schema, value);
-};
+// Removed duplicate - using enhanced version above
 
 export const useFormValidation = (schema: z.ZodSchema) => {
   return (data: any) => validateForm(schema, data);

@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertCircle, XCircle, Eye, EyeOff, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFieldValidation } from '@/lib/validation';
+import { useAdvancedFieldValidation } from '@/lib/validation';
 
 interface EnhancedFormFieldProps {
   label: string;

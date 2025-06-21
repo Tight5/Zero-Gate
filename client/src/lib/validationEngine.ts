@@ -230,9 +230,9 @@ class ValidationEngine {
     const businessRules = this.rules.get(formType) || [];
     
     // Schema validation for field
-    if (schema && schema.shape && schema.shape[fieldName]) {
+    if (schema && (schema as any).shape && (schema as any).shape[fieldName]) {
       try {
-        await schema.shape[fieldName].parseAsync(value);
+        await (schema as any).shape[fieldName].parseAsync(value);
       } catch (error) {
         if (error instanceof z.ZodError) {
           return {
