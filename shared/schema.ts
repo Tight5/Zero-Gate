@@ -411,43 +411,360 @@ export const systemMetricsRelations = relations(systemMetrics, ({ one }) => ({
   }),
 }));
 
-// Zod schemas
+// Enhanced Zod schemas with comprehensive validation
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   firstName: true,
   lastName: true,
   profileImageUrl: true,
+}).extend({
+  email: z.string()
+    .email("Please enter a valid email address")
+    .min(1, "Email is required")
+    .max(255, "Email must be less than 255 characters"),
+  firstName: z.string()
+    .min(1, "First name is required")
+    .max(100, "First name must be less than 100 characters")
+    .regex(/^[a-zA-Z\s'-]+$/, "First name can only contain letters, spaces, hyphens, and apostrophes")
+    .optional(),
+  lastName: z.string()
+    .min(1, "Last name is required")
+    .max(100, "Last name must be less than 100 characters")
+    .regex(/^[a-zA-Z\s'-]+$/, "Last name can only contain letters, spaces, hyphens, and apostrophes")
+    .optional(),
+  profileImageUrl: z.string()
+    .url("Please enter a valid URL")
+    .optional()
+    .or(z.literal(""))
 });
 
 export const insertTenantSchema = createInsertSchema(tenants).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  name: z.string()
+    .min(1, "Organization name is required")
+    .max(255, "Organization name must be less than 255 characters")
+    .regex(/^[a-zA-Z0-9\s&.,'-]+$/, "Organization name contains invalid characters"),
+  domain: z.string()
+    .regex(/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/, "Please enter a valid domain")
+    .max(255, "Domain must be less than 255 characters")
+    .optional(),
+  planTier: z.enum(["basic", "professional", "enterprise"], {
+    errorMap: () => ({ message: "Please select a valid plan tier" })
+  }).default("basic"),
+  microsoft365TenantId: z.string()
+    .uuid("Microsoft 365 Tenant ID must be a valid UUID")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const insertSponsorSchema = createInsertSchema(sponsors).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  name: z.string()
+    .min(1, "Sponsor name is required")
+    .max(255, "Sponsor name must be less than 255 characters")
+    .regex(/^[a-zA-Z0-9\s&.,'-]+$/, "Sponsor name contains invalid characters"),
+  organization: z.string()
+    .min(1, "Organization is required")
+    .max(255, "Organization must be less than 255 characters")
+    .optional(),
+  domain: z.string()
+    .regex(/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/, "Please enter a valid domain")
+    .optional()
+    .or(z.literal("")),
+  email: z.string()
+    .email("Please enter a valid email address")
+    .max(255, "Email must be less than 255 characters")
+    .optional()
+    .or(z.literal("")),
+  type: z.enum(["foundation", "government", "corporation", "individual", "other"], {
+    errorMap: () => ({ message: "Please select a valid sponsor type" })
+  }).optional(),
+  relationshipStrength: z.number()
+    .int("Relationship strength must be a whole number")
+    .min(1, "Relationship strength must be at least 1")
+    .max(10, "Relationship strength cannot exceed 10")
+    .default(1),
+  relationshipManager: z.string()
+    .max(255, "Relationship manager name must be less than 255 characters")
+    .optional()
+    .or(z.literal("")),
+  notes: z.string()
+    .max(5000, "Notes must be less than 5000 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const insertGrantSchema = createInsertSchema(grants).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  name: z.string()
+    .min(1, "Grant name is required")
+    .max(255, "Grant name must be less than 255 characters"),
+  title: z.string()
+    .min(1, "Grant title is required")
+    .max(255, "Grant title must be less than 255 characters"),
+  organization: z.string()
+    .min(1, "Organization is required")
+    .max(255, "Organization must be less than 255 characters")
+    .optional(),
+  amount: z.number()
+    .positive("Grant amount must be positive")
+    .max(999999999.99, "Grant amount is too large")
+    .optional(),
+  status: z.enum(["draft", "planning", "in_progress", "submitted", "approved", "rejected", "completed"], {
+    errorMap: () => ({ message: "Please select a valid grant status" })
+  }).default("draft"),
+  submissionDeadline: z.date({
+    required_error: "Submission deadline is required",
+    invalid_type_error: "Please enter a valid date"
+  }).refine((date) => date > new Date(), {
+    message: "Submission deadline must be in the future"
+  }),
+  deadline: z.date({
+    invalid_type_error: "Please enter a valid date"
+  }).optional(),
+  notes: z.string()
+    .max(5000, "Notes must be less than 5000 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const insertGrantMilestoneSchema = createInsertSchema(grantMilestones).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  title: z.string()
+    .min(1, "Milestone title is required")
+    .max(255, "Milestone title must be less than 255 characters"),
+  description: z.string()
+    .max(1000, "Description must be less than 1000 characters")
+    .optional()
+    .or(z.literal("")),
+  milestoneDate: z.date({
+    required_error: "Milestone date is required",
+    invalid_type_error: "Please enter a valid date"
+  }),
+  status: z.enum(["pending", "in_progress", "completed", "overdue"], {
+    errorMap: () => ({ message: "Please select a valid milestone status" })
+  }).default("pending"),
 });
 
 export const insertRelationshipSchema = createInsertSchema(relationships).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  sourceId: z.string()
+    .min(1, "Source ID is required")
+    .max(255, "Source ID must be less than 255 characters"),
+  targetId: z.string()
+    .min(1, "Target ID is required")
+    .max(255, "Target ID must be less than 255 characters"),
+  personName: z.string()
+    .min(1, "Person name is required")
+    .max(255, "Person name must be less than 255 characters")
+    .regex(/^[a-zA-Z\s'-]+$/, "Person name can only contain letters, spaces, hyphens, and apostrophes")
+    .optional(),
+  relationshipType: z.enum(["colleague", "mentor", "advisor", "client", "partner", "friend", "family", "other"], {
+    errorMap: () => ({ message: "Please select a valid relationship type" })
+  }).optional(),
+  type: z.enum(["professional", "personal", "academic", "business", "other"], {
+    errorMap: () => ({ message: "Please select a valid relationship category" })
+  }).optional(),
+  strength: z.number()
+    .int("Relationship strength must be a whole number")
+    .min(1, "Relationship strength must be at least 1")
+    .max(10, "Relationship strength cannot exceed 10")
+    .default(1),
+  verified: z.boolean().default(false),
 });
+
+export const insertContentCalendarSchema = createInsertSchema(contentCalendar).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  title: z.string()
+    .min(1, "Content title is required")
+    .max(255, "Content title must be less than 255 characters"),
+  content: z.string()
+    .max(10000, "Content must be less than 10000 characters")
+    .optional()
+    .or(z.literal("")),
+  scheduledDate: z.date({
+    required_error: "Scheduled date is required",
+    invalid_type_error: "Please enter a valid date"
+  }),
+  platform: z.enum(["linkedin", "twitter", "facebook", "instagram", "email", "website", "newsletter", "press_release", "other"], {
+    errorMap: () => ({ message: "Please select a valid platform" })
+  }).optional(),
+  status: z.enum(["draft", "scheduled", "published", "cancelled"], {
+    errorMap: () => ({ message: "Please select a valid content status" })
+  }).default("draft"),
+});
+
+// Form validation schemas with enhanced validation
+export const loginFormSchema = z.object({
+  email: z.string()
+    .email("Please enter a valid email address")
+    .min(1, "Email is required"),
+  password: z.string()
+    .min(6, "Password must be at least 6 characters")
+    .min(1, "Password is required"),
+  rememberMe: z.boolean().default(false),
+});
+
+export const grantFormStepSchemas = {
+  basicInfo: z.object({
+    title: z.string()
+      .min(1, "Grant title is required")
+      .max(255, "Grant title must be less than 255 characters"),
+    organization: z.string()
+      .min(1, "Organization is required")
+      .max(255, "Organization must be less than 255 characters"),
+    amount: z.number()
+      .positive("Grant amount must be positive")
+      .max(999999999.99, "Grant amount is too large")
+      .optional(),
+    submissionDeadline: z.date({
+      required_error: "Submission deadline is required",
+      invalid_type_error: "Please enter a valid date"
+    }).refine((date) => date > new Date(), {
+      message: "Submission deadline must be in the future"
+    }),
+    category: z.enum(["research", "education", "community", "technology", "healthcare", "environment", "arts", "other"], {
+      errorMap: () => ({ message: "Please select a valid category" })
+    }),
+    status: z.enum(["draft", "planning", "in_progress"], {
+      errorMap: () => ({ message: "Please select a valid status" })
+    }).default("draft"),
+  }),
+  
+  details: z.object({
+    description: z.string()
+      .min(50, "Description must be at least 50 characters")
+      .max(5000, "Description must be less than 5000 characters"),
+    objectives: z.string()
+      .min(20, "Objectives must be at least 20 characters")
+      .max(2000, "Objectives must be less than 2000 characters"),
+    methodology: z.string()
+      .min(20, "Methodology must be at least 20 characters")
+      .max(2000, "Methodology must be less than 2000 characters"),
+    budget: z.string()
+      .min(20, "Budget details must be at least 20 characters")
+      .max(2000, "Budget details must be less than 2000 characters"),
+    timeline: z.string()
+      .min(20, "Timeline must be at least 20 characters")
+      .max(2000, "Timeline must be less than 2000 characters"),
+    teamMembers: z.array(z.string().min(1, "Team member name is required")).optional(),
+    requiredDocuments: z.array(z.string().min(1, "Document name is required")).optional(),
+  }),
+  
+  milestones: z.object({
+    milestones: z.array(z.object({
+      title: z.string()
+        .min(1, "Milestone title is required")
+        .max(255, "Milestone title must be less than 255 characters"),
+      description: z.string()
+        .max(1000, "Description must be less than 1000 characters")
+        .optional(),
+      milestoneDate: z.date({
+        required_error: "Milestone date is required",
+        invalid_type_error: "Please enter a valid date"
+      }),
+      status: z.enum(["pending", "in_progress", "completed"], {
+        errorMap: () => ({ message: "Please select a valid status" })
+      }).default("pending"),
+    })).min(1, "At least one milestone is required"),
+  }),
+  
+  review: z.object({
+    termsAccepted: z.boolean()
+      .refine((val) => val === true, {
+        message: "You must accept the terms and conditions"
+      }),
+    dataAccuracy: z.boolean()
+      .refine((val) => val === true, {
+        message: "You must confirm the data accuracy"
+      }),
+  }),
+};
+
+export const sponsorFormSchema = z.object({
+  name: z.string()
+    .min(1, "Sponsor name is required")
+    .max(255, "Sponsor name must be less than 255 characters")
+    .regex(/^[a-zA-Z0-9\s&.,'-]+$/, "Sponsor name contains invalid characters"),
+  organization: z.string()
+    .min(1, "Organization is required")
+    .max(255, "Organization must be less than 255 characters"),
+  email: z.string()
+    .email("Please enter a valid email address")
+    .max(255, "Email must be less than 255 characters")
+    .optional()
+    .or(z.literal("")),
+  phone: z.string()
+    .regex(/^[\+]?[1-9][\d]{0,15}$/, "Please enter a valid phone number")
+    .optional()
+    .or(z.literal("")),
+  type: z.enum(["foundation", "government", "corporation", "individual", "other"], {
+    errorMap: () => ({ message: "Please select a valid sponsor type" })
+  }),
+  relationshipManager: z.string()
+    .max(255, "Relationship manager name must be less than 255 characters")
+    .optional()
+    .or(z.literal("")),
+  relationshipStrength: z.number()
+    .int("Relationship strength must be a whole number")
+    .min(1, "Relationship strength must be at least 1")
+    .max(10, "Relationship strength cannot exceed 10")
+    .default(5),
+  tags: z.array(z.string().min(1, "Tag cannot be empty")).optional(),
+  notes: z.string()
+    .max(5000, "Notes must be less than 5000 characters")
+    .optional()
+    .or(z.literal("")),
+});
+
+// All type exports consolidated
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
+export type UpsertUser = typeof users.$inferInsert;
+
+export type InsertTenant = z.infer<typeof insertTenantSchema>;
+export type Tenant = typeof tenants.$inferSelect;
+
+export type InsertSponsor = z.infer<typeof insertSponsorSchema>;
+export type Sponsor = typeof sponsors.$inferSelect;
+
+export type InsertGrant = z.infer<typeof insertGrantSchema>;
+export type Grant = typeof grants.$inferSelect;
+
+export type InsertGrantMilestone = z.infer<typeof insertGrantMilestoneSchema>;
+export type GrantMilestone = typeof grantMilestones.$inferSelect;
+
+export type InsertRelationship = z.infer<typeof insertRelationshipSchema>;
+export type Relationship = typeof relationships.$inferSelect;
+
+export type InsertContentCalendar = z.infer<typeof insertContentCalendarSchema>;
+export type ContentCalendar = typeof contentCalendar.$inferSelect;
+
+// Form data types
+export type LoginFormData = z.infer<typeof loginFormSchema>;
+export type SponsorFormData = z.infer<typeof sponsorFormSchema>;
+export type GrantBasicInfoData = z.infer<typeof grantFormStepSchemas.basicInfo>;
+export type GrantDetailsData = z.infer<typeof grantFormStepSchemas.details>;
+export type GrantMilestonesData = z.infer<typeof grantFormStepSchemas.milestones>;
+export type GrantReviewData = z.infer<typeof grantFormStepSchemas.review>;
 
 export const insertSponsorDiscoverySchema = createInsertSchema(sponsorDiscovery).omit({
   id: true,
@@ -488,24 +805,18 @@ export const insertSponsorTopicSchema = createInsertSchema(sponsorTopics).omit({
   updatedAt: true,
 });
 
-export const insertContentCalendarSchema = createInsertSchema(contentCalendar).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-// Types
-export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
-export type InsertTenant = z.infer<typeof insertTenantSchema>;
-export type Tenant = typeof tenants.$inferSelect;
-export type InsertSponsor = z.infer<typeof insertSponsorSchema>;
-export type Sponsor = typeof sponsors.$inferSelect;
-export type InsertGrant = z.infer<typeof insertGrantSchema>;
-export type Grant = typeof grants.$inferSelect;
-export type InsertGrantMilestone = z.infer<typeof insertGrantMilestoneSchema>;
-export type GrantMilestone = typeof grantMilestones.$inferSelect;
-export type InsertRelationship = z.infer<typeof insertRelationshipSchema>;
-export type Relationship = typeof relationships.$inferSelect;
-export type InsertContentCalendar = z.infer<typeof insertContentCalendarSchema>;
-export type ContentCalendar = typeof contentCalendar.$inferSelect;
+// Additional schema types
+export type InsertSponsorDiscovery = z.infer<typeof insertSponsorDiscoverySchema>;
+export type SponsorDiscovery = typeof sponsorDiscovery.$inferSelect;
+export type InsertSponsorOrganization = z.infer<typeof insertSponsorOrganizationSchema>;
+export type SponsorOrganization = typeof sponsorOrganization.$inferSelect;
+export type InsertAgentTask = z.infer<typeof insertAgentTaskSchema>;
+export type AgentTask = typeof agentTasks.$inferSelect;
+export type InsertDataClassification = z.infer<typeof insertDataClassificationSchema>;
+export type DataClassification = typeof dataClassification.$inferSelect;
+export type InsertTenantDataFeed = z.infer<typeof insertTenantDataFeedSchema>;
+export type TenantDataFeed = typeof tenantDataFeeds.$inferSelect;
+export type InsertSponsorStakeholder = z.infer<typeof insertSponsorStakeholderSchema>;
+export type SponsorStakeholder = typeof sponsorStakeholders.$inferSelect;
+export type InsertSponsorTopic = z.infer<typeof insertSponsorTopicSchema>;
+export type SponsorTopic = typeof sponsorTopics.$inferSelect;
