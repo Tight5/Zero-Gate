@@ -218,7 +218,7 @@ const AttachedAssetComplianceValidator: React.FC = () => {
 
     return {
       overallCompliance,
-      categoryCompliance: categoryCompliance as Record<string, number>,
+      categoryCompliance,
       totalFiles,
       compliantFiles,
       deviationCount,

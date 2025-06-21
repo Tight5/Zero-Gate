@@ -81,13 +81,23 @@ export const ValidationDashboard: React.FC = () => {
       </div>
 
       <Tabs defaultValue="compliance" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="compliance">Attached Asset Compliance</TabsTrigger>
-          <TabsTrigger value="integration">Validation Integration Testing</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="compliance">Asset Compliance</TabsTrigger>
+          <TabsTrigger value="critical">Critical Analysis</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="integration">Integration Testing</TabsTrigger>
         </TabsList>
         
         <TabsContent value="compliance">
           <AttachedAssetValidationCompliance />
+        </TabsContent>
+        
+        <TabsContent value="critical">
+          <AttachedAssetComplianceValidator />
+        </TabsContent>
+        
+        <TabsContent value="performance">
+          <MemoryComplianceMonitor />
         </TabsContent>
         
         <TabsContent value="integration">
