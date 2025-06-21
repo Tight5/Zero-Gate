@@ -63,7 +63,6 @@ export const GrantTimeline: React.FC<GrantTimelineProps> = ({
   readonly = false
 }) => {
   const [selectedMilestone, setSelectedMilestone] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'timeline' | 'calendar' | 'tasks'>('timeline');
 
   // Calculate timeline metrics
   const timelineMetrics = useMemo(() => {
@@ -210,124 +209,90 @@ export const GrantTimeline: React.FC<GrantTimelineProps> = ({
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
-                {timelineMetrics.completedMilestones}/{timelineMetrics.totalMilestones}
-              </div>
-              <div className="text-sm text-gray-600">Milestones</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                {timelineMetrics.completedTasks}/{timelineMetrics.totalTasks}
-              </div>
-              <div className="text-sm text-gray-600">Tasks</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">
                 {timelineMetrics.overdueMilestones}
               </div>
               <div className="text-sm text-gray-600">Overdue</div>
             </div>
           </div>
           
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Progress</span>
-              <span>{timelineMetrics.progressPercentage.toFixed(1)}%</span>
-            </div>
-            <Progress value={timelineMetrics.progressPercentage} className="w-full" />
-          </div>
+          <Progress value={timelineMetrics.progressPercentage} className="w-full" />
         </CardContent>
       </Card>
 
-      {/* View Mode Selector */}
-      <div className="flex justify-between items-center">
-        <div className="flex gap-1">
-          <Button
-            variant={viewMode === 'timeline' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('timeline')}
-          >
-            Timeline
-          </Button>
-          <Button
-            variant={viewMode === 'calendar' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('calendar')}
-          >
-            Calendar
-          </Button>
-          <Button
-            variant={viewMode === 'tasks' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('tasks')}
-          >
-            Tasks
-          </Button>
-        </div>
-        
-        {!readonly && (
-          <Button onClick={onAddMilestone} size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Milestone
-          </Button>
-        )}
-      </div>
-
-      {/* Timeline View */}
-      {viewMode === 'timeline' && (
-        <div className="space-y-4">
-          {sortedMilestones.map((milestone, index) => (
-            <Card key={milestone.id} className={`border-l-4 ${getMilestoneStatusColor(milestone)}`}>
-              <CardHeader className="pb-4">
+      {/* Milestones Timeline */}
+      <div className="space-y-4">
+        {sortedMilestones.map((milestone, index) => {
+          const isSelected = selectedMilestone === milestone.id;
+          const taskCompletion = milestone.tasks.length > 0 
+            ? (milestone.tasks.filter(t => t.completed).length / milestone.tasks.length) * 100 
+            : 0;
+          
+          return (
+            <Card 
+              key={milestone.id} 
+              className={`${getMilestoneStatusColor(milestone)} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+            >
+              <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-3">
                     {getMilestoneStatusIcon(milestone)}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-lg">{milestone.title}</h3>
-                        <Badge variant={getPriorityBadgeVariant(milestone.priority)}>
-                          {milestone.priority}
-                        </Badge>
-                        <Badge variant="outline">
-                          {milestone.type}
-                        </Badge>
-                      </div>
-                      <p className="text-gray-600 text-sm mb-2">{milestone.description}</p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Due: {format(milestone.dueDate, 'MMM dd, yyyy')}</span>
-                        {milestone.completedDate && (
-                          <span>Completed: {format(milestone.completedDate, 'MMM dd, yyyy')}</span>
-                        )}
-                        <span>{milestone.tasks.length} tasks</span>
-                      </div>
+                    <div>
+                      <CardTitle className="text-lg">{milestone.title}</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">{milestone.description}</p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {!readonly && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleMilestoneComplete(milestone.id)}
-                        >
-                          {milestone.status === 'completed' ? 'Mark Incomplete' : 'Mark Complete'}
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant={getPriorityBadgeVariant(milestone.priority) as any}>
+                      {milestone.priority}
+                    </Badge>
+                    <Badge variant="outline">
+                      {milestone.type}
+                    </Badge>
                   </div>
                 </div>
+                
+                <div className="flex justify-between items-center mt-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Clock className="w-4 h-4" />
+                    Due: {format(milestone.dueDate, 'MMM dd, yyyy')}
+                    <span className="text-xs">
+                      ({differenceInDays(milestone.dueDate, new Date())} days)
+                    </span>
+                  </div>
+                  {!readonly && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleMilestoneComplete(milestone.id)}
+                      >
+                        {milestone.status === 'completed' ? 'Mark Incomplete' : 'Mark Complete'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSelectedMilestone(isSelected ? null : milestone.id)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
-              
-              {/* Milestone Tasks */}
-              {milestone.tasks.length > 0 && (
-                <CardContent>
+
+              {(isSelected || milestone.tasks.length > 0) && (
+                <CardContent className="pt-0">
                   <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-gray-700">Tasks ({milestone.tasks.filter(t => t.completed).length}/{milestone.tasks.length} completed)</h4>
-                    <div className="grid gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Tasks ({milestone.tasks.filter(t => t.completed).length}/{milestone.tasks.length})
+                      </span>
+                      <Progress value={taskCompletion} className="w-24 h-2" />
+                    </div>
+                    
+                    <div className="space-y-2">
                       {milestone.tasks.map((task) => (
-                        <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                        <div key={task.id} className="flex items-center gap-3 p-2 rounded border">
                           <Checkbox
                             checked={task.completed}
                             onCheckedChange={(checked) => 
@@ -335,83 +300,44 @@ export const GrantTimeline: React.FC<GrantTimelineProps> = ({
                             }
                             disabled={readonly}
                           />
-                          <div className="flex-1 min-w-0">
-                            <div className={`font-medium text-sm ${task.completed ? 'line-through text-gray-500' : ''}`}>
+                          <div className="flex-1">
+                            <div className={`text-sm ${task.completed ? 'line-through text-gray-500' : ''}`}>
                               {task.title}
                             </div>
-                            <div className="text-xs text-gray-600 mt-1">{task.description}</div>
-                            <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            {task.description && (
+                              <div className="text-xs text-gray-600 mt-1">{task.description}</div>
+                            )}
+                            <div className="flex gap-4 text-xs text-gray-500 mt-1">
                               <span>Due: {format(task.dueDate, 'MMM dd')}</span>
                               <span>Est: {task.estimatedHours}h</span>
-                              {task.assignee && <span>Assigned: {task.assignee}</span>}
                               {task.actualHours && <span>Actual: {task.actualHours}h</span>}
+                              {task.assignee && <span>Assignee: {task.assignee}</span>}
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
+                    
+                    {!readonly && (
+                      <Button size="sm" variant="ghost" className="w-full">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Task
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               )}
             </Card>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* Calendar View */}
-      {viewMode === 'calendar' && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-7 gap-1 mb-4">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="p-2 text-center text-sm font-medium text-gray-600">
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="text-center py-8 text-gray-500">
-              Calendar view implementation would go here
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tasks View */}
-      {viewMode === 'tasks' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>All Tasks</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {grant.milestones.flatMap(milestone => 
-                milestone.tasks.map(task => (
-                  <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg border">
-                    <Checkbox
-                      checked={task.completed}
-                      onCheckedChange={(checked) => 
-                        handleTaskToggle(milestone.id, task.id, checked as boolean)
-                      }
-                      disabled={readonly}
-                    />
-                    <div className="flex-1">
-                      <div className={`font-medium ${task.completed ? 'line-through text-gray-500' : ''}`}>
-                        {task.title}
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">{task.description}</div>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                        <span>Milestone: {grant.milestones.find(m => m.tasks.some(t => t.id === task.id))?.title}</span>
-                        <span>Due: {format(task.dueDate, 'MMM dd, yyyy')}</span>
-                        <span>Est: {task.estimatedHours}h</span>
-                        {task.assignee && <span>Assigned: {task.assignee}</span>}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Add Milestone Button */}
+      {!readonly && onAddMilestone && (
+        <Button onClick={onAddMilestone} className="w-full" variant="outline">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Milestone
+        </Button>
       )}
     </div>
   );
