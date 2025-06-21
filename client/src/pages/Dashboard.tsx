@@ -244,31 +244,33 @@ const Dashboard: React.FC = () => {
               </CardContent>
             </Card>
             
-            <Card>
-              <CardHeader>
-                <CardTitle>System Performance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">API Response</span>
-                    <Badge variant={metrics?.systemHealth.apiStatus === 'healthy' ? 'default' : 'destructive'}>
-                      {metrics?.systemHealth.apiStatus || 'Unknown'}
-                    </Badge>
+{isAdminMode && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Performance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">API Response</span>
+                      <Badge variant={metrics?.systemHealth.apiStatus === 'healthy' ? 'default' : 'destructive'}>
+                        {metrics?.systemHealth.apiStatus || 'Unknown'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Data Pipeline</span>
+                      <Badge variant="default">Operational</Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Integration Status</span>
+                      <Badge variant={metrics?.microsoftIntegration.healthStatus === 'healthy' ? 'default' : 'secondary'}>
+                        {metrics?.microsoftIntegration.healthStatus || 'Unknown'}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Data Pipeline</span>
-                    <Badge variant="default">Operational</Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Integration Status</span>
-                    <Badge variant={metrics?.microsoftIntegration.healthStatus === 'healthy' ? 'default' : 'secondary'}>
-                      {metrics?.microsoftIntegration.healthStatus || 'Unknown'}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
         
@@ -438,8 +440,8 @@ const Dashboard: React.FC = () => {
         )}
       </Tabs>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className={`grid gap-4 ${isAdminMode ? 'md:grid-cols-2 lg:grid-cols-7' : 'md:grid-cols-1'}`}>
+        <Card className={isAdminMode ? "col-span-4" : "w-full"}>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
@@ -479,30 +481,32 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
         
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>System Status</CardTitle>
-            <CardDescription>
-              Platform health and performance
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Memory Usage</span>
-                <span className="text-sm font-medium">78%</span>
+{isAdminMode && (
+          <Card className="col-span-3">
+            <CardHeader>
+              <CardTitle>System Status</CardTitle>
+              <CardDescription>
+                Platform health and performance
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Memory Usage</span>
+                  <span className="text-sm font-medium">78%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Active Sessions</span>
+                  <span className="text-sm font-medium">12</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Response Time</span>
+                  <span className="text-sm font-medium">45ms</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Active Sessions</span>
-                <span className="text-sm font-medium">12</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Response Time</span>
-                <span className="text-sm font-medium">45ms</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
