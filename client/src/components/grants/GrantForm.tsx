@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -30,58 +31,22 @@ import {
   Target,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  X
 } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { 
+  grantFormStepSchemas, 
+  type GrantBasicInfoData,
+  type GrantDetailsData,
+  type GrantMilestonesData,
+  type GrantReviewData
+} from '@/lib/validation';
 
-// Form validation schemas for each step
-const basicInfoSchema = z.object({
-  title: z.string().min(1, 'Grant title is required'),
-  organization: z.string().min(1, 'Organization is required'),
-  amount: z.number().min(1, 'Amount must be greater than 0'),
-  submissionDeadline: z.date({
-    required_error: 'Submission deadline is required'
-  }),
-  category: z.string().min(1, 'Category is required'),
-  status: z.enum(['draft', 'in-progress', 'submitted', 'under-review', 'awarded', 'rejected'])
-});
-
-const detailsSchema = z.object({
-  description: z.string().min(10, 'Description must be at least 10 characters'),
-  objectives: z.string().min(10, 'Objectives must be at least 10 characters'),
-  methodology: z.string().min(10, 'Methodology must be at least 10 characters'),
-  budget: z.string().min(1, 'Budget breakdown is required'),
-  timeline: z.string().min(1, 'Timeline is required'),
-  teamMembers: z.array(z.string()).optional(),
-  requiredDocuments: z.array(z.string()).optional()
-});
-
-const milestonesSchema = z.object({
-  milestones: z.array(z.object({
-    title: z.string().min(1, 'Milestone title is required'),
-    description: z.string().min(1, 'Milestone description is required'),
-    dueDate: z.date(),
-    type: z.enum(['90-day', '60-day', '30-day', 'submission', 'custom']),
-    priority: z.enum(['low', 'medium', 'high', 'critical']),
-    tasks: z.array(z.object({
-      title: z.string().min(1, 'Task title is required'),
-      description: z.string().optional(),
-      estimatedHours: z.number().min(0),
-      assignee: z.string().optional()
-    })).optional()
-  }))
-});
-
-const reviewSchema = z.object({
-  termsAccepted: z.boolean().refine(val => val === true, 'Must accept terms'),
-  dataAccuracy: z.boolean().refine(val => val === true, 'Must confirm data accuracy')
-});
-
-type FormData = z.infer<typeof basicInfoSchema> & 
-                z.infer<typeof detailsSchema> & 
-                z.infer<typeof milestonesSchema> & 
-                z.infer<typeof reviewSchema>;
+// Combined form data type from comprehensive validation schemas
+type FormData = GrantBasicInfoData & GrantDetailsData & GrantMilestonesData & GrantReviewData;
 
 interface GrantFormProps {
   initialData?: Partial<FormData>;
