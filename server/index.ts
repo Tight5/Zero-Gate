@@ -13,6 +13,7 @@ import grantsRouter from "./routes/grants";
 import tenantDataFeedsRouter from "./routes/tenant-data-feeds";
 import onedriveStorageRouter from "./routes/onedrive-storage";
 import sponsorDiscoveryRouter from "./routes/sponsor-discovery";
+import orchestrationRouter from "./routes/orchestration";
 
 // Create Express app with API-first routing
 const app = express();
@@ -39,6 +40,7 @@ apiRouter.use('/grants', grantsRouter);
 apiRouter.use('/tenant-data-feeds', tenantDataFeedsRouter);
 apiRouter.use('/onedrive-storage', onedriveStorageRouter);
 apiRouter.use('/sponsor-discovery', sponsorDiscoveryRouter);
+apiRouter.use('/orchestration', orchestrationRouter);
 
 // Health endpoint - must be before Vite middleware
 app.get('/health', (req: Request, res: Response) => {

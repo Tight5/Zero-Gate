@@ -153,10 +153,9 @@ router.post('/memory/optimize', async (req: Request, res: Response) => {
         'background_sync'
       ];
 
-      orchestrationState.memory_status.degraded_features = [...new Set([
-        ...orchestrationState.memory_status.degraded_features,
-        ...degradedFeatures
-      ])];
+      const existingFeatures = orchestrationState.memory_status.degraded_features;
+      const allFeatures = existingFeatures.concat(degradedFeatures);
+      orchestrationState.memory_status.degraded_features = Array.from(new Set(allFeatures));
 
       // Update enabled features
       orchestrationState.enabled_features = orchestrationState.enabled_features.filter(

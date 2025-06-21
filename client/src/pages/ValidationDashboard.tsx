@@ -13,6 +13,7 @@ import AttachedAssetValidationCompliance from '@/components/validation/AttachedA
 import EnhancedValidationIntegration from '@/components/validation/EnhancedValidationIntegration';
 import AttachedAssetComplianceValidator from '@/components/compliance/AttachedAssetComplianceValidator';
 import MemoryComplianceMonitor from '@/components/performance/MemoryComplianceMonitor';
+import OrchestrationMemoryDashboard from '@/components/orchestration/OrchestrationMemoryDashboard';
 
 export const ValidationDashboard: React.FC = () => {
   return (
@@ -97,7 +98,10 @@ export const ValidationDashboard: React.FC = () => {
         </TabsContent>
         
         <TabsContent value="performance">
-          <MemoryComplianceMonitor />
+          <div className="space-y-6">
+            <MemoryComplianceMonitor />
+            <OrchestrationMemoryDashboard />
+          </div>
         </TabsContent>
         
         <TabsContent value="integration">
