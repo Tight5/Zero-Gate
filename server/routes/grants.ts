@@ -7,7 +7,7 @@ import { eq, and, desc, asc, sql, count } from 'drizzle-orm';
 const router = Router();
 
 // Get all grants for tenant
-router.get('/grants', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
     
@@ -29,7 +29,7 @@ router.get('/grants', async (req, res) => {
 });
 
 // Get single grant with milestones
-router.get('/grants/:grantId', async (req, res) => {
+router.get('/:grantId', async (req, res) => {
   try {
     const { grantId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -61,7 +61,7 @@ router.get('/grants/:grantId', async (req, res) => {
 });
 
 // Create new grant (basic endpoint for testing)
-router.post('/grants', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     res.status(201).json({
       message: 'Grant creation endpoint available - schema alignment in progress',
@@ -74,7 +74,7 @@ router.post('/grants', async (req, res) => {
 });
 
 // Update grant (basic endpoint for testing)
-router.put('/grants/:grantId', async (req, res) => {
+router.put('/:grantId', async (req, res) => {
   try {
     const { grantId } = req.params;
     res.json({
@@ -89,7 +89,7 @@ router.put('/grants/:grantId', async (req, res) => {
 });
 
 // Delete grant
-router.delete('/grants/:grantId', async (req, res) => {
+router.delete('/:grantId', async (req, res) => {
   try {
     const { grantId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -121,7 +121,7 @@ router.delete('/grants/:grantId', async (req, res) => {
 });
 
 // Get grant analytics and metrics (simplified)
-router.get('/grants/analytics/summary', async (req, res) => {
+router.get('/analytics/summary', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
     
