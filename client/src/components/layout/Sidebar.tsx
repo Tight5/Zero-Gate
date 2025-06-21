@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface SidebarProps {
   isCollapsed?: boolean;
@@ -59,13 +60,15 @@ const navigationItems = [
     path: '/validation',
     label: 'Validation System',
     icon: ValidationIcon,
-    description: 'Comprehensive validation enhancement dashboard'
+    description: 'Comprehensive validation enhancement dashboard',
+    adminOnly: true
   },
   {
     path: '/orchestration',
     label: 'Orchestration',
     icon: SettingsIcon,
-    description: 'Workflow management and monitoring'
+    description: 'Workflow management and monitoring',
+    adminOnly: true
   },
   {
     path: '/settings',
@@ -77,6 +80,15 @@ const navigationItems = [
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
   const [location] = useLocation();
+  const { isAdminMode } = useTenant();
+
+  // Filter navigation items based on admin mode
+  const filteredNavigationItems = navigationItems.filter(item => {
+    if (item.adminOnly) {
+      return isAdminMode;
+    }
+    return true;
+  });
 
   return (
     <div className={cn(
@@ -85,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
     )}>
       <ScrollArea className="flex-1 py-2">
         <nav className="space-y-1 px-2">
-          {navigationItems.map((item) => {
+          {filteredNavigationItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = location === item.path || (item.path !== '/' && location.startsWith(item.path));
             
