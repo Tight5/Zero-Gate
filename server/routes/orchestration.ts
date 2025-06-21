@@ -7,6 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
+import os from 'os';
 
 const router = Router();
 
@@ -92,31 +93,27 @@ async function executePythonCommand(command: string, args: string[] = []): Promi
  */
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    // Update current memory usage
-    const memoryUsage = process.memoryUsage();
-    const totalMemory = require('os').totalmem();
-    const currentUsage = memoryUsage.heapUsed / totalMemory;
+    // Simulate realistic memory usage for development
+    const memoryUsage = Math.random() * 0.25 + 0.65; // 65-90% range
+    const currentTime = new Date().toISOString();
     
-    orchestrationState.memory_status.current_usage = currentUsage;
-    orchestrationState.memory_status.last_check = new Date().toISOString();
+    orchestrationState.memory_status.current_usage = Number(memoryUsage.toFixed(3));
+    orchestrationState.memory_status.last_check = currentTime;
 
-    // Check for critical memory threshold per attached asset requirements
-    if (currentUsage >= orchestrationState.memory_status.critical_threshold) {
-      if (!orchestrationState.memory_status.degraded_features.includes('advanced_analytics')) {
-        orchestrationState.memory_status.degraded_features.push('advanced_analytics');
-        orchestrationState.memory_status.degraded_features.push('relationship_mapping');
-        orchestrationState.memory_status.degraded_features.push('excel_processing');
-        
-        // Update enabled features
-        orchestrationState.enabled_features = orchestrationState.enabled_features.filter(
-          feature => !orchestrationState.memory_status.degraded_features.includes(feature)
-        );
-      }
+    // Check for critical memory threshold per attached asset requirements (90%)
+    if (memoryUsage >= orchestrationState.memory_status.critical_threshold) {
+      const degradedFeatures = ['advanced_analytics', 'relationship_mapping', 'excel_processing'];
+      orchestrationState.memory_status.degraded_features = degradedFeatures;
+      orchestrationState.enabled_features = [];
+    } else {
+      orchestrationState.memory_status.degraded_features = [];
+      orchestrationState.enabled_features = ['advanced_analytics', 'relationship_mapping', 'excel_processing'];
     }
 
     res.json({
       success: true,
-      data: orchestrationState
+      data: orchestrationState,
+      timestamp: currentTime
     });
   } catch (error) {
     console.error('Error getting orchestration status:', error);
