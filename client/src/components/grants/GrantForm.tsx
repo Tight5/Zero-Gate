@@ -44,6 +44,7 @@ import {
   type GrantMilestonesData,
   type GrantReviewData
 } from '@/lib/validation';
+import { generateCompatibleMilestones, validateMilestoneData } from '@/utils/grantFormHelpers';
 
 // Combined form data type from comprehensive validation schemas
 type FormData = GrantBasicInfoData & GrantDetailsData & GrantMilestonesData & GrantReviewData;
@@ -168,7 +169,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({
     
     switch (currentStep) {
       case 1:
-        schema = basicInfoSchema;
+        schema = grantFormStepSchemas.basicInfo;
         dataToValidate = {
           title: watchedValues.title,
           organization: watchedValues.organization,
@@ -179,7 +180,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({
         };
         break;
       case 2:
-        schema = detailsSchema;
+        schema = grantFormStepSchemas.details;
         dataToValidate = {
           description: watchedValues.description,
           objectives: watchedValues.objectives,
@@ -191,13 +192,13 @@ export const GrantForm: React.FC<GrantFormProps> = ({
         };
         break;
       case 3:
-        schema = milestonesSchema;
+        schema = grantFormStepSchemas.milestones;
         dataToValidate = {
           milestones: watchedValues.milestones || []
         };
         break;
       case 4:
-        schema = reviewSchema;
+        schema = grantFormStepSchemas.review;
         dataToValidate = {
           termsAccepted: watchedValues.termsAccepted,
           dataAccuracy: watchedValues.dataAccuracy
