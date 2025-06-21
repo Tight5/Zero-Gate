@@ -68,17 +68,25 @@ export const tenantContextMiddleware = (req: TenantRequest, res: Response, next:
     if (!isAdminMode) {
       const extractedTenantId = extractTenantId(req);
       
+      // Tenant ID mapping to UUIDs
+      const TENANT_UUID_MAP: Record<string, string> = {
+        '1': 'e65c0a99-fbbe-424c-9152-e1778ccdf03d', // NASDAQ Center
+        '2': 'f75d1b88-6abe-435d-a263-f1889ddef04e', // Tight5 Digital
+        '3': 'a85e2c77-7bce-446e-b374-e2990eeff05f'  // Innovation Hub
+      };
+
       // Default tenant assignment based on user email
       if (!extractedTenantId) {
         if (userEmail.includes('thecenter.nasdaq.org')) {
-          tenantId = '1'; // NASDAQ Center
+          tenantId = TENANT_UUID_MAP['1']; // NASDAQ Center
         } else if (userEmail.includes('tight5digital.com')) {
-          tenantId = '2'; // Tight5 Digital
+          tenantId = TENANT_UUID_MAP['2']; // Tight5 Digital
         } else {
-          tenantId = '1'; // Default fallback
+          tenantId = TENANT_UUID_MAP['1']; // Default fallback
         }
       } else {
-        tenantId = extractedTenantId;
+        // Map string tenant IDs to UUIDs if needed
+        tenantId = TENANT_UUID_MAP[extractedTenantId] || extractedTenantId;
       }
     }
     

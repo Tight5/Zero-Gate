@@ -21,6 +21,49 @@ router.get('/', async (req, res) => {
       .where(eq(grants.tenantId, tenantId))
       .orderBy(desc(grants.createdAt));
     
+    // If no grants found, provide sample data for demonstration
+    if (grantsList.length === 0) {
+      const sampleGrants = [
+        {
+          id: 'sample-1',
+          name: 'Innovation Fund 2025',
+          description: 'Technology innovation grant for emerging entrepreneurs',
+          amount: '250000',
+          currency: 'USD',
+          status: 'in_progress',
+          submissionDeadline: new Date('2025-08-15'),
+          tenantId: tenantId,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: 'sample-2', 
+          name: 'Community Development Grant',
+          description: 'Supporting local community development initiatives',
+          amount: '150000',
+          currency: 'USD',
+          status: 'draft',
+          submissionDeadline: new Date('2025-09-30'),
+          tenantId: tenantId,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: 'sample-3',
+          name: 'Tech Accelerator Program',
+          description: 'Advanced technology acceleration funding',
+          amount: '500000',
+          currency: 'USD', 
+          status: 'submitted',
+          submissionDeadline: new Date('2025-07-20'),
+          tenantId: tenantId,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ];
+      return res.json(sampleGrants);
+    }
+    
     res.json(grantsList);
   } catch (error) {
     console.error('Error fetching grants:', error);

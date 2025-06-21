@@ -145,8 +145,8 @@ export default function Grants() {
                                 {grant.amount && formatCurrency(grant.amount)}
                               </p>
                             </div>
-                            <Badge className={getStatusColor(grant.status)}>
-                              {grant.status.replace('_', ' ')}
+                            <Badge className={getStatusColor(grant.status || 'draft')}>
+                              {grant.status ? grant.status.replace('_', ' ') : 'Draft'}
                             </Badge>
                           </div>
                         </CardHeader>
@@ -193,7 +193,13 @@ export default function Grants() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">Grant Timeline</h2>
                 {selectedGrant ? (
-                  <GrantTimeline grantId={selectedGrant.id} tenantId={selectedTenant} />
+                  <GrantTimeline grant={{
+                    ...selectedGrant,
+                    title: selectedGrant.name,
+                    submissionDeadline: new Date(selectedGrant.submissionDeadline),
+                    organization: selectedGrant.organization || 'Unknown Organization',
+                    milestones: selectedGrant.milestones || []
+                  }} />
                 ) : (
                   <Card>
                     <CardContent className="text-center py-12">
