@@ -69,7 +69,7 @@ export const EnhancedFormField: React.FC<EnhancedFormFieldProps> = ({
   const characterCount = stringValue.length;
   const progressPercentage = maxLength ? Math.min((characterCount / maxLength) * 100, 100) : 0;
   
-  const { validateField, validationState } = useFieldValidation(validationSchema);
+  const { validateField, validationState } = useAdvancedFieldValidation(validationSchema);
 
   useEffect(() => {
     if (hasBeenTouched && validationSchema) {
