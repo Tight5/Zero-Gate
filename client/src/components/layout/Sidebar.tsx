@@ -7,7 +7,8 @@ import {
   FileText as GrantsIcon,
   Calendar as CalendarIcon,
   Settings as SettingsIcon,
-  PieChart as AnalyticsIcon
+  PieChart as AnalyticsIcon,
+  CheckCircle as ValidationIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,12 @@ const navigationItems = [
     label: 'Analytics',
     icon: AnalyticsIcon,
     description: 'Advanced analytics and insights'
+  },
+  {
+    path: '/validation',
+    label: 'Validation System',
+    icon: ValidationIcon,
+    description: 'Comprehensive validation enhancement dashboard'
   },
   {
     path: '/orchestration',
