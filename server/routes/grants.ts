@@ -32,9 +32,38 @@ router.get('/', async (req, res) => {
           currency: 'USD',
           status: 'in_progress',
           submissionDeadline: new Date('2025-08-15'),
+          organization: 'NASDAQ Center Innovation Hub',
           tenantId: tenantId,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          milestones: [
+            {
+              id: 'milestone-1',
+              title: '90-Day Research Phase',
+              description: 'Complete market research and feasibility analysis',
+              dueDate: new Date('2025-05-17'),
+              status: 'completed',
+              type: '90-day',
+              priority: 'high',
+              tasks: [
+                { id: 'task-1', title: 'Market Analysis', completed: true, dueDate: new Date('2025-05-10') },
+                { id: 'task-2', title: 'Competitive Research', completed: true, dueDate: new Date('2025-05-15') }
+              ]
+            },
+            {
+              id: 'milestone-2',
+              title: '60-Day Development Phase',
+              description: 'Develop prototype and initial testing',
+              dueDate: new Date('2025-06-16'),
+              status: 'in-progress',
+              type: '60-day',
+              priority: 'high',
+              tasks: [
+                { id: 'task-3', title: 'Prototype Development', completed: false, dueDate: new Date('2025-06-10') },
+                { id: 'task-4', title: 'User Testing', completed: false, dueDate: new Date('2025-06-15') }
+              ]
+            }
+          ]
         },
         {
           id: 'sample-2', 
@@ -44,9 +73,11 @@ router.get('/', async (req, res) => {
           currency: 'USD',
           status: 'draft',
           submissionDeadline: new Date('2025-09-30'),
+          organization: 'Community Foundation',
           tenantId: tenantId,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          milestones: []
         },
         {
           id: 'sample-3',
@@ -56,9 +87,22 @@ router.get('/', async (req, res) => {
           currency: 'USD', 
           status: 'submitted',
           submissionDeadline: new Date('2025-07-20'),
+          organization: 'Tech Innovation Fund',
           tenantId: tenantId,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          milestones: [
+            {
+              id: 'milestone-3',
+              title: 'Application Submitted',
+              description: 'Complete application package submitted',
+              dueDate: new Date('2025-07-20'),
+              status: 'completed',
+              type: 'submission',
+              priority: 'critical',
+              tasks: []
+            }
+          ]
         }
       ];
       return res.json(sampleGrants);

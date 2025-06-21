@@ -140,7 +140,7 @@ export default function Grants() {
                         <CardHeader>
                           <div className="flex items-start justify-between">
                             <div>
-                              <CardTitle className="text-lg">{grant.name}</CardTitle>
+                              <CardTitle className="text-lg">{grant.title || grant.name}</CardTitle>
                               <p className="text-sm text-gray-500">
                                 {grant.amount && formatCurrency(grant.amount)}
                               </p>
@@ -195,10 +195,11 @@ export default function Grants() {
                 {selectedGrant ? (
                   <GrantTimeline grant={{
                     ...selectedGrant,
-                    title: selectedGrant.name,
+                    title: selectedGrant.title || selectedGrant.name || 'Untitled Grant',
                     submissionDeadline: new Date(selectedGrant.submissionDeadline),
                     organization: selectedGrant.organization || 'Unknown Organization',
-                    milestones: selectedGrant.milestones || []
+                    milestones: selectedGrant.milestones || [],
+                    amount: typeof selectedGrant.amount === 'string' ? parseFloat(selectedGrant.amount) : selectedGrant.amount || 0
                   }} />
                 ) : (
                   <Card>
