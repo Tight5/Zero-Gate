@@ -17,7 +17,7 @@ const checkDbConnection = () => {
 // Enhanced sponsor endpoints with stakeholder and topic management
 
 // Get all sponsors with stakeholder and topic counts
-router.get('/sponsors', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const tenantId = (req as any).tenantId;
     
@@ -50,7 +50,7 @@ router.get('/sponsors', async (req, res) => {
 });
 
 // Get sponsor stakeholders with Microsoft 365 integration data
-router.get('/sponsors/:sponsorId/stakeholders', async (req, res) => {
+router.get('/:sponsorId/stakeholders', async (req, res) => {
   try {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -72,7 +72,7 @@ router.get('/sponsors/:sponsorId/stakeholders', async (req, res) => {
 });
 
 // Get sponsor emerging topics from communication analysis
-router.get('/sponsors/:sponsorId/topics', async (req, res) => {
+router.get('/:sponsorId/topics', async (req, res) => {
   try {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -98,7 +98,7 @@ router.get('/sponsors/:sponsorId/topics', async (req, res) => {
 });
 
 // Sync stakeholders from Microsoft 365 integration
-router.post('/sponsors/:sponsorId/sync-stakeholders', async (req, res) => {
+router.post('/:sponsorId/sync-stakeholders', async (req, res) => {
   try {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -173,7 +173,7 @@ router.post('/sponsors/:sponsorId/sync-stakeholders', async (req, res) => {
 });
 
 // Sync emerging topics from communication analysis
-router.post('/sponsors/:sponsorId/sync-topics', async (req, res) => {
+router.post('/:sponsorId/sync-topics', async (req, res) => {
   try {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
@@ -243,7 +243,7 @@ router.post('/sponsors/:sponsorId/sync-topics', async (req, res) => {
 });
 
 // Get sponsor analytics with stakeholder and topic insights
-router.get('/sponsors/:sponsorId/analytics', async (req, res) => {
+router.get('/:sponsorId/analytics', async (req, res) => {
   try {
     const { sponsorId } = req.params;
     const tenantId = (req as any).tenantId;
