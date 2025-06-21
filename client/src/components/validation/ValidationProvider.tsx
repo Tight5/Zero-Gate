@@ -71,7 +71,9 @@ export const ValidationProvider: React.FC<ValidationProviderProps> = ({ children
       return {
         isValid: false,
         message: 'Validation error',
-        type: 'error' as const
+        type: 'error' as const,
+        code: 'VALIDATION_ERROR',
+        suggestions: []
       };
     }
   }, []);
