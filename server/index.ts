@@ -40,10 +40,7 @@ apiRouter.use('/tenant-data-feeds', tenantDataFeedsRouter);
 apiRouter.use('/onedrive-storage', onedriveStorageRouter);
 apiRouter.use('/sponsor-discovery', sponsorDiscoveryRouter);
 
-// Mount the API router with highest priority
-app.use('/api', apiRouter);
-
-// Health endpoint
+// Health endpoint - must be before Vite middleware
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: "ok",
@@ -60,7 +57,10 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// Email switching endpoint for seamless mode switching
+// Mount the API router with highest priority
+app.use('/api', apiRouter);
+
+// Additional API endpoints that must be before Vite middleware
 app.post('/api/auth/switch-email', (req: Request, res: Response) => {
   const { email } = req.body;
   
@@ -79,10 +79,8 @@ app.post('/api/auth/switch-email', (req: Request, res: Response) => {
   });
 });
 
-// Simple auth endpoint for development
 app.get('/api/auth/user', (req: Request, res: Response) => {
   const tenantReq = req as any;
-  // Check for email switching first, then fall back to header, then default
   const requestedEmail = req.headers['x-user-email'] as string;
   const userEmail = requestedEmail || tenantReq.userEmail || 'clint.phillips@thecenter.nasdaq.org';
   
@@ -98,7 +96,6 @@ app.get('/api/auth/user', (req: Request, res: Response) => {
   res.json(user);
 });
 
-// Admin mode switching endpoints
 app.post('/api/auth/enter-admin-mode', (req: Request, res: Response) => {
   const tenantReq = req as any;
   
@@ -128,7 +125,6 @@ app.post('/api/auth/exit-admin-mode', (req: Request, res: Response) => {
   });
 });
 
-// Switch tenant endpoint
 app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
   const { tenantId } = req.body;
   const tenantReq = req as any;
@@ -140,7 +136,6 @@ app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
     });
   }
   
-  // Verify admin can switch to any tenant, regular users need validation
   if (!tenantReq.isAdminMode && tenantReq.userEmail !== 'clint.phillips@thecenter.nasdaq.org') {
     return res.status(403).json({
       error: 'Forbidden',
@@ -156,18 +151,14 @@ app.post('/api/auth/switch-tenant', (req: Request, res: Response) => {
   });
 });
 
-// Remove duplicate routes - handled by apiRouter above
-
-// System resource endpoints
 app.get('/api/system/resources', (req: Request, res: Response) => {
-  const mockResources = {
+  const resources = {
     memory: Math.floor(Math.random() * 20) + 70,
     cpu: Math.floor(Math.random() * 30) + 40,
   };
-  res.json(mockResources);
+  res.json(resources);
 });
 
-// Tenant settings endpoints
 app.get('/api/tenants/:tenantId/settings', (req: Request, res: Response) => {
   res.json({
     theme: 'light',
@@ -181,7 +172,6 @@ app.put('/api/tenants/:tenantId/settings', (req: Request, res: Response) => {
   res.json(settings);
 });
 
-// Simple login/logout for development
 app.get('/api/login', (req: Request, res: Response) => {
   res.redirect('/dashboard');
 });
