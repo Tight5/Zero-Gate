@@ -110,11 +110,13 @@ const Dashboard: React.FC = () => {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className={`grid w-full ${isAdminMode ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="ecosystem">Ecosystem Data</TabsTrigger>
           <TabsTrigger value="integration">Microsoft 365</TabsTrigger>
-          <TabsTrigger value="system">System Health</TabsTrigger>
+          {isAdminMode && (
+            <TabsTrigger value="system">System Health</TabsTrigger>
+          )}
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6">
@@ -376,62 +378,64 @@ const Dashboard: React.FC = () => {
           </Card>
         </TabsContent>
         
-        <TabsContent value="system" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-1">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Health Overview</CardTitle>
-                <CardDescription>
-                  Real-time monitoring of platform components and data pipeline integrity
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <div>
-                      <div className="font-medium">API Endpoints</div>
-                      <div className="text-sm text-muted-foreground">Core application programming interfaces</div>
+        {isAdminMode && (
+          <TabsContent value="system" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Health Overview</CardTitle>
+                  <CardDescription>
+                    Real-time monitoring of platform components and data pipeline integrity
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center p-3 border rounded">
+                      <div>
+                        <div className="font-medium">API Endpoints</div>
+                        <div className="text-sm text-muted-foreground">Core application programming interfaces</div>
+                      </div>
+                      <Badge variant={metrics?.systemHealth.apiStatus === 'healthy' ? 'default' : 'destructive'}>
+                        {metrics?.systemHealth.apiStatus || 'Unknown'}
+                      </Badge>
                     </div>
-                    <Badge variant={metrics?.systemHealth.apiStatus === 'healthy' ? 'default' : 'destructive'}>
-                      {metrics?.systemHealth.apiStatus || 'Unknown'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <div>
-                      <div className="font-medium">Microsoft 365 Integration</div>
-                      <div className="text-sm text-muted-foreground">Organizational data synchronization</div>
+                    
+                    <div className="flex justify-between items-center p-3 border rounded">
+                      <div>
+                        <div className="font-medium">Microsoft 365 Integration</div>
+                        <div className="text-sm text-muted-foreground">Organizational data synchronization</div>
+                      </div>
+                      <Badge variant={metrics?.microsoftIntegration.healthStatus === 'healthy' ? 'default' : 'secondary'}>
+                        {metrics?.microsoftIntegration.healthStatus || 'Unknown'}
+                      </Badge>
                     </div>
-                    <Badge variant={metrics?.microsoftIntegration.healthStatus === 'healthy' ? 'default' : 'secondary'}>
-                      {metrics?.microsoftIntegration.healthStatus || 'Unknown'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <div>
-                      <div className="font-medium">Data Quality</div>
-                      <div className="text-sm text-muted-foreground">Comprehensive validation across sources</div>
+                    
+                    <div className="flex justify-between items-center p-3 border rounded">
+                      <div>
+                        <div className="font-medium">Data Quality</div>
+                        <div className="text-sm text-muted-foreground">Comprehensive validation across sources</div>
+                      </div>
+                      <Badge variant={
+                        (metrics?.systemHealth.dataQuality || 0) >= 90 ? 'default' : 
+                        (metrics?.systemHealth.dataQuality || 0) >= 70 ? 'secondary' : 'destructive'
+                      }>
+                        {metrics?.systemHealth.dataQuality || 0}%
+                      </Badge>
                     </div>
-                    <Badge variant={
-                      (metrics?.systemHealth.dataQuality || 0) >= 90 ? 'default' : 
-                      (metrics?.systemHealth.dataQuality || 0) >= 70 ? 'secondary' : 'destructive'
-                    }>
-                      {metrics?.systemHealth.dataQuality || 0}%
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <div>
-                      <div className="font-medium">Tenant Isolation</div>
-                      <div className="text-sm text-muted-foreground">Multi-tenant security and data segregation</div>
+                    
+                    <div className="flex justify-between items-center p-3 border rounded">
+                      <div>
+                        <div className="font-medium">Tenant Isolation</div>
+                        <div className="text-sm text-muted-foreground">Multi-tenant security and data segregation</div>
+                      </div>
+                      <Badge variant="default">Secured</Badge>
                     </div>
-                    <Badge variant="default">Secured</Badge>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
