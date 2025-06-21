@@ -113,57 +113,59 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Tenant Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building className="h-5 w-5" />
-              Organization Management
-            </CardTitle>
-            <CardDescription>Switch between organizations and manage tenant settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-sm font-medium">Current Organization</Label>
-                <div className="mt-2 p-3 border rounded-lg">
-                  <h4 className="font-semibold">{currentTenant.name}</h4>
-                  <p className="text-sm text-muted-foreground">{currentTenant.domain}</p>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {currentTenant.features.map((feature) => (
-                      <Badge key={feature} variant="secondary" className="text-xs">
-                        {feature}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
-              {availableTenants.length > 1 && (
+        {/* Tenant Management - Admin Only */}
+        {isAdminMode && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building className="h-5 w-5" />
+                Organization Management
+              </CardTitle>
+              <CardDescription>Switch between organizations and manage tenant settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <Label className="text-sm font-medium">Available Organizations</Label>
-                  <div className="mt-2 space-y-2">
-                    {availableTenants
-                      .filter(tenant => tenant.id !== currentTenant?.id)
-                      .map((tenant) => (
-                        <div
-                          key={tenant.id}
-                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 cursor-pointer"
-                          onClick={() => handleSwitchTenant(tenant.id)}
-                        >
-                          <div>
-                            <h5 className="font-medium">{tenant.name}</h5>
-                            <p className="text-sm text-muted-foreground">{tenant.domain}</p>
-                          </div>
-                          <Button variant="ghost" size="sm">Switch</Button>
-                        </div>
+                  <Label className="text-sm font-medium">Current Organization</Label>
+                  <div className="mt-2 p-3 border rounded-lg">
+                    <h4 className="font-semibold">{currentTenant.name}</h4>
+                    <p className="text-sm text-muted-foreground">{currentTenant.domain}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {currentTenant.features.map((feature) => (
+                        <Badge key={feature} variant="secondary" className="text-xs">
+                          {feature}
+                        </Badge>
                       ))}
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                
+                {availableTenants.length > 1 && (
+                  <div>
+                    <Label className="text-sm font-medium">Available Organizations</Label>
+                    <div className="mt-2 space-y-2">
+                      {availableTenants
+                        .filter(tenant => tenant.id !== currentTenant?.id)
+                        .map((tenant) => (
+                          <div
+                            key={tenant.id}
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 cursor-pointer"
+                            onClick={() => handleSwitchTenant(tenant.id)}
+                          >
+                            <div>
+                              <h5 className="font-medium">{tenant.name}</h5>
+                              <p className="text-sm text-muted-foreground">{tenant.domain}</p>
+                            </div>
+                            <Button variant="ghost" size="sm">Switch</Button>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Theme Settings */}
         <Card>
