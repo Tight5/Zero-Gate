@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, Settings, TestTube, Target } from 'lucide-react';
 import AttachedAssetValidationCompliance from '@/components/validation/AttachedAssetValidationCompliance';
 import EnhancedValidationIntegration from '@/components/validation/EnhancedValidationIntegration';
+import AttachedAssetComplianceValidator from '@/components/compliance/AttachedAssetComplianceValidator';
+import MemoryComplianceMonitor from '@/components/performance/MemoryComplianceMonitor';
 
 export const ValidationDashboard: React.FC = () => {
   return (

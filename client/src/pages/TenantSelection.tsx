@@ -33,25 +33,25 @@ const TenantCard: React.FC<TenantCardProps> = ({ tenant, onSelect, isSelected })
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
+  const getStatusBadge = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       active: 'default',
       pending: 'secondary',
       suspended: 'destructive',
       inactive: 'outline'
     };
-    return variants[status as keyof typeof variants] || 'outline';
+    return variants[status] || 'outline';
   };
 
-  const getRoleBadge = (role: string) => {
-    const variants = {
+  const getRoleBadge = (role: string): "default" | "secondary" | "destructive" | "outline" => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       owner: 'default',
       admin: 'secondary',
       manager: 'outline',
       user: 'outline',
       viewer: 'outline'
     };
-    return variants[role as keyof typeof variants] || 'outline';
+    return variants[role] || 'outline';
   };
 
   return (
