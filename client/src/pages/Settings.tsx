@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenant } from '@/contexts/TenantContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -10,6 +11,7 @@ import { Settings as SettingsIcon, User, Building, Palette, Bell, Shield, LogOut
 
 export default function Settings() {
   const { user, isAuthenticated } = useAuth();
+  const { isAdminMode } = useTenant();
   const [theme, setTheme] = useState('system');
   const [notifications, setNotifications] = useState(true);
   
@@ -248,53 +250,55 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Security Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Security & Privacy
-            </CardTitle>
-            <CardDescription>Manage your security preferences and data privacy</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Two-Factor Authentication</Label>
-                <p className="text-sm text-muted-foreground">
-                  Add an extra layer of security to your account
-                </p>
+        {/* Security Settings - Admin Only */}
+        {isAdminMode && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Security & Privacy
+              </CardTitle>
+              <CardDescription>Manage your security preferences and data privacy</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Two-Factor Authentication</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Add an extra layer of security to your account
+                  </p>
+                </div>
+                <Button variant="outline" size="sm">
+                  Configure
+                </Button>
               </div>
-              <Button variant="outline" size="sm">
-                Configure
-              </Button>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Connected Services</Label>
-                <p className="text-sm text-muted-foreground">
-                  Manage connected Microsoft 365 and other integrations
-                </p>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Connected Services</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Manage connected Microsoft 365 and other integrations
+                  </p>
+                </div>
+                <Button variant="outline" size="sm">
+                  Manage
+                </Button>
               </div>
-              <Button variant="outline" size="sm">
-                Manage
-              </Button>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Data Export</Label>
-                <p className="text-sm text-muted-foreground">
-                  Download your data and activity history
-                </p>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Data Export</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Download your data and activity history
+                  </p>
+                </div>
+                <Button variant="outline" size="sm">
+                  Export
+                </Button>
               </div>
-              <Button variant="outline" size="sm">
-                Export
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
