@@ -135,24 +135,24 @@ export const GrantForm: React.FC<GrantFormProps> = ({
       case 1:
         schema = grantFormStepSchemas.basicInfo;
         dataToValidate = {
-          title: watchedValues.title,
-          organization: watchedValues.organization,
-          amount: watchedValues.amount,
-          submissionDeadline: watchedValues.submissionDeadline,
-          category: watchedValues.category,
+          title: watchedValues.title || '',
+          organization: watchedValues.organization || '',
+          amount: watchedValues.amount || 0,
+          submissionDeadline: watchedValues.submissionDeadline || new Date(),
+          category: watchedValues.category || 'technology',
           status: watchedValues.status || 'draft'
         };
         break;
       case 2:
         schema = grantFormStepSchemas.details;
         dataToValidate = {
-          description: watchedValues.description,
-          objectives: watchedValues.objectives?.[0] || '',
-          methodology: watchedValues.methodology,
-          budget: watchedValues.budget,
-          timeline: watchedValues.timeline,
-          teamMembers: watchedValues.teamMembers,
-          requiredDocuments: watchedValues.requiredDocuments
+          description: watchedValues.description || '',
+          objectives: watchedValues.objectives || '',
+          methodology: watchedValues.methodology || '',
+          budget: watchedValues.budget || '',
+          timeline: watchedValues.timeline || '',
+          teamMembers: watchedValues.teamMembers || [],
+          requiredDocuments: watchedValues.requiredDocuments || []
         };
         break;
       case 3:
@@ -164,8 +164,8 @@ export const GrantForm: React.FC<GrantFormProps> = ({
       case 4:
         schema = grantFormStepSchemas.review;
         dataToValidate = {
-          termsAccepted: watchedValues.termsAccepted,
-          dataAccuracy: watchedValues.dataAccuracy
+          termsAccepted: watchedValues.termsAccepted || false,
+          dataAccuracy: watchedValues.dataAccuracy || false
         };
         break;
       default:
@@ -202,15 +202,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({
     onSubmit(data);
   };
 
-  const addObjective = () => {
-    const objectives = form.getValues('objectives') || [];
-    form.setValue('objectives', [...objectives, '']);
-  };
 
-  const removeObjective = (index: number) => {
-    const objectives = form.getValues('objectives') || [];
-    form.setValue('objectives', objectives.filter((_, i) => i !== index));
-  };
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -450,46 +442,26 @@ export const GrantForm: React.FC<GrantFormProps> = ({
                   )}
                 />
 
-                <div>
-                  <FormLabel>Project Objectives</FormLabel>
-                  <FormDescription className="mb-3">
-                    Add specific, measurable objectives for your project
-                  </FormDescription>
-                  {(form.getValues('objectives') || []).map((_, index) => (
-                    <div key={index} className="flex items-center space-x-2 mb-2">
-                      <FormField
-                        control={form.control}
-                        name={`objectives.${index}`}
-                        render={({ field }) => (
-                          <FormItem className="flex-1">
-                            <FormControl>
-                              <Input placeholder={`Objective ${index + 1}`} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeObjective(index)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addObjective}
-                    className="mt-2"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Objective
-                  </Button>
-                </div>
+                <FormField
+                  control={form.control}
+                  name="objectives"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Objectives</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="List your project objectives..."
+                          className="min-h-24"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        List specific, measurable objectives for your project
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
